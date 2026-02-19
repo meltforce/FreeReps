@@ -33,6 +33,25 @@ _(none)_
 ### Pending
 - [ ] Integration test with real TimescaleDB + sample .hae files
 
+## Phase 2 Progress — Visualization
+
+### Completed
+- [x] Step 1: Navigation + routing (react-router-dom) + API types
+- [x] Step 2: Sleep view (hypnogram, metric cards, history chart)
+- [x] Step 3: Workout view (list, detail, HR timeline, HR zones, route map)
+- [x] Step 4: Metrics deep dive (stats endpoint, moving average, normal range band)
+- [x] Step 5: Correlation explorer (scatter, overlay, saved views, Pearson r)
+- [x] Step 6: Polish (error boundaries, code splitting, loading skeletons)
+
+### Backend Changes
+- `GET /api/v1/metrics/stats` — avg/min/max/stddev/count for a metric
+- `GET /api/v1/correlation?x=&y=` — time-bucketed metric pair with Pearson r
+- `GET /api/v1/workouts?type=` — optional type filter
+
+### Frontend Dependencies Added
+- `react-router-dom` — SPA routing
+- `leaflet` + `react-leaflet` + `@types/leaflet` — workout route maps
+
 ### Known Bugs
 _(none yet — needs integration testing with real TimescaleDB)_
 
