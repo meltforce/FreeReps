@@ -125,6 +125,27 @@ func (s *Server) handleGetWorkout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, detail)
 }
 
+func (s *Server) handleMetricStats(w http.ResponseWriter, r *http.Request) {
+	metric := r.URL.Query().Get("metric")
+	if metric == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "metric parameter required"})
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	stats, err := s.db.GetMetricStats(r.Context(), metric, start, end, 1)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
 func (s *Server) handleTimeSeries(w http.ResponseWriter, r *http.Request) {
 	metric := r.URL.Query().Get("metric")
 	if metric == "" {

@@ -112,6 +112,35 @@ type TimeSeriesPoint struct {
 	Count int64     `json:"count"`
 }
 
+// MetricStats holds aggregate statistics for a single metric over a time range.
+type MetricStats struct {
+	Metric string   `json:"metric"`
+	Avg    *float64 `json:"avg"`
+	Min    *float64 `json:"min"`
+	Max    *float64 `json:"max"`
+	StdDev *float64 `json:"stddev"`
+	Count  int64    `json:"count"`
+}
+
+// GetMetricStats returns aggregate statistics for a metric over a time range.
+func (db *DB) GetMetricStats(ctx context.Context, metricName string, start, end time.Time, userID int) (*MetricStats, error) {
+	row := db.Pool.QueryRow(ctx,
+		`SELECT AVG(COALESCE(qty, avg_val)),
+		        MIN(COALESCE(qty, min_val)),
+		        MAX(COALESCE(qty, max_val)),
+		        STDDEV_POP(COALESCE(qty, avg_val)),
+		        COUNT(*)
+		 FROM health_metrics
+		 WHERE metric_name = $1 AND time >= $2 AND time < $3 AND user_id = $4`,
+		metricName, start, end, userID)
+
+	stats := &MetricStats{Metric: metricName}
+	if err := row.Scan(&stats.Avg, &stats.Min, &stats.Max, &stats.StdDev, &stats.Count); err != nil {
+		return nil, fmt.Errorf("querying metric stats: %w", err)
+	}
+	return stats, nil
+}
+
 func scanHealthMetricRows(rows pgx.Rows) ([]models.HealthMetricRow, error) {
 	var result []models.HealthMetricRow
 	for rows.Next() {
