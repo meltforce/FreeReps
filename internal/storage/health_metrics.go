@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -139,6 +140,89 @@ func (db *DB) GetMetricStats(ctx context.Context, metricName string, start, end 
 		return nil, fmt.Errorf("querying metric stats: %w", err)
 	}
 	return stats, nil
+}
+
+// CorrelationPoint is a time-aligned pair of metric values.
+type CorrelationPoint struct {
+	Time time.Time `json:"time"`
+	X    *float64  `json:"x"`
+	Y    *float64  `json:"y"`
+}
+
+// CorrelationResult holds paired data and a Pearson correlation coefficient.
+type CorrelationResult struct {
+	Points   []CorrelationPoint `json:"points"`
+	PearsonR *float64           `json:"pearson_r"`
+	Count    int64              `json:"count"`
+}
+
+// GetCorrelation joins two metrics on time buckets and computes their Pearson correlation.
+func (db *DB) GetCorrelation(ctx context.Context, xMetric, yMetric string, start, end time.Time, bucket string, userID int) (*CorrelationResult, error) {
+	rows, err := db.Pool.Query(ctx,
+		`WITH x AS (
+			SELECT time_bucket($1::interval, time) AS bucket,
+			       AVG(COALESCE(qty, avg_val)) AS val
+			FROM health_metrics
+			WHERE metric_name = $2 AND time >= $4 AND time < $5 AND user_id = $6
+			GROUP BY bucket
+		), y AS (
+			SELECT time_bucket($1::interval, time) AS bucket,
+			       AVG(COALESCE(qty, avg_val)) AS val
+			FROM health_metrics
+			WHERE metric_name = $3 AND time >= $4 AND time < $5 AND user_id = $6
+			GROUP BY bucket
+		)
+		SELECT x.bucket, x.val, y.val
+		FROM x JOIN y ON x.bucket = y.bucket
+		ORDER BY x.bucket ASC`,
+		bucket, xMetric, yMetric, start, end, userID)
+	if err != nil {
+		return nil, fmt.Errorf("querying correlation: %w", err)
+	}
+	defer rows.Close()
+
+	var points []CorrelationPoint
+	for rows.Next() {
+		var p CorrelationPoint
+		if err := rows.Scan(&p.Time, &p.X, &p.Y); err != nil {
+			return nil, fmt.Errorf("scanning correlation point: %w", err)
+		}
+		points = append(points, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	result := &CorrelationResult{
+		Points: points,
+		Count:  int64(len(points)),
+	}
+
+	// Compute Pearson R
+	if len(points) >= 3 {
+		var sumX, sumY, sumXY, sumX2, sumY2 float64
+		var n float64
+		for _, p := range points {
+			if p.X != nil && p.Y != nil {
+				x, y := *p.X, *p.Y
+				sumX += x
+				sumY += y
+				sumXY += x * y
+				sumX2 += x * x
+				sumY2 += y * y
+				n++
+			}
+		}
+		if n >= 3 {
+			denom := (n*sumX2 - sumX*sumX) * (n*sumY2 - sumY*sumY)
+			if denom > 0 {
+				r := (n*sumXY - sumX*sumY) / math.Sqrt(denom)
+				result.PearsonR = &r
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func scanHealthMetricRows(rows pgx.Rows) ([]models.HealthMetricRow, error) {

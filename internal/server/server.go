@@ -59,6 +59,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/workouts/{id}", s.handleGetWorkout)
 	s.router.Get("/api/v1/metrics/stats", s.handleMetricStats)
 	s.router.Get("/api/v1/timeseries", s.handleTimeSeries)
+	s.router.Get("/api/v1/correlation", s.handleCorrelation)
 	s.router.Get("/api/v1/allowlist", s.handleAllowlist)
 }
 

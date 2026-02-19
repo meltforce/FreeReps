@@ -178,6 +178,33 @@ func (s *Server) handleTimeSeries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, points)
 }
 
+func (s *Server) handleCorrelation(w http.ResponseWriter, r *http.Request) {
+	xMetric := r.URL.Query().Get("x")
+	yMetric := r.URL.Query().Get("y")
+	if xMetric == "" || yMetric == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "x and y metric parameters required"})
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	bucket := r.URL.Query().Get("bucket")
+	if bucket == "" {
+		bucket = "1 day"
+	}
+
+	result, err := s.db.GetCorrelation(r.Context(), xMetric, yMetric, start, end, bucket, 1)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {
 	metrics, err := s.db.GetAllowedMetrics(r.Context())
 	if err != nil {
