@@ -1,0 +1,14 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "freereps"
+  user: "freereps"
+  password: "freereps"
+  sslmode: "disable"
+
+auth:
+  api_key: "change-me-to-a-secure-random-string"

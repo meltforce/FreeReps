@@ -1,0 +1,36 @@
+# Binaries (root only, not cmd/freereps/ dir)
+/freereps
+*.exe
+
+# Go
+vendor/
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata/
+
+# Config (may contain secrets)
+config.yaml
+
+# Tailscale state
+tsnet-*/
+
+# Input data (user health exports — not committed)
+input/
+
+# Test coverage
+coverage.out
+coverage.html
