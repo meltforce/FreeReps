@@ -34,3 +34,4 @@ input/
 # Test coverage
 coverage.out
 coverage.html
+web/tsconfig.tsbuildinfo
