@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"log/slog"
 	"net/http"
 
@@ -58,4 +59,23 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/workouts/{id}", s.handleGetWorkout)
 	s.router.Get("/api/v1/timeseries", s.handleTimeSeries)
 	s.router.Get("/api/v1/allowlist", s.handleAllowlist)
+}
+
+// SetFrontend mounts the embedded SPA filesystem.
+// Unmatched routes serve index.html for client-side routing.
+func (s *Server) SetFrontend(webFS fs.FS) {
+	fileServer := http.FileServerFS(webFS)
+
+	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the exact file first
+		f, err := webFS.Open(r.URL.Path[1:]) // strip leading /
+		if err == nil {
+			f.Close()
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// Fallback to index.html for SPA routing
+		r.URL.Path = "/"
+		fileServer.ServeHTTP(w, r)
+	})
 }
