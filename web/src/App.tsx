@@ -1,76 +1,23 @@
+import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-import DailyOverview from "./components/DailyOverview";
-import TimeSeriesChart from "./components/TimeSeriesChart";
-import MetricSelector from "./components/MetricSelector";
-import TimeRangeSelector from "./components/TimeRangeSelector";
-import { useState } from "react";
-
-const METRIC_OPTIONS = [
-  { value: "heart_rate", label: "Heart Rate", unit: "bpm" },
-  { value: "resting_heart_rate", label: "Resting HR", unit: "bpm" },
-  { value: "heart_rate_variability", label: "HRV", unit: "ms" },
-  { value: "blood_oxygen_saturation", label: "SpO2", unit: "%" },
-  { value: "respiratory_rate", label: "Resp. Rate", unit: "brpm" },
-  { value: "vo2_max", label: "VO2 Max", unit: "mL/kg/min" },
-  { value: "weight_body_mass", label: "Weight", unit: "kg" },
-  { value: "body_fat_percentage", label: "Body Fat", unit: "%" },
-  { value: "active_energy", label: "Active Energy", unit: "kcal" },
-  { value: "basal_energy_burned", label: "Basal Energy", unit: "kcal" },
-  { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
-];
-
-type TimeRange = "7d" | "30d" | "90d" | "1y";
-
-function daysFromRange(range_: TimeRange): number {
-  switch (range_) {
-    case "7d":
-      return 7;
-    case "30d":
-      return 30;
-    case "90d":
-      return 90;
-    case "1y":
-      return 365;
-  }
-}
+import DashboardPage from "./pages/DashboardPage";
+import SleepPage from "./pages/SleepPage";
+import WorkoutsPage from "./pages/WorkoutsPage";
+import WorkoutDetailPage from "./pages/WorkoutDetailPage";
+import MetricsPage from "./pages/MetricsPage";
+import CorrelationPage from "./pages/CorrelationPage";
 
 export default function App() {
-  const [metric, setMetric] = useState("heart_rate");
-  const [timeRange, setTimeRange] = useState<TimeRange>("30d");
-
-  const end = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - daysFromRange(timeRange) * 86400000)
-    .toISOString()
-    .split("T")[0];
-
-  const selected = METRIC_OPTIONS.find((m) => m.value === metric);
-
   return (
     <Layout>
-      <DailyOverview />
-
-      <div className="mt-8">
-        <div className="flex flex-wrap items-center gap-4 mb-4">
-          <MetricSelector
-            options={METRIC_OPTIONS}
-            value={metric}
-            onChange={setMetric}
-          />
-          <TimeRangeSelector
-            value={timeRange}
-            onChange={(v) => setTimeRange(v as TimeRange)}
-            options={["7d", "30d", "90d", "1y"]}
-          />
-        </div>
-
-        <TimeSeriesChart
-          metric={metric}
-          start={start}
-          end={end}
-          label={selected?.label ?? metric}
-          unit={selected?.unit ?? ""}
-        />
-      </div>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/sleep" element={<SleepPage />} />
+        <Route path="/workouts" element={<WorkoutsPage />} />
+        <Route path="/workouts/:id" element={<WorkoutDetailPage />} />
+        <Route path="/metrics" element={<MetricsPage />} />
+        <Route path="/correlations" element={<CorrelationPage />} />
+      </Routes>
     </Layout>
   );
 }
