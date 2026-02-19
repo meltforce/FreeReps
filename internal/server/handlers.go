@@ -100,7 +100,8 @@ func (s *Server) handleQueryWorkouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workouts, err := s.db.QueryWorkouts(r.Context(), start, end, 1)
+	nameFilter := r.URL.Query().Get("type")
+	workouts, err := s.db.QueryWorkouts(r.Context(), start, end, 1, nameFilter)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

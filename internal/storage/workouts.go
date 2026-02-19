@@ -94,17 +94,21 @@ type WorkoutDetail struct {
 	RouteData     []models.WorkoutRouteRow
 }
 
-// QueryWorkouts retrieves workouts in a time range.
-func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID int) ([]models.WorkoutRow, error) {
-	rows, err := db.Pool.Query(ctx,
-		`SELECT id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
+// QueryWorkouts retrieves workouts in a time range, optionally filtered by type name.
+func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID int, nameFilter string) ([]models.WorkoutRow, error) {
+	query := `SELECT id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
 		 active_energy_burned, active_energy_units, total_energy, total_energy_units,
 		 distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
 		 elevation_up, elevation_down, raw_json
 		 FROM workouts
-		 WHERE start_time >= $1 AND start_time < $2 AND user_id = $3
-		 ORDER BY start_time DESC`,
-		start, end, userID)
+		 WHERE start_time >= $1 AND start_time < $2 AND user_id = $3`
+	args := []any{start, end, userID}
+	if nameFilter != "" {
+		query += ` AND name = $4`
+		args = append(args, nameFilter)
+	}
+	query += ` ORDER BY start_time DESC`
+	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying workouts: %w", err)
 	}
