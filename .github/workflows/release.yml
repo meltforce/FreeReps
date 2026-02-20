@@ -34,19 +34,58 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build freereps-upload
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build \
+            -ldflags "-X main.Version=${GITHUB_REF_NAME}" \
+            -o freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/freereps-upload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }}
+
   release:
-    needs: [docker]
+    needs: [docker, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
       - uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
+          files: |
+            artifacts/freereps-upload-*
           body: |
-            ## Setup
+            ## Server Setup
 
             **Fresh install:**
 
@@ -54,7 +93,7 @@ jobs:
             git clone https://github.com/meltforce/FreeReps.git
             cd FreeReps
             cp config.example.yaml config.yaml
-            # Edit config.yaml — set database password and API key
+            # Edit config.yaml — set database password, enable Tailscale
             docker compose up -d
             ```
 
@@ -64,3 +103,15 @@ jobs:
             docker compose pull
             docker compose up -d
             ```
+
+            ## Upload Tool (macOS)
+
+            **One-liner install:**
+
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/scripts/install-upload.sh | bash
+            ```
+
+            **Or download manually** from the assets below and place in `/usr/local/bin/`.
+
+            Requires `lzfse`: `brew install lzfse`

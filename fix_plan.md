@@ -5,7 +5,8 @@
 | Phase | Status |
 |-------|--------|
 | Phase 1 — Data Foundation | Complete |
-| Phase 1.5 — CLI File Import | Complete |
+| Phase 1.5 — CLI File Import (server-side) | Complete |
+| Phase 1.6 — Client-Side Upload Tool | Complete |
 | Phase 2 — Visualization | Complete |
 | Phase 3 — Tailscale tsnet + User Management | Complete |
 | Phase 4 — MCP Integration | Complete |
@@ -32,6 +33,20 @@
 - [x] Workout HR correlation
 - [x] CLI entry point (`freereps-import`)
 - [x] Tests (parser, importer)
+
+## Phase 1.6 — Client-Side Upload Tool (Complete)
+
+- [x] SQLite state DB for tracking uploaded files (`internal/upload/state.go`)
+- [x] .hae → REST API conversion (`internal/upload/convert.go`)
+- [x] HTTP client with retry (`internal/upload/client.go`)
+- [x] Upload pipeline orchestration (`internal/upload/upload.go`)
+- [x] CLI entry point (`cmd/freereps-upload/main.go`)
+- [x] Tests for conversions + HR correlation (`internal/upload/convert_test.go`)
+- [x] Pure Go SQLite (`modernc.org/sqlite`) — no CGO, cross-compiles for macOS
+- [x] macOS cross-compilation verified (darwin/arm64 + darwin/amd64)
+- [x] README.md + MIT LICENSE
+- [x] Install/update/uninstall script (`scripts/install-upload.sh`)
+- [x] Release workflow updated with binary build matrix
 
 ## Phase 2 — Visualization (Complete)
 
@@ -93,7 +108,8 @@
 - [x] GitHub repo (private): `meltforce/FreeReps`
 - [x] CI: test.yml (Go build/test/lint + frontend typecheck/build)
 - [x] CD: deploy.yml (Docker Hub edge + Tailscale SSH deploy)
-- [x] Release: release.yml (CalVer tags, Docker Hub latest + versioned)
+- [x] Release: release.yml (CalVer tags, Docker Hub latest + versioned, macOS binaries)
+- [x] Open source prep: README.md, MIT LICENSE, install script
 - [ ] Docker Hub repo: `meltforce/freereps`
 - [ ] Tailscale OAuth secrets for CI deploy
 - [ ] Production server setup
@@ -110,3 +126,6 @@
 - tsnet requires Go 1.25+ (tailscale.com v1.94.2)
 - tsnet enabled by default; set `tailscale.enabled: false` for local dev
 - TS_AUTHKEY env var used for initial Tailscale node registration (tsnet reads it automatically)
+- `freereps-upload` uses `modernc.org/sqlite` (pure Go) — no CGO required for cross-compilation
+- Upload tool state DB at `~/.freereps-upload/state.db` — tracks files by path + size + SHA-256
+- Upload tool does NOT depend on `internal/storage` or `pgx` — only `internal/models` + stdlib
