@@ -20,12 +20,16 @@ import (
 	"github.com/claude/freereps/internal/storage"
 )
 
+// Version is set at build time via -ldflags.
+var Version = "dev"
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	migrateOnly := flag.Bool("migrate-only", false, "run migrations and exit")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log.Info("FreeReps starting", "version", Version)
 
 	// Load config
 	cfg, err := config.Load(*configPath)
