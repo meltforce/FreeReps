@@ -441,8 +441,16 @@ func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chu
 	hae := NewHAEClient(haeHost, haePort)
 	chunkDur := time.Duration(chunkDays) * 24 * time.Hour
 
+	// Count total chunks for progress display
+	numChunks := 0
+	for cs := start; cs.Before(end); cs = cs.Add(chunkDur) {
+		numChunks++
+	}
+	totalSteps := len(tcpMetrics)*numChunks + numChunks // metrics + workouts
+	currentStep := 0
+
 	// Phase 1: Health metrics — query each metric individually
-	u.log.Info("querying health metrics", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "chunk_days", chunkDays, "metrics", len(tcpMetrics))
+	u.log.Info("querying health metrics", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "chunk_days", chunkDays, "metrics", len(tcpMetrics), "total_requests", totalSteps)
 
 	for _, m := range tcpMetrics {
 		for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
@@ -450,13 +458,12 @@ func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chu
 			if chunkEnd.After(end) {
 				chunkEnd = end
 			}
+			currentStep++
 
-			u.log.Info("fetching metric",
-				"metric", m.Name,
-				"aggregate", m.Aggregate,
-				"from", chunkStart.Format("2006-01-02"),
-				"to", chunkEnd.Format("2006-01-02"),
-			)
+			fmt.Fprintf(os.Stderr, "\r[%d/%d] %s %s → %s    ",
+				currentStep, totalSteps, m.Name,
+				chunkStart.Format("2006-01-02"), chunkEnd.Format("2006-01-02"))
+
 
 			result, err := hae.QueryMetricsWithRetry(chunkStart, chunkEnd, m.Name, m.Aggregate, u.log)
 			if err != nil {
@@ -488,18 +495,18 @@ func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chu
 	}
 
 	// Phase 2: Workouts
-	u.log.Info("querying workouts", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"))
-
 	for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
 		chunkEnd := chunkStart.Add(chunkDur)
 		if chunkEnd.After(end) {
 			chunkEnd = end
 		}
 
-		u.log.Info("fetching workouts",
-			"from", chunkStart.Format("2006-01-02"),
-			"to", chunkEnd.Format("2006-01-02"),
-		)
+		currentStep++
+
+		fmt.Fprintf(os.Stderr, "\r[%d/%d] workouts %s → %s    ",
+			currentStep, totalSteps,
+			chunkStart.Format("2006-01-02"), chunkEnd.Format("2006-01-02"))
+
 
 		result, err := hae.QueryWorkoutsWithRetry(chunkStart, chunkEnd, u.log)
 		if err != nil {
@@ -527,6 +534,8 @@ func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chu
 		u.stats.TCPWorkoutChunks++
 		u.stats.TCPBytesSent += int64(len(result))
 	}
+
+	fmt.Fprintln(os.Stderr)
 
 	// Update sync state
 	if !u.dryRun {

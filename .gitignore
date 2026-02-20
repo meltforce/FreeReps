@@ -1,5 +1,7 @@
-# Binaries (root only, not cmd/freereps/ dir)
+# Binaries (root only, not cmd/ source dirs)
 /freereps
+/freereps-upload
+/freereps-import
 *.exe
 
 # Go

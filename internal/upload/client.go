@@ -61,6 +61,38 @@ func (c *Client) FetchAllowlist() (map[string]bool, error) {
 	return allowlist, nil
 }
 
+// SendRawJSON POSTs raw JSON bytes to the ingest endpoint.
+// This avoids marshal/unmarshal round-trips when forwarding JSON-RPC results
+// that are already in the correct format.
+func (c *Client) SendRawJSON(data []byte) error {
+	var lastErr error
+	for attempt := range 3 {
+		if attempt > 0 {
+			time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second)
+		}
+
+		resp, err := c.httpClient.Post(
+			c.serverURL+"/api/v1/ingest/",
+			"application/json",
+			bytes.NewReader(data),
+		)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		}
+		lastErr = fmt.Errorf("ingest failed (status %d): %s", resp.StatusCode, body)
+	}
+
+	return fmt.Errorf("after 3 attempts: %w", lastErr)
+}
+
 // SendPayload POSTs an HAEPayload to the server's ingest endpoint.
 // Retries up to 3 times with exponential backoff on failure.
 func (c *Client) SendPayload(payload models.HAEPayload) error {

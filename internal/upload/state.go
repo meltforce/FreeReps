@@ -40,6 +40,15 @@ func OpenStateDB(dir string) (*StateDB, error) {
 		return nil, fmt.Errorf("creating state table: %w", err)
 	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS sync_state (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	)`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("creating sync_state table: %w", err)
+	}
+
 	return &StateDB{db: db}, nil
 }
 
@@ -61,6 +70,25 @@ func (s *StateDB) MarkUploaded(relPath string, size int64, hash string) error {
 	_, err := s.db.Exec(
 		`INSERT OR REPLACE INTO uploaded_files (path, size, hash) VALUES (?, ?, ?)`,
 		relPath, size, hash,
+	)
+	return err
+}
+
+// GetSyncState returns the value for a sync state key, or empty string if not found.
+func (s *StateDB) GetSyncState(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM sync_state WHERE key = ?`, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetSyncState stores a sync state key-value pair.
+func (s *StateDB) SetSyncState(key, value string) error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)`,
+		key, value,
 	)
 	return err
 }
