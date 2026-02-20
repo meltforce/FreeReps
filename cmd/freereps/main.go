@@ -105,12 +105,12 @@ func main() {
 		}
 		srv.SetTailscale(lc)
 
-		listener, err = tsServer.Listen("tcp", ":80")
+		listener, err = tsServer.ListenTLS("tcp", ":443")
 		if err != nil {
 			log.Error("tsnet listen failed", "error", err)
 			os.Exit(1)
 		}
-		log.Info("tsnet server starting", "hostname", cfg.Tailscale.Hostname)
+		log.Info("tsnet server starting", "hostname", cfg.Tailscale.Hostname, "tls", true)
 	} else {
 		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 		listener, err = net.Listen("tcp", addr)
