@@ -5,10 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -32,17 +28,3 @@ jobs:
             VERSION=edge-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:ci
-
-      - name: Deploy
-        run: |
-          ssh -o StrictHostKeyChecking=no root@freereps \
-            "docker pull meltforce/freereps:edge && \
-             docker tag meltforce/freereps:edge meltforce/freereps:latest && \
-             cd /opt/freereps && docker compose up -d freereps"
