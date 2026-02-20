@@ -33,7 +33,12 @@ func main() {
 	mcpMode := flag.Bool("mcp", false, "run as MCP server over stdio (for Claude Code integration)")
 	flag.Parse()
 
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// In MCP stdio mode, logs go to stderr to keep stdout clean for JSON-RPC.
+	logOutput := os.Stdout
+	if *mcpMode {
+		logOutput = os.Stderr
+	}
+	log := slog.New(slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	log.Info("FreeReps starting", "version", Version)
 
 	// Load config
