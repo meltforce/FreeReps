@@ -10,6 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	info := userInfoFromContext(r)
+	writeJSON(w, http.StatusOK, info)
+}
+
 func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 	var payload models.HAEPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {

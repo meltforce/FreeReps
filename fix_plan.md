@@ -8,7 +8,7 @@
 | Phase 1.5 — CLI File Import | Complete |
 | Phase 2 — Visualization | Complete |
 | Phase 3 — Tailscale tsnet + User Management | Complete |
-| Phase 4 — MCP Integration | Not started |
+| Phase 4 — MCP Integration | Complete |
 | Phase 5 — Polish | Not started |
 
 ## Phase 1 — Data Foundation (Complete)
@@ -61,21 +61,25 @@
 - [x] Update tests (config, middleware, shapes)
 - [x] Go 1.25 upgrade (required by tsnet)
 
-## Phase 4 — MCP Integration (Next)
+## Phase 4 — MCP Integration (Complete)
 
-- [ ] Add `mark3labs/mcp-go` dependency
-- [ ] MCP server setup (stdio + SSE transport)
-- [ ] Tool: `get_health_metrics` — retrieve metrics for time range
-- [ ] Tool: `get_workouts` — query workouts with filters
-- [ ] Tool: `get_sleep_data` — sleep data with stages
-- [ ] Tool: `get_metric_stats` — avg/min/max/stddev/trend
-- [ ] Tool: `get_correlation` — Pearson r between two metrics
-- [ ] Tool: `compare_periods` — compare two time ranges
-- [ ] Tool: `list_available_metrics` — available metrics + data range
-- [ ] Tool: `query_raw` — flexible query with filters
-- [ ] Resource: `daily_summary`
-- [ ] Resource: `recent_workouts`
-- [ ] Resource: `metric_catalog`
+- [x] Add `mark3labs/mcp-go` dependency (v0.44.0)
+- [x] MCP server setup (stdio + SSE transport)
+- [x] User identity context (`/api/v1/me` endpoint + frontend display)
+- [x] Tool: `get_health_metrics` — retrieve time-bucketed metrics
+- [x] Tool: `get_workouts` — query workouts with type filter
+- [x] Tool: `get_sleep_data` — sleep sessions + stages
+- [x] Tool: `get_metric_stats` — avg/min/max/stddev/count
+- [x] Tool: `get_correlation` — Pearson r between two metrics
+- [x] Tool: `compare_periods` — compare two time ranges
+- [x] Tool: `list_available_metrics` — metric catalog
+- [x] Tool: `get_workout_sets` — Alpha Progression set data
+- [x] Resource: `daily_summary`
+- [x] Resource: `recent_workouts`
+- [x] Resource: `metric_catalog`
+- [x] SSE transport mounted at `/mcp` (gets Tailscale auth for free)
+- [x] stdio transport via `--mcp` flag (defaults to user_id=1)
+- [x] Tests for MCP context helpers, handleMe, middleware
 
 ## Phase 5 — Polish
 

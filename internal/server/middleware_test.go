@@ -50,6 +50,52 @@ func TestUserIDFromContextSet(t *testing.T) {
 	}
 }
 
+// TestUserInfoFromContextDefault verifies the fallback UserInfo when no
+// identity middleware has set a value.
+func TestUserInfoFromContextDefault(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	info := userInfoFromContext(req)
+	if info.Login != "local" {
+		t.Errorf("login = %q, want %q", info.Login, "local")
+	}
+	if info.DisplayName != "Local Dev User" {
+		t.Errorf("displayName = %q, want %q", info.DisplayName, "Local Dev User")
+	}
+}
+
+// TestUserInfoFromContextSet verifies UserInfo is extracted from context when set.
+func TestUserInfoFromContextSet(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := context.WithValue(req.Context(), userInfoKey, UserInfo{Login: "alice@example.com", DisplayName: "Alice"})
+	req = req.WithContext(ctx)
+
+	info := userInfoFromContext(req)
+	if info.Login != "alice@example.com" {
+		t.Errorf("login = %q, want %q", info.Login, "alice@example.com")
+	}
+	if info.DisplayName != "Alice" {
+		t.Errorf("displayName = %q, want %q", info.DisplayName, "Alice")
+	}
+}
+
+// TestDevIdentityUserInfo verifies that DevIdentity middleware stores UserInfo
+// alongside the user ID.
+func TestDevIdentityUserInfo(t *testing.T) {
+	var gotInfo UserInfo
+	handler := DevIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotInfo = userInfoFromContext(r)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if gotInfo.Login != "local" {
+		t.Errorf("login = %q, want %q", gotInfo.Login, "local")
+	}
+}
+
 // TestRequestLogging verifies that the logging middleware calls the next handler and records status.
 func TestRequestLogging(t *testing.T) {
 	log := slog.Default()

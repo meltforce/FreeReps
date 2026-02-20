@@ -1,5 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { fetchMe, type UserInfo } from "../api";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
@@ -10,6 +11,12 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UserInfo | null>(null);
+
+  useEffect(() => {
+    fetchMe().then(setUser).catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-zinc-950">
       <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur sticky top-0 z-10">
@@ -39,6 +46,12 @@ export default function Layout({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
+
+          {user && (
+            <span className="ml-auto text-xs text-zinc-500 shrink-0">
+              {user.display_name || user.login}
+            </span>
+          )}
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>

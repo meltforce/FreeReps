@@ -12,7 +12,16 @@ import (
 
 type contextKey int
 
-const userIDKey contextKey = iota
+const (
+	userIDKey   contextKey = iota
+	userInfoKey            // stores UserInfo alongside userID
+)
+
+// UserInfo holds the authenticated user's identity details.
+type UserInfo struct {
+	Login       string `json:"login"`
+	DisplayName string `json:"display_name"`
+}
 
 // userIDFromContext returns the authenticated user's ID from the request context.
 // Returns 1 (local dev user) if no identity middleware is active.
@@ -21,6 +30,14 @@ func userIDFromContext(r *http.Request) int {
 		return id
 	}
 	return 1
+}
+
+// userInfoFromContext returns the authenticated user's identity from the request context.
+func userInfoFromContext(r *http.Request) UserInfo {
+	if info, ok := r.Context().Value(userInfoKey).(UserInfo); ok {
+		return info
+	}
+	return UserInfo{Login: "local", DisplayName: "Local Dev User"}
 }
 
 // TailscaleIdentity returns middleware that resolves the Tailscale user identity
@@ -67,6 +84,7 @@ func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(
 			)
 
 			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			ctx = context.WithValue(ctx, userInfoKey, UserInfo{Login: login, DisplayName: displayName})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -77,6 +95,7 @@ func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(
 func DevIdentity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userIDKey, 1)
+		ctx = context.WithValue(ctx, userInfoKey, UserInfo{Login: "local", DisplayName: "Local Dev User"})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -1,5 +1,18 @@
 const BASE = "/api/v1";
 
+// --- User Identity ---
+
+export interface UserInfo {
+  login: string;
+  display_name: string;
+}
+
+export async function fetchMe(): Promise<UserInfo> {
+  const res = await fetch(`${BASE}/me`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
 // --- Health Metrics ---
 
 export interface HealthMetricRow {

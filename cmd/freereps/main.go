@@ -17,8 +17,10 @@ import (
 	"github.com/claude/freereps/internal/config"
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/hae"
+	freerepsmcp "github.com/claude/freereps/internal/mcp"
 	"github.com/claude/freereps/internal/server"
 	"github.com/claude/freereps/internal/storage"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"tailscale.com/tsnet"
 )
 
@@ -28,6 +30,7 @@ var Version = "dev"
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	migrateOnly := flag.Bool("migrate-only", false, "run migrations and exit")
+	mcpMode := flag.Bool("mcp", false, "run as MCP server over stdio (for Claude Code integration)")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -68,12 +71,31 @@ func main() {
 		log.Warn("sleep session backfill failed", "error", err)
 	}
 
+	// MCP stdio mode: serve MCP protocol over stdin/stdout, then exit
+	if *mcpMode {
+		log.Info("starting MCP stdio server")
+		mcpSrv := freerepsmcp.New(db, Version, log)
+		if err := mcpserver.ServeStdio(mcpSrv,
+			mcpserver.WithStdioContextFunc(func(ctx context.Context) context.Context {
+				return freerepsmcp.WithUserID(ctx, 1)
+			}),
+		); err != nil {
+			log.Error("MCP stdio server error", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// Create providers
 	haeProvider := hae.NewProvider(db, log)
 	alphaProvider := alpha.NewProvider(db, log)
 
 	// Create server
 	srv := server.New(db, haeProvider, alphaProvider, log)
+
+	// Mount MCP SSE server
+	mcpSrv := freerepsmcp.New(db, Version, log)
+	srv.SetMCP(mcpSrv)
 
 	// Serve embedded frontend
 	webDist, err := fs.Sub(freereps.WebFS, "web/dist")

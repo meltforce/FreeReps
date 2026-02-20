@@ -1,14 +1,17 @@
 package server
 
 import (
+	"context"
 	"io/fs"
 	"log/slog"
 	"net/http"
 
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/hae"
+	freerepsmcp "github.com/claude/freereps/internal/mcp"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/go-chi/chi/v5"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"tailscale.com/client/local"
 )
 
@@ -43,6 +46,23 @@ func (s *Server) SetTailscale(lc *local.Client) {
 	s.lc = lc
 }
 
+// SetMCP mounts an MCP SSE server at /mcp/.
+// The SSE context function injects the authenticated user ID from the HTTP
+// request into the MCP handler context, giving tools automatic user scoping.
+func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
+	sseServer := mcpserver.NewSSEServer(mcpSrv,
+		mcpserver.WithDynamicBasePath(func(r *http.Request, sessionID string) string {
+			return "/mcp"
+		}),
+		mcpserver.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
+			uid := userIDFromContext(r)
+			return freerepsmcp.WithUserID(ctx, uid)
+		}),
+	)
+	s.router.Handle("/mcp/sse", sseServer.SSEHandler())
+	s.router.Handle("/mcp/message", sseServer.MessageHandler())
+}
+
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
@@ -69,6 +89,9 @@ func (s *Server) routes() {
 		r.Post("/", s.handleHAEIngest)
 		r.Post("/alpha", s.handleAlphaIngest)
 	})
+
+	// User identity
+	s.router.Get("/api/v1/me", s.handleMe)
 
 	// Dashboard API endpoints
 	s.router.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
