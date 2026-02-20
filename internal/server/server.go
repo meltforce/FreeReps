@@ -9,30 +9,38 @@ import (
 	"github.com/claude/freereps/internal/ingest/hae"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/go-chi/chi/v5"
+	"tailscale.com/client/local"
 )
 
 // Server holds dependencies for HTTP handlers.
 type Server struct {
-	db       *storage.DB
-	hae      *hae.Provider
-	alpha    *alpha.Provider
-	log      *slog.Logger
-	apiKey   string
-	router   chi.Router
+	db     *storage.DB
+	hae    *hae.Provider
+	alpha  *alpha.Provider
+	log    *slog.Logger
+	lc     *local.Client
+	router chi.Router
 }
 
 // New creates a new Server with all routes configured.
-func New(db *storage.DB, haeProvider *hae.Provider, alphaProvider *alpha.Provider, apiKey string, log *slog.Logger) *Server {
+func New(db *storage.DB, haeProvider *hae.Provider, alphaProvider *alpha.Provider, log *slog.Logger) *Server {
 	s := &Server{
 		db:     db,
 		hae:    haeProvider,
 		alpha:  alphaProvider,
 		log:    log,
-		apiKey: apiKey,
 		router: chi.NewRouter(),
 	}
 	s.routes()
 	return s
+}
+
+// SetTailscale configures the Tailscale LocalClient for identity resolution.
+// Must be called before the server starts handling requests.
+// When set, all requests are authenticated via Tailscale identity.
+// When nil (default), all requests use user_id=1 (dev mode).
+func (s *Server) SetTailscale(lc *local.Client) {
+	s.lc = lc
 }
 
 // ServeHTTP implements http.Handler.
@@ -44,14 +52,25 @@ func (s *Server) routes() {
 	s.router.Use(RequestLogging(s.log))
 	s.router.Use(CORS)
 
-	// Ingest endpoints (API key required)
+	// Identity middleware: tsnet-based or dev fallback.
+	// Applied after routes() via a lazy middleware that checks s.lc at request time.
+	s.router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if s.lc != nil {
+				TailscaleIdentity(s.lc, s.db, s.log)(next).ServeHTTP(w, r)
+			} else {
+				DevIdentity(next).ServeHTTP(w, r)
+			}
+		})
+	})
+
+	// Ingest endpoints
 	s.router.Route("/api/v1/ingest", func(r chi.Router) {
-		r.Use(APIKeyAuth(s.apiKey))
 		r.Post("/", s.handleHAEIngest)
 		r.Post("/alpha", s.handleAlphaIngest)
 	})
 
-	// Dashboard API endpoints (no auth — tsnet handles access)
+	// Dashboard API endpoints
 	s.router.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
 	s.router.Get("/api/v1/metrics", s.handleQueryMetrics)
 	s.router.Get("/api/v1/sleep", s.handleQuerySleep)

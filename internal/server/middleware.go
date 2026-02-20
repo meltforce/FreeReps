@@ -1,27 +1,84 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/claude/freereps/internal/storage"
+	"tailscale.com/client/local"
 )
 
-// APIKeyAuth returns middleware that validates the X-API-Key header.
-func APIKeyAuth(apiKey string) func(http.Handler) http.Handler {
+type contextKey int
+
+const userIDKey contextKey = iota
+
+// userIDFromContext returns the authenticated user's ID from the request context.
+// Returns 1 (local dev user) if no identity middleware is active.
+func userIDFromContext(r *http.Request) int {
+	if id, ok := r.Context().Value(userIDKey).(int); ok {
+		return id
+	}
+	return 1
+}
+
+// TailscaleIdentity returns middleware that resolves the Tailscale user identity
+// from each request and stores the user ID in the request context.
+// Tagged devices (no personal owner) are rejected with 403.
+func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			key := r.Header.Get("X-API-Key")
-			if key == "" {
-				http.Error(w, `{"error":"missing API key"}`, http.StatusUnauthorized)
+			whois, err := lc.WhoIs(r.Context(), r.RemoteAddr)
+			if err != nil {
+				log.Error("tailscale whois failed", "remote", r.RemoteAddr, "error", err)
+				http.Error(w, `{"error":"identity lookup failed"}`, http.StatusInternalServerError)
 				return
 			}
-			if key != apiKey {
-				http.Error(w, `{"error":"invalid API key"}`, http.StatusForbidden)
+
+			if whois.Node != nil && whois.Node.IsTagged() {
+				http.Error(w, `{"error":"access denied: personal Tailscale login required"}`, http.StatusForbidden)
 				return
 			}
-			next.ServeHTTP(w, r)
+
+			login := whois.UserProfile.LoginName
+			if login == "" {
+				http.Error(w, `{"error":"access denied: personal Tailscale login required"}`, http.StatusForbidden)
+				return
+			}
+
+			displayName := whois.UserProfile.DisplayName
+			nodeName := ""
+			if whois.Node != nil {
+				nodeName = whois.Node.ComputedName
+			}
+
+			userID, err := db.GetOrCreateUser(r.Context(), login, displayName)
+			if err != nil {
+				log.Error("user resolution failed", "login", login, "error", err)
+				http.Error(w, `{"error":"user resolution failed"}`, http.StatusInternalServerError)
+				return
+			}
+
+			log.Info("request authenticated",
+				"tailscale_user", login,
+				"tailscale_node", nodeName,
+				"user_id", userID,
+			)
+
+			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// DevIdentity returns middleware that sets user_id=1 for all requests.
+// Used when Tailscale is disabled (local development).
+func DevIdentity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDKey, 1)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // RequestLogging returns middleware that logs each request.
@@ -46,7 +103,7 @@ func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

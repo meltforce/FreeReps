@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: Build Go binary
-FROM golang:1.24-alpine AS backend
+FROM golang:1.25-alpine AS backend
 ARG VERSION=dev
 WORKDIR /build
 COPY go.mod go.sum ./
@@ -22,5 +22,6 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=backend /build/freereps .
 COPY --from=backend /build/migrations ./migrations
+# Port 8080 for dev mode (tailscale.enabled: false); tsnet mode uses port 80 via tailnet
 EXPOSE 8080
 ENTRYPOINT ["./freereps"]

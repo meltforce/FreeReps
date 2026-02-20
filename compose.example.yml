@@ -25,22 +25,21 @@ services:
 
   freereps:
     image: meltforce/freereps:${VERSION:-latest}
-    ports:
-      - "${PORT:-8080}:8080"
     environment:
       FREEREPS_DB_HOST: db
       FREEREPS_DB_PORT: "5432"
       FREEREPS_DB_NAME: ${POSTGRES_DB:-freereps}
       FREEREPS_DB_USER: ${POSTGRES_USER:-freereps}
       FREEREPS_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
+      - tsnet-state:/app/tsnet-state
     depends_on:
       db:
         condition: service_healthy
     networks:
       - internal
-      - external
     restart: unless-stopped
     logging:
       driver: json-file
@@ -50,10 +49,8 @@ services:
 
 volumes:
   pgdata:
+  tsnet-state:
 
 networks:
   internal:
-    driver: bridge
-    internal: true
-  external:
     driver: bridge

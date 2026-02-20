@@ -17,8 +17,8 @@ database:
   user: "freereps"
   password: "secret"
   sslmode: "disable"
-auth:
-  api_key: "test-key-123"
+tailscale:
+  enabled: false
 `
 
 func writeTemp(t *testing.T, content string) string {
@@ -52,8 +52,8 @@ func TestLoadValid(t *testing.T) {
 	if cfg.Database.Name != "freereps" {
 		t.Errorf("database.name = %q, want %q", cfg.Database.Name, "freereps")
 	}
-	if cfg.Auth.APIKey != "test-key-123" {
-		t.Errorf("auth.api_key = %q, want %q", cfg.Auth.APIKey, "test-key-123")
+	if cfg.Tailscale.Enabled {
+		t.Errorf("tailscale.enabled = true, want false")
 	}
 }
 
@@ -62,7 +62,7 @@ func TestLoadValid(t *testing.T) {
 func TestEnvOverride(t *testing.T) {
 	t.Setenv("FREEREPS_DB_HOST", "override-host")
 	t.Setenv("FREEREPS_DB_PORT", "9999")
-	t.Setenv("FREEREPS_AUTH_API_KEY", "env-key")
+	t.Setenv("FREEREPS_TS_HOSTNAME", "custom-host")
 
 	cfg, err := Load(writeTemp(t, validYAML))
 	if err != nil {
@@ -74,8 +74,8 @@ func TestEnvOverride(t *testing.T) {
 	if cfg.Database.Port != 9999 {
 		t.Errorf("database.port = %d, want 9999", cfg.Database.Port)
 	}
-	if cfg.Auth.APIKey != "env-key" {
-		t.Errorf("auth.api_key = %q, want %q", cfg.Auth.APIKey, "env-key")
+	if cfg.Tailscale.Hostname != "custom-host" {
+		t.Errorf("tailscale.hostname = %q, want %q", cfg.Tailscale.Hostname, "custom-host")
 	}
 	// Unchanged fields should keep YAML values
 	if cfg.Database.Name != "freereps" {
@@ -83,8 +83,35 @@ func TestEnvOverride(t *testing.T) {
 	}
 }
 
-// TestValidationMissingPort verifies that missing required fields produce a clear error.
-// Prevents starting the server with incomplete configuration.
+// TestTailscaleDefaults verifies that Tailscale config gets sensible defaults
+// even when not specified in the YAML file.
+func TestTailscaleDefaults(t *testing.T) {
+	yaml := `
+server:
+  port: 8080
+database:
+  host: "localhost"
+  port: 5432
+  name: "freereps"
+  user: "freereps"
+`
+	cfg, err := Load(writeTemp(t, yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Tailscale.Enabled {
+		t.Error("tailscale.enabled should default to true")
+	}
+	if cfg.Tailscale.Hostname != "freereps" {
+		t.Errorf("tailscale.hostname = %q, want %q", cfg.Tailscale.Hostname, "freereps")
+	}
+	if cfg.Tailscale.StateDir != "tsnet-state" {
+		t.Errorf("tailscale.state_dir = %q, want %q", cfg.Tailscale.StateDir, "tsnet-state")
+	}
+}
+
+// TestValidationMissingPort verifies that missing port fails when tailscale is disabled.
+// When tsnet is disabled, server.port is required for plain HTTP.
 func TestValidationMissingPort(t *testing.T) {
 	yaml := `
 server:
@@ -94,18 +121,41 @@ database:
   port: 5432
   name: "freereps"
   user: "freereps"
-auth:
-  api_key: "key"
+tailscale:
+  enabled: false
 `
 	_, err := Load(writeTemp(t, yaml))
 	if err == nil {
-		t.Fatal("expected validation error for missing port")
+		t.Fatal("expected validation error for missing port when tailscale disabled")
 	}
 }
 
-// TestValidationMissingAPIKey verifies that a missing API key is rejected.
-// Without an API key, the ingest endpoint would be unprotected.
-func TestValidationMissingAPIKey(t *testing.T) {
+// TestValidationPortNotRequiredWithTsnet verifies that server.port is optional
+// when Tailscale is enabled (tsnet listens on port 80 via tailnet).
+func TestValidationPortNotRequiredWithTsnet(t *testing.T) {
+	yaml := `
+database:
+  host: "localhost"
+  port: 5432
+  name: "freereps"
+  user: "freereps"
+tailscale:
+  enabled: true
+`
+	cfg, err := Load(writeTemp(t, yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Tailscale.Enabled {
+		t.Error("tailscale.enabled should be true")
+	}
+}
+
+// TestTsEnabledEnvOverride verifies that FREEREPS_TS_ENABLED env var correctly
+// overrides the YAML tailscale.enabled value.
+func TestTsEnabledEnvOverride(t *testing.T) {
+	t.Setenv("FREEREPS_TS_ENABLED", "false")
+
 	yaml := `
 server:
   port: 8080
@@ -114,11 +164,15 @@ database:
   port: 5432
   name: "freereps"
   user: "freereps"
-auth: {}
+tailscale:
+  enabled: true
 `
-	_, err := Load(writeTemp(t, yaml))
-	if err == nil {
-		t.Fatal("expected validation error for missing api_key")
+	cfg, err := Load(writeTemp(t, yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tailscale.Enabled {
+		t.Error("tailscale.enabled should be false after env override")
 	}
 }
 

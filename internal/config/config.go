@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Tailscale TailscaleConfig `yaml:"tailscale"`
 }
 
 type ServerConfig struct {
@@ -28,8 +29,10 @@ type DatabaseConfig struct {
 	SSLMode  string `yaml:"sslmode"`
 }
 
-type AuthConfig struct {
-	APIKey string `yaml:"api_key"`
+type TailscaleConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Hostname string `yaml:"hostname"`
+	StateDir string `yaml:"state_dir"`
 }
 
 // DSN returns a PostgreSQL connection string.
@@ -48,9 +51,15 @@ func (d DatabaseConfig) DSN() string {
 //	FREEREPS_SERVER_HOST, FREEREPS_SERVER_PORT,
 //	FREEREPS_DB_HOST, FREEREPS_DB_PORT, FREEREPS_DB_NAME,
 //	FREEREPS_DB_USER, FREEREPS_DB_PASSWORD, FREEREPS_DB_SSLMODE,
-//	FREEREPS_AUTH_API_KEY
+//	FREEREPS_TS_ENABLED, FREEREPS_TS_HOSTNAME, FREEREPS_TS_STATE_DIR
 func Load(path string) (*Config, error) {
-	cfg := &Config{}
+	cfg := &Config{
+		Tailscale: TailscaleConfig{
+			Enabled:  true,
+			Hostname: "freereps",
+			StateDir: "tsnet-state",
+		},
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -98,14 +107,20 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("FREEREPS_DB_SSLMODE"); v != "" {
 		cfg.Database.SSLMode = v
 	}
-	if v := os.Getenv("FREEREPS_AUTH_API_KEY"); v != "" {
-		cfg.Auth.APIKey = v
+	if v := os.Getenv("FREEREPS_TS_ENABLED"); v != "" {
+		cfg.Tailscale.Enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v := os.Getenv("FREEREPS_TS_HOSTNAME"); v != "" {
+		cfg.Tailscale.Hostname = v
+	}
+	if v := os.Getenv("FREEREPS_TS_STATE_DIR"); v != "" {
+		cfg.Tailscale.StateDir = v
 	}
 }
 
 func (c *Config) validate() error {
-	if c.Server.Port == 0 {
-		return fmt.Errorf("server.port is required")
+	if !c.Tailscale.Enabled && c.Server.Port == 0 {
+		return fmt.Errorf("server.port is required when tailscale is disabled")
 	}
 	if c.Database.Host == "" {
 		return fmt.Errorf("database.host is required")
@@ -118,9 +133,6 @@ func (c *Config) validate() error {
 	}
 	if c.Database.User == "" {
 		return fmt.Errorf("database.user is required")
-	}
-	if c.Auth.APIKey == "" {
-		return fmt.Errorf("auth.api_key is required")
 	}
 	return nil
 }

@@ -50,7 +50,7 @@ func TestDetectSleepFormatUnaggregated(t *testing.T) {
 // TestConvertMetricQty verifies conversion of a standard qty metric data point.
 func TestConvertMetricQty(t *testing.T) {
 	raw := json.RawMessage(`{"date":"2024-02-06 14:30:00 -0800","qty":58}`)
-	row, err := convertMetricDataPoint("resting_heart_rate", "bpm", raw)
+	row, err := convertMetricDataPoint("resting_heart_rate", "bpm", raw, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestConvertMetricQty(t *testing.T) {
 // TestConvertMetricMinAvgMax verifies conversion of heart rate (Min/Avg/Max) data.
 func TestConvertMetricMinAvgMax(t *testing.T) {
 	raw := json.RawMessage(`{"date":"2024-02-06 14:30:00 -0800","Min":65,"Avg":72,"Max":85}`)
-	row, err := convertMetricDataPoint("heart_rate", "bpm", raw)
+	row, err := convertMetricDataPoint("heart_rate", "bpm", raw, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestConvertMetricMinAvgMax(t *testing.T) {
 // TestConvertMetricBloodPressure verifies conversion of blood pressure data.
 func TestConvertMetricBloodPressure(t *testing.T) {
 	raw := json.RawMessage(`{"date":"2024-02-06 14:30:00 -0800","systolic":120,"diastolic":80}`)
-	row, err := convertMetricDataPoint("blood_pressure", "mmHg", raw)
+	row, err := convertMetricDataPoint("blood_pressure", "mmHg", raw, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

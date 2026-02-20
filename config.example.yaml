@@ -10,5 +10,7 @@ database:
   password: "freereps"
   sslmode: "disable"
 
-auth:
-  api_key: "change-me-to-a-secure-random-string"
+tailscale:
+  enabled: false       # set to true (default) for production/Docker
+  hostname: "freereps"
+  state_dir: "tsnet-state"

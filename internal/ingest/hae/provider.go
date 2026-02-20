@@ -25,19 +25,19 @@ func NewProvider(db *storage.DB, log *slog.Logger) *Provider {
 }
 
 // Ingest processes an HAE JSON payload and stores accepted data.
-func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload) (*ingest.Result, error) {
+func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload, userID int) (*ingest.Result, error) {
 	result := &ingest.Result{}
 
 	// Process metrics
 	if len(payload.Data.Metrics) > 0 {
-		if err := p.processMetrics(ctx, payload.Data.Metrics, result); err != nil {
+		if err := p.processMetrics(ctx, payload.Data.Metrics, userID, result); err != nil {
 			return result, fmt.Errorf("processing metrics: %w", err)
 		}
 	}
 
 	// Process workouts
 	if len(payload.Data.Workouts) > 0 {
-		if err := p.processWorkouts(ctx, payload.Data.Workouts, result); err != nil {
+		if err := p.processWorkouts(ctx, payload.Data.Workouts, userID, result); err != nil {
 			return result, fmt.Errorf("processing workouts: %w", err)
 		}
 	}
@@ -53,7 +53,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload) (*ing
 	return result, nil
 }
 
-func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetric, result *ingest.Result) error {
+func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetric, userID int, result *ingest.Result) error {
 	var healthRows []models.HealthMetricRow
 	rejectedSet := map[string]bool{}
 
@@ -74,7 +74,7 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetri
 
 		// Handle sleep_analysis separately
 		if m.Name == "sleep_analysis" {
-			if err := p.processSleep(ctx, m, result); err != nil {
+			if err := p.processSleep(ctx, m, userID, result); err != nil {
 				return fmt.Errorf("processing sleep: %w", err)
 			}
 			continue
@@ -84,7 +84,7 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetri
 		for _, raw := range m.Data {
 			result.MetricsReceived++
 
-			row, err := convertMetricDataPoint(m.Name, m.Units, raw)
+			row, err := convertMetricDataPoint(m.Name, m.Units, raw, userID)
 			if err != nil {
 				p.log.Warn("skipping data point", "metric", m.Name, "error", err)
 				continue
@@ -107,9 +107,9 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetri
 }
 
 // convertMetricDataPoint detects the shape of a metric data point and converts it to a HealthMetricRow.
-func convertMetricDataPoint(name, units string, raw json.RawMessage) (*models.HealthMetricRow, error) {
+func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int) (*models.HealthMetricRow, error) {
 	row := &models.HealthMetricRow{
-		UserID:     1,
+		UserID:     userID,
 		MetricName: name,
 		Units:      units,
 	}
@@ -147,7 +147,7 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage) (*models.He
 	return row, nil
 }
 
-func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result *ingest.Result) error {
+func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, userID int, result *ingest.Result) error {
 	for _, raw := range m.Data {
 		result.MetricsReceived++
 
@@ -165,7 +165,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result 
 				continue
 			}
 			row := models.SleepSessionRow{
-				UserID:     1,
+				UserID:     userID,
 				Date:       date,
 				TotalSleep: dp.TotalSleep,
 				Asleep:     dp.Asleep,
@@ -187,7 +187,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result 
 			qty := dp.TotalSleep
 			sleepMetric := models.HealthMetricRow{
 				Time:       dp.SleepEnd.Time,
-				UserID:     1,
+				UserID:     userID,
 				MetricName: "sleep_analysis",
 				Source:     "Health Auto Export",
 				Units:      "hr",
@@ -206,7 +206,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result 
 			stageRow := models.SleepStageRow{
 				StartTime:  dp.StartDate.Time,
 				EndTime:    dp.EndDate.Time,
-				UserID:     1,
+				UserID:     userID,
 				Stage:      dp.Value,
 				DurationHr: dp.Qty,
 			}
@@ -220,7 +220,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result 
 	return nil
 }
 
-func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWorkout, result *ingest.Result) error {
+func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWorkout, userID int, result *ingest.Result) error {
 	for _, w := range workouts {
 		result.WorkoutsReceived++
 
@@ -235,7 +235,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWor
 
 		row := models.WorkoutRow{
 			ID:          workoutID,
-			UserID:      1,
+			UserID:      userID,
 			Name:        w.Name,
 			StartTime:   w.Start.Time,
 			EndTime:     w.End.Time,
@@ -300,7 +300,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWor
 				hrRows[i] = models.WorkoutHRRow{
 					Time:      hr.Date.Time,
 					WorkoutID: workoutID,
-					UserID:    1,
+					UserID:    userID,
 					MinBPM:    &hr.Min,
 					AvgBPM:    &hr.Avg,
 					MaxBPM:    &hr.Max,
@@ -321,7 +321,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWor
 				routeRows[i] = models.WorkoutRouteRow{
 					Time:               rp.Timestamp.Time,
 					WorkoutID:          workoutID,
-					UserID:             1,
+					UserID:             userID,
 					Latitude:           rp.Latitude,
 					Longitude:          rp.Longitude,
 					Altitude:           &rp.Altitude,

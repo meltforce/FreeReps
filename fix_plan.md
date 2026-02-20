@@ -7,8 +7,9 @@
 | Phase 1 — Data Foundation | Complete |
 | Phase 1.5 — CLI File Import | Complete |
 | Phase 2 — Visualization | Complete |
-| Phase 3 — MCP Integration | Not started |
-| Phase 4 — Polish | Not started |
+| Phase 3 — Tailscale tsnet + User Management | Complete |
+| Phase 4 — MCP Integration | Not started |
+| Phase 5 — Polish | Not started |
 
 ## Phase 1 — Data Foundation (Complete)
 
@@ -43,7 +44,24 @@
 - [x] Error boundaries + code splitting
 - [x] Bug fix rounds R1-R6 (cumulative metrics, sleep backfill, Alpha parser, list UX)
 
-## Phase 3 — MCP Integration (Next)
+## Phase 3 — Tailscale tsnet + User Management (Complete)
+
+- [x] Users table migration (000002)
+- [x] Config: replace AuthConfig with TailscaleConfig (enabled, hostname, state_dir)
+- [x] Add tsnet dependency (tailscale.com/tsnet)
+- [x] User storage layer (GetOrCreateUser)
+- [x] TailscaleIdentity middleware (WhoIs, tagged device rejection, user auto-provisioning)
+- [x] DevIdentity middleware (user_id=1 fallback for local dev)
+- [x] Remove APIKeyAuth middleware
+- [x] Replace all hardcoded user_id=1 in handlers with userIDFromContext
+- [x] Thread userID through HAE ingest provider (~6 places)
+- [x] Thread userID through Alpha ingest provider
+- [x] Conditional tsnet vs plain HTTP startup in main.go
+- [x] Docker compose: tsnet-state volume, TS_AUTHKEY env, remove port mapping
+- [x] Update tests (config, middleware, shapes)
+- [x] Go 1.25 upgrade (required by tsnet)
+
+## Phase 4 — MCP Integration (Next)
 
 - [ ] Add `mark3labs/mcp-go` dependency
 - [ ] MCP server setup (stdio + SSE transport)
@@ -59,7 +77,7 @@
 - [ ] Resource: `recent_workouts`
 - [ ] Resource: `metric_catalog`
 
-## Phase 4 — Polish
+## Phase 5 — Polish
 
 - [ ] Trend views (multi-metric long-term analysis)
 - [ ] Settings UI (metric enable/disable, personal parameters)
@@ -85,3 +103,6 @@
 - HR field names in .hae files are lowercase (min/avg/max) unlike REST API (Min/Avg/Max)
 - Workout HR correlation runs after all imports, only for workouts with no existing HR data
 - Version injected via `-ldflags "-X main.Version=..."` at build time
+- tsnet requires Go 1.25+ (tailscale.com v1.94.2)
+- tsnet enabled by default; set `tailscale.enabled: false` for local dev
+- TS_AUTHKEY env var used for initial Tailscale node registration (tsnet reads it automatically)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"github.com/claude/freereps/internal/ingest/hae"
 	"github.com/claude/freereps/internal/server"
 	"github.com/claude/freereps/internal/storage"
+	"tailscale.com/tsnet"
 )
 
 // Version is set at build time via -ldflags.
@@ -37,10 +39,6 @@ func main() {
 		log.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
-	log.Info("config loaded",
-		"server", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		"database", cfg.Database.Host,
-	)
 
 	// Run migrations
 	dsn := cfg.Database.DSN()
@@ -75,7 +73,7 @@ func main() {
 	alphaProvider := alpha.NewProvider(db, log)
 
 	// Create server
-	srv := server.New(db, haeProvider, alphaProvider, cfg.Auth.APIKey, log)
+	srv := server.New(db, haeProvider, alphaProvider, log)
 
 	// Serve embedded frontend
 	webDist, err := fs.Sub(freereps.WebFS, "web/dist")
@@ -85,16 +83,48 @@ func main() {
 	}
 	srv.SetFrontend(webDist)
 
-	// Start HTTP server
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	httpSrv := &http.Server{
-		Addr:    addr,
-		Handler: srv,
+	// Start server — tsnet or plain HTTP
+	var listener net.Listener
+	var tsServer *tsnet.Server
+
+	if cfg.Tailscale.Enabled {
+		tsServer = &tsnet.Server{
+			Hostname: cfg.Tailscale.Hostname,
+			Dir:      cfg.Tailscale.StateDir,
+		}
+		if err := tsServer.Start(); err != nil {
+			log.Error("tsnet start failed", "error", err)
+			os.Exit(1)
+		}
+		defer tsServer.Close()
+
+		lc, err := tsServer.LocalClient()
+		if err != nil {
+			log.Error("tsnet local client failed", "error", err)
+			os.Exit(1)
+		}
+		srv.SetTailscale(lc)
+
+		listener, err = tsServer.Listen("tcp", ":80")
+		if err != nil {
+			log.Error("tsnet listen failed", "error", err)
+			os.Exit(1)
+		}
+		log.Info("tsnet server starting", "hostname", cfg.Tailscale.Hostname)
+	} else {
+		addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			log.Error("listen failed", "addr", addr, "error", err)
+			os.Exit(1)
+		}
+		log.Info("server starting", "addr", addr, "mode", "dev (no tailscale)")
 	}
 
+	httpSrv := &http.Server{Handler: srv}
+
 	go func() {
-		log.Info("server starting", "addr", addr)
-		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpSrv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Error("server error", "error", err)
 			os.Exit(1)
 		}

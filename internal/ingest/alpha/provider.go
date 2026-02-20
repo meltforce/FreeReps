@@ -23,7 +23,7 @@ func NewProvider(db *storage.DB, log *slog.Logger) *Provider {
 }
 
 // Ingest parses a CSV export and stores the workout set data.
-func (p *Provider) Ingest(ctx context.Context, r io.Reader) (*ingest.Result, error) {
+func (p *Provider) Ingest(ctx context.Context, r io.Reader, userID int) (*ingest.Result, error) {
 	sessions, err := Parse(r)
 	if err != nil {
 		return nil, fmt.Errorf("parsing CSV: %w", err)
@@ -34,13 +34,13 @@ func (p *Provider) Ingest(ctx context.Context, r io.Reader) (*ingest.Result, err
 
 	// Delete existing sets per session so re-imports always reflect the latest parser output.
 	for _, s := range sessions {
-		if err := p.db.DeleteWorkoutSets(ctx, s.Date, 1); err != nil {
+		if err := p.db.DeleteWorkoutSets(ctx, s.Date, userID); err != nil {
 			return nil, fmt.Errorf("deleting existing sets for session %s: %w", s.Date.Format("2006-01-02"), err)
 		}
 		for _, ex := range s.Exercises {
 			for _, set := range ex.Sets {
 				allRows = append(allRows, models.WorkoutSetRow{
-					UserID:           1,
+					UserID:           userID,
 					SessionName:      s.Name,
 					SessionDate:      s.Date,
 					SessionDuration:  s.Duration,

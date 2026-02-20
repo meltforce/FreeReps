@@ -1,63 +1,52 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-// TestAPIKeyAuthMissing verifies that requests without an API key get 401.
-// Prevents unauthenticated access to the ingest endpoint.
-func TestAPIKeyAuthMissing(t *testing.T) {
-	handler := APIKeyAuth("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// TestDevIdentity verifies that the dev identity middleware sets user_id=1
+// for all requests, enabling local development without Tailscale.
+func TestDevIdentity(t *testing.T) {
+	var gotUserID int
+	handler := DevIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserID = userIDFromContext(r)
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", rec.Code)
-	}
-}
-
-// TestAPIKeyAuthWrong verifies that requests with a wrong API key get 403.
-// Distinguishes "no key" (401) from "bad key" (403) for clearer error handling.
-func TestAPIKeyAuthWrong(t *testing.T) {
-	handler := APIKeyAuth("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req.Header.Set("X-API-Key", "wrong")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403", rec.Code)
-	}
-}
-
-// TestAPIKeyAuthCorrect verifies that requests with the correct API key pass through.
-func TestAPIKeyAuthCorrect(t *testing.T) {
-	called := false
-	handler := APIKeyAuth("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req.Header.Set("X-API-Key", "secret")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
-	if !called {
-		t.Error("next handler was not called")
+	if gotUserID != 1 {
+		t.Errorf("userID = %d, want 1", gotUserID)
+	}
+}
+
+// TestUserIDFromContextDefault verifies that userIDFromContext returns 1
+// when no identity middleware has set a value (fallback for safety).
+func TestUserIDFromContextDefault(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if id := userIDFromContext(req); id != 1 {
+		t.Errorf("userIDFromContext without context value = %d, want 1", id)
+	}
+}
+
+// TestUserIDFromContextSet verifies that userIDFromContext returns the
+// value stored by identity middleware.
+func TestUserIDFromContextSet(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := context.WithValue(req.Context(), userIDKey, 42)
+	req = req.WithContext(ctx)
+
+	if id := userIDFromContext(req); id != 42 {
+		t.Errorf("userIDFromContext = %d, want 42", id)
 	}
 }
 
