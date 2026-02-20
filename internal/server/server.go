@@ -92,7 +92,7 @@ func (s *Server) SetFrontend(webFS fs.FS) {
 		// Try to serve the exact file first
 		f, err := webFS.Open(r.URL.Path[1:]) // strip leading /
 		if err == nil {
-			f.Close()
+			_ = f.Close()
 			fileServer.ServeHTTP(w, r)
 			return
 		}

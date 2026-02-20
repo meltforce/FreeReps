@@ -96,7 +96,7 @@ func main() {
 			log.Error("tsnet start failed", "error", err)
 			os.Exit(1)
 		}
-		defer tsServer.Close()
+		defer func() { _ = tsServer.Close() }()
 
 		lc, err := tsServer.LocalClient()
 		if err != nil {

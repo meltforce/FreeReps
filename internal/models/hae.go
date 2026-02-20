@@ -26,7 +26,7 @@ func (t *HAETime) UnmarshalJSON(data []byte) error {
 }
 
 func (t HAETime) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.Time.Format(HAETimeLayout))
+	return json.Marshal(t.Format(HAETimeLayout))
 }
 
 // Parse parses a HAE time string, trying full datetime first, then date-only.
