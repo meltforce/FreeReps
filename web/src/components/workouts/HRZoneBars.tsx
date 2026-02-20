@@ -13,7 +13,18 @@ interface Props {
 }
 
 export default function HRZoneBars({ hrData }: Props) {
-  if (!hrData || hrData.length < 2) return null;
+  if (!hrData || hrData.length < 5) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-zinc-400 mb-2">
+          Time in HR Zones
+        </h3>
+        <p className="text-sm text-zinc-500">
+          Not enough HR data for zone analysis.
+        </p>
+      </div>
+    );
+  }
 
   // Count time in each zone
   const zoneSecs = ZONES.map(() => 0);

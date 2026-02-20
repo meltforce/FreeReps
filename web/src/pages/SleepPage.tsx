@@ -63,18 +63,14 @@ export default function SleepPage() {
   // Most recent session for the summary / hypnogram
   const lastSession = sessions.length > 0 ? sessions[0] : null;
 
-  // Filter stages belonging to the most recent night
+  // Filter stages belonging to the most recent night using session timestamps
   const lastNightStages: SleepStage[] = lastSession
     ? stages.filter((s) => {
-        const stageDate = new Date(s.StartTime).toISOString().split("T")[0];
-        const sessionDate = lastSession.Date.split("T")[0];
-        // Stages from the night before or the session date
-        const dayBefore = new Date(
-          new Date(sessionDate).getTime() - 86400000
-        )
-          .toISOString()
-          .split("T")[0];
-        return stageDate === sessionDate || stageDate === dayBefore;
+        const st = new Date(s.StartTime).getTime();
+        return (
+          st >= new Date(lastSession.SleepStart).getTime() &&
+          st < new Date(lastSession.SleepEnd).getTime()
+        );
       })
     : [];
 
@@ -112,7 +108,9 @@ export default function SleepPage() {
       {lastNightStages.length > 0 && <Hypnogram stages={lastNightStages} />}
 
       {/* Sleep History */}
-      {sessions.length > 1 && <SleepHistoryChart sessions={sessions} />}
+      {sessions.length > 0 && (
+        <SleepHistoryChart sessions={sessions} stages={stages} />
+      )}
     </div>
   );
 }

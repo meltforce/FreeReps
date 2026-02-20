@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import UplotReact from "uplot-react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { WorkoutHR } from "../../api";
+import AutoSizeUplot from "../AutoSizeUplot";
 
 // HR Zone boundaries (bpm) and colors
 const ZONES = [
@@ -108,34 +108,6 @@ export default function HRTimelineChart({ hrData }: Props) {
         Heart Rate Timeline
       </h3>
       <AutoSizeUplot opts={opts} data={plotData} />
-    </div>
-  );
-}
-
-function AutoSizeUplot({
-  opts,
-  data,
-}: {
-  opts: uPlot.Options;
-  data: uPlot.AlignedData;
-}) {
-  return (
-    <div className="w-full">
-      <UplotReact
-        options={{ ...opts, width: 1 }}
-        data={data}
-        onCreate={(u: uPlot) => {
-          const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              u.setSize({
-                width: entry.contentRect.width,
-                height: opts.height,
-              });
-            }
-          });
-          ro.observe(u.root);
-        }}
-      />
     </div>
   );
 }

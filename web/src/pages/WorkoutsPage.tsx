@@ -4,10 +4,12 @@ import { fetchWorkouts } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import WorkoutList from "../components/workouts/WorkoutList";
 
-type TimeRange = "30d" | "90d" | "1y";
+type TimeRange = "1d" | "30d" | "90d" | "1y";
 
 function daysFromRange(range_: TimeRange): number {
   switch (range_) {
+    case "1d":
+      return 1;
     case "30d":
       return 30;
     case "90d":
@@ -65,7 +67,7 @@ export default function WorkoutsPage() {
         <TimeRangeSelector
           value={timeRange}
           onChange={(v) => setTimeRange(v as TimeRange)}
-          options={["30d", "90d", "1y"]}
+          options={["1d", "30d", "90d", "1y"]}
         />
       </div>
 

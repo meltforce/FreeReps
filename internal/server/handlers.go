@@ -38,13 +38,30 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// cumulativeMetrics are metrics that should show daily totals instead of latest value.
+var cumulativeMetrics = []string{"active_energy", "basal_energy_burned", "apple_exercise_time"}
+
 func (s *Server) handleLatestMetrics(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.db.GetLatestMetrics(r.Context(), 1)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, rows)
+
+	// Get daily sums for cumulative metrics
+	sums, err := s.db.GetDailySums(r.Context(), 1, cumulativeMetrics)
+	if err != nil {
+		s.log.Error("daily sums error", "error", err)
+		// Non-fatal: continue with latest values
+		writeJSON(w, http.StatusOK, rows)
+		return
+	}
+
+	// Build response with daily_sums field
+	writeJSON(w, http.StatusOK, map[string]any{
+		"latest":     rows,
+		"daily_sums": sums,
+	})
 }
 
 func (s *Server) handleQueryMetrics(w http.ResponseWriter, r *http.Request) {
@@ -203,6 +220,34 @@ func (s *Server) handleCorrelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	workoutID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid workout ID"})
+		return
+	}
+
+	// Fetch workout to get its date range
+	workout, err := s.db.GetWorkout(r.Context(), workoutID, 1)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "workout not found"})
+		return
+	}
+
+	// Query sets for the workout's date (start of day to end of day)
+	wStart := workout.StartTime
+	dayStart := time.Date(wStart.Year(), wStart.Month(), wStart.Day(), 0, 0, 0, 0, wStart.Location())
+	dayEnd := dayStart.Add(24 * time.Hour)
+
+	sets, err := s.db.QueryWorkoutSets(r.Context(), dayStart, dayEnd, 1)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, sets)
 }
 
 func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {

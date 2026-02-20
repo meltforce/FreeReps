@@ -19,10 +19,12 @@ const METRICS = [
   { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
 ];
 
-type TimeRange = "7d" | "30d" | "90d" | "1y";
+type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y";
 
 function daysFromRange(range_: TimeRange): number {
   switch (range_) {
+    case "1d":
+      return 1;
     case "7d":
       return 7;
     case "30d":
@@ -45,9 +47,10 @@ export default function MetricsPage() {
 
   const selected = METRICS.find((m) => m.value === metric)!;
 
+  const agg = timeRange === "1d" ? "hourly" : "daily";
   const { data: tsData, isLoading: tsLoading } = useQuery({
-    queryKey: ["timeseries", metric, start, end],
-    queryFn: () => fetchTimeSeries(metric, start, end),
+    queryKey: ["timeseries", metric, start, end, agg],
+    queryFn: () => fetchTimeSeries(metric, start, end, agg),
   });
 
   const { data: statsData } = useQuery({
@@ -62,7 +65,7 @@ export default function MetricsPage() {
         <TimeRangeSelector
           value={timeRange}
           onChange={(v) => setTimeRange(v as TimeRange)}
-          options={["7d", "30d", "90d", "1y"]}
+          options={["1d", "7d", "30d", "90d", "1y"]}
         />
       </div>
 
@@ -113,6 +116,8 @@ export default function MetricsPage() {
               stats={statsData ?? null}
               label={selected.label}
               unit={selected.unit}
+              start={start}
+              end={end}
             />
           )}
         </div>

@@ -113,6 +113,58 @@ type TimeSeriesPoint struct {
 	Count int64     `json:"count"`
 }
 
+// DailySum represents the sum of a cumulative metric for the current day.
+type DailySum struct {
+	MetricName string  `json:"MetricName"`
+	Units      string  `json:"Units"`
+	Total      float64 `json:"Total"`
+}
+
+// GetDailySums returns summed values for the most recent day with data for cumulative metrics.
+// Uses the latest available data day rather than today, so historical data still shows values.
+func (db *DB) GetDailySums(ctx context.Context, userID int, metricNames []string) ([]DailySum, error) {
+	if len(metricNames) == 0 {
+		return nil, nil
+	}
+
+	// Build IN clause
+	params := make([]string, len(metricNames))
+	args := make([]any, 0, len(metricNames)+1)
+	args = append(args, userID)
+	for i, name := range metricNames {
+		params[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, name)
+	}
+
+	inClause := strings.Join(params, ",")
+
+	query := fmt.Sprintf(
+		`SELECT metric_name,
+		        COALESCE(MAX(units), '') as units,
+		        COALESCE(SUM(COALESCE(qty, avg_val, 0)), 0) as total
+		 FROM health_metrics
+		 WHERE user_id = $1 AND metric_name IN (%s)
+		   AND time >= (SELECT date_trunc('day', MAX(time)) FROM health_metrics WHERE user_id = $1 AND metric_name IN (%s))
+		 GROUP BY metric_name`,
+		inClause, inClause)
+
+	rows, err := db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("querying daily sums: %w", err)
+	}
+	defer rows.Close()
+
+	var result []DailySum
+	for rows.Next() {
+		var s DailySum
+		if err := rows.Scan(&s.MetricName, &s.Units, &s.Total); err != nil {
+			return nil, fmt.Errorf("scanning daily sum: %w", err)
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}
+
 // MetricStats holds aggregate statistics for a single metric over a time range.
 type MetricStats struct {
 	Metric string   `json:"metric"`

@@ -57,6 +57,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/sleep", s.handleQuerySleep)
 	s.router.Get("/api/v1/workouts", s.handleQueryWorkouts)
 	s.router.Get("/api/v1/workouts/{id}", s.handleGetWorkout)
+	s.router.Get("/api/v1/workouts/{id}/sets", s.handleWorkoutSets)
 	s.router.Get("/api/v1/metrics/stats", s.handleMetricStats)
 	s.router.Get("/api/v1/timeseries", s.handleTimeSeries)
 	s.router.Get("/api/v1/correlation", s.handleCorrelation)

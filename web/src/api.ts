@@ -29,7 +29,18 @@ export interface MetricStats {
   count: number;
 }
 
-export async function fetchLatestMetrics(): Promise<HealthMetricRow[]> {
+export interface DailySum {
+  MetricName: string;
+  Units: string;
+  Total: number;
+}
+
+export interface LatestMetricsResponse {
+  latest: HealthMetricRow[];
+  daily_sums: DailySum[] | null;
+}
+
+export async function fetchLatestMetrics(): Promise<LatestMetricsResponse> {
   const res = await fetch(`${BASE}/metrics/latest`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
@@ -157,6 +168,30 @@ export async function fetchWorkouts(
 
 export async function fetchWorkoutDetail(id: string): Promise<WorkoutDetail> {
   const res = await fetch(`${BASE}/workouts/${id}`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// --- Workout Sets ---
+
+export interface WorkoutSet {
+  SessionName: string;
+  SessionDate: string;
+  SessionDuration: string;
+  ExerciseNumber: number;
+  ExerciseName: string;
+  Equipment: string;
+  TargetReps: number;
+  IsWarmup: boolean;
+  SetNumber: number;
+  WeightKg: number;
+  IsBodyweightPlus: boolean;
+  Reps: number;
+  RIR: number;
+}
+
+export async function fetchWorkoutSets(id: string): Promise<WorkoutSet[]> {
+  const res = await fetch(`${BASE}/workouts/${id}/sets`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }

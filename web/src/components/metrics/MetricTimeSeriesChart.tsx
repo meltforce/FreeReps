@@ -1,15 +1,17 @@
 import { useMemo } from "react";
-import UplotReact from "uplot-react";
-import uPlot from "uplot";
+import type uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { TimeSeriesPoint, MetricStats } from "../../api";
 import { movingAverage } from "../../utils/stats";
+import AutoSizeUplot from "../AutoSizeUplot";
 
 interface Props {
   data: TimeSeriesPoint[];
   stats: MetricStats | null;
   label: string;
   unit: string;
+  start?: string;
+  end?: string;
 }
 
 export default function MetricTimeSeriesChart({
@@ -17,6 +19,8 @@ export default function MetricTimeSeriesChart({
   stats,
   label,
   unit,
+  start,
+  end,
 }: Props) {
   const { opts, plotData } = useMemo(() => {
     if (!data || data.length === 0) return { opts: null, plotData: null };
@@ -64,15 +68,6 @@ export default function MetricTimeSeriesChart({
         points: {
           show: true,
           size: 4,
-          fill: (u: uPlot, seriesIdx: number) => {
-            // Color outliers differently
-            if (!mean || !sd) return "#22d3ee";
-            const idx = u.cursor.idx;
-            if (idx == null) return "#22d3ee";
-            const v = u.data[seriesIdx][idx];
-            if (v != null && Math.abs(v - mean) > 1.5 * sd) return "#f59e0b";
-            return "#22d3ee";
-          },
         },
       },
       // 7-day moving average
@@ -103,7 +98,17 @@ export default function MetricTimeSeriesChart({
           labelSize: 14,
         },
       ],
-      scales: { x: { time: true } },
+      scales: {
+        x: {
+          time: true,
+          ...(start && end
+            ? {
+                min: Math.floor(new Date(start).getTime() / 1000),
+                max: Math.floor(new Date(end).getTime() / 1000) + 86400,
+              }
+            : {}),
+        },
+      },
       cursor: { drag: { x: true, y: false } },
       bands: [
         {
@@ -123,7 +128,7 @@ export default function MetricTimeSeriesChart({
         ma7,
       ] as uPlot.AlignedData,
     };
-  }, [data, stats, label, unit]);
+  }, [data, stats, label, unit, start, end]);
 
   if (!opts || !plotData) {
     return (
@@ -145,7 +150,8 @@ export default function MetricTimeSeriesChart({
             className="w-3 h-0.5 inline-block"
             style={{
               background: "#a78bfa",
-              backgroundImage: "repeating-linear-gradient(90deg, #a78bfa 0 6px, transparent 6px 10px)",
+              backgroundImage:
+                "repeating-linear-gradient(90deg, #a78bfa 0 6px, transparent 6px 10px)",
             }}
           />{" "}
           7d Avg
@@ -157,34 +163,6 @@ export default function MetricTimeSeriesChart({
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-function AutoSizeUplot({
-  opts,
-  data,
-}: {
-  opts: uPlot.Options;
-  data: uPlot.AlignedData;
-}) {
-  return (
-    <div className="w-full">
-      <UplotReact
-        options={{ ...opts, width: 1 }}
-        data={data}
-        onCreate={(u: uPlot) => {
-          const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              u.setSize({
-                width: entry.contentRect.width,
-                height: opts.height,
-              });
-            }
-          });
-          ro.observe(u.root);
-        }}
-      />
     </div>
   );
 }

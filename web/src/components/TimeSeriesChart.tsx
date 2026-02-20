@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchTimeSeries, TimeSeriesPoint } from "../api";
-import UplotReact from "uplot-react";
-import "uplot/dist/uPlot.min.css";
 import { useMemo } from "react";
 import type uPlot from "uplot";
+import AutoSizeUplot from "./AutoSizeUplot";
 
 interface Props {
   metric: string;
@@ -11,6 +10,7 @@ interface Props {
   end: string;
   label: string;
   unit: string;
+  agg?: string;
 }
 
 export default function TimeSeriesChart({
@@ -19,10 +19,11 @@ export default function TimeSeriesChart({
   end,
   label,
   unit,
+  agg = "daily",
 }: Props) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["timeseries", metric, start, end],
-    queryFn: () => fetchTimeSeries(metric, start, end),
+    queryKey: ["timeseries", metric, start, end, agg],
+    queryFn: () => fetchTimeSeries(metric, start, end, agg),
   });
 
   const { opts, plotData } = useMemo(() => {
@@ -38,7 +39,7 @@ export default function TimeSeriesChart({
     );
 
     const opts: uPlot.Options = {
-      width: 0, // auto-sized by container
+      width: 0,
       height: 300,
       series: [
         {},
@@ -63,7 +64,13 @@ export default function TimeSeriesChart({
           labelSize: 14,
         },
       ],
-      scales: { x: { time: true } },
+      scales: {
+        x: {
+          time: true,
+          min: Math.floor(new Date(start).getTime() / 1000),
+          max: Math.floor(new Date(end).getTime() / 1000) + 86400,
+        },
+      },
       cursor: { drag: { x: true, y: false } },
     };
 
@@ -71,7 +78,7 @@ export default function TimeSeriesChart({
       opts,
       plotData: [new Float64Array(times), values] as uPlot.AlignedData,
     };
-  }, [data, label, unit]);
+  }, [data, label, unit, start, end]);
 
   if (isLoading) {
     return (
@@ -90,34 +97,6 @@ export default function TimeSeriesChart({
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <AutoSizeUplot opts={opts} data={plotData} />
-    </div>
-  );
-}
-
-function AutoSizeUplot({
-  opts,
-  data,
-}: {
-  opts: uPlot.Options;
-  data: uPlot.AlignedData;
-}) {
-  return (
-    <div className="w-full">
-      <UplotReact
-        options={{ ...opts, width: 1 }}
-        data={data}
-        onCreate={(u: uPlot) => {
-          const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              u.setSize({
-                width: entry.contentRect.width,
-                height: opts.height,
-              });
-            }
-          });
-          ro.observe(u.root);
-        }}
-      />
     </div>
   );
 }

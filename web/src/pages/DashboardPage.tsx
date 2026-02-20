@@ -18,10 +18,12 @@ const METRIC_OPTIONS = [
   { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
 ];
 
-type TimeRange = "7d" | "30d" | "90d" | "1y";
+type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y";
 
 function daysFromRange(range_: TimeRange): number {
   switch (range_) {
+    case "1d":
+      return 1;
     case "7d":
       return 7;
     case "30d":
@@ -58,7 +60,7 @@ export default function DashboardPage() {
           <TimeRangeSelector
             value={timeRange}
             onChange={(v) => setTimeRange(v as TimeRange)}
-            options={["7d", "30d", "90d", "1y"]}
+            options={["1d", "7d", "30d", "90d", "1y"]}
           />
         </div>
 
@@ -68,6 +70,7 @@ export default function DashboardPage() {
           end={end}
           label={selected?.label ?? metric}
           unit={selected?.unit ?? ""}
+          agg={timeRange === "1d" ? "hourly" : "daily"}
         />
       </div>
     </>

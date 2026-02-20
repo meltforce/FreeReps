@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import UplotReact from "uplot-react";
-import uPlot from "uplot";
+import type uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { CorrelationPoint } from "../../api";
+import AutoSizeUplot from "../AutoSizeUplot";
 
 interface Props {
   points: CorrelationPoint[];
@@ -29,46 +29,52 @@ export default function OverlayChart({ points, xLabel, yLabel }: Props) {
           label: xLabel,
           stroke: "#22d3ee",
           width: 2,
-          scale: "x-metric",
+          scale: "metric-left",
         },
         {
           label: yLabel,
           stroke: "#a78bfa",
           width: 2,
-          scale: "y-metric",
+          scale: "metric-right",
         },
       ],
       axes: [
+        // X axis (bottom)
         {
           stroke: "#52525b",
           grid: { stroke: "#27272a", width: 1 },
           ticks: { stroke: "#27272a" },
         },
+        // Left Y axis for first metric
         {
           stroke: "#22d3ee",
           grid: { stroke: "#27272a", width: 1 },
-          ticks: { stroke: "#27272a" },
+          ticks: { stroke: "#22d3ee33" },
           label: xLabel,
           labelSize: 14,
-          scale: "x-metric",
+          scale: "metric-left",
           side: 3,
+          size: 60,
         },
+        // Right Y axis for second metric
         {
           stroke: "#a78bfa",
           grid: { show: false },
-          ticks: { stroke: "#27272a" },
+          ticks: { stroke: "#a78bfa33" },
           label: yLabel,
           labelSize: 14,
-          scale: "y-metric",
+          scale: "metric-right",
           side: 1,
+          size: 60,
         },
       ],
       scales: {
         x: { time: true },
-        "x-metric": { auto: true },
-        "y-metric": { auto: true },
+        "metric-left": { auto: true },
+        "metric-right": { auto: true },
       },
       cursor: { drag: { x: true, y: false } },
+      padding: [null, 10, null, 10],
     };
 
     return {
@@ -96,34 +102,6 @@ export default function OverlayChart({ points, xLabel, yLabel }: Props) {
           <span className="w-3 h-0.5 inline-block bg-violet-400" /> {yLabel}
         </span>
       </div>
-    </div>
-  );
-}
-
-function AutoSizeUplot({
-  opts,
-  data,
-}: {
-  opts: uPlot.Options;
-  data: uPlot.AlignedData;
-}) {
-  return (
-    <div className="w-full">
-      <UplotReact
-        options={{ ...opts, width: 1 }}
-        data={data}
-        onCreate={(u: uPlot) => {
-          const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              u.setSize({
-                width: entry.contentRect.width,
-                height: opts.height,
-              });
-            }
-          });
-          ro.observe(u.root);
-        }}
-      />
     </div>
   );
 }

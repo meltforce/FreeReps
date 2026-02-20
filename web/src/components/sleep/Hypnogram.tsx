@@ -1,17 +1,17 @@
 import { SleepStage } from "../../api";
 
 const STAGE_ORDER: Record<string, number> = {
-  awake: 0,
-  rem: 1,
-  core: 2,
-  deep: 3,
+  Awake: 0,
+  REM: 1,
+  Core: 2,
+  Deep: 3,
 };
 
 const STAGE_COLORS: Record<string, string> = {
-  deep: "#6366f1", // indigo-500
-  core: "#3b82f6", // blue-500
-  rem: "#8b5cf6", // violet-500
-  awake: "#f59e0b", // amber-500
+  Deep: "#6366f1", // indigo-500
+  Core: "#3b82f6", // blue-500
+  REM: "#8b5cf6", // violet-500
+  Awake: "#f59e0b", // amber-500
 };
 
 const STAGE_LABELS = ["Awake", "REM", "Core", "Deep"];
@@ -36,20 +36,27 @@ export default function Hypnogram({ stages }: Props) {
   const totalMs = endMs - startMs;
   if (totalMs <= 0) return null;
 
-  // Generate hour labels
-  const startHour = new Date(startMs);
-  startHour.setMinutes(0, 0, 0);
+  // Generate hour labels — limit to ~5-6 ticks to avoid overlap
+  const totalHours = totalMs / 3600000;
+  const step = totalHours > 10 ? 3 : totalHours > 6 ? 2 : 1;
+
+  const firstTick = new Date(startMs);
+  firstTick.setMinutes(0, 0, 0);
+  firstTick.setTime(firstTick.getTime() + 3600000); // next full hour
+  // Align to step boundary
+  const tickHour = firstTick.getHours();
+  const alignedHour = Math.ceil(tickHour / step) * step;
+  firstTick.setHours(alignedHour, 0, 0, 0);
+
   const hourLabels: { time: string; pct: number }[] = [];
-  let h = new Date(startHour.getTime() + 3600000);
+  let h = new Date(firstTick.getTime());
   while (h.getTime() < endMs) {
     const pct = ((h.getTime() - startMs) / totalMs) * 100;
-    if (pct > 0 && pct < 100) {
-      hourLabels.push({
-        time: h.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        pct,
-      });
+    if (pct > 2 && pct < 98) {
+      const hr = h.getHours().toString().padStart(2, "0");
+      hourLabels.push({ time: `${hr}:00`, pct });
     }
-    h = new Date(h.getTime() + 3600000);
+    h = new Date(h.getTime() + step * 3600000);
   }
 
   return (

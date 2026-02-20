@@ -8,25 +8,60 @@ import SavedViews, {
   CorrelationView,
 } from "../components/correlation/SavedViews";
 
-const METRICS = [
-  { value: "heart_rate", label: "Heart Rate" },
-  { value: "resting_heart_rate", label: "Resting HR" },
-  { value: "heart_rate_variability", label: "HRV" },
-  { value: "blood_oxygen_saturation", label: "SpO2" },
-  { value: "respiratory_rate", label: "Resp. Rate" },
-  { value: "vo2_max", label: "VO2 Max" },
-  { value: "weight_body_mass", label: "Weight" },
-  { value: "body_fat_percentage", label: "Body Fat" },
-  { value: "active_energy", label: "Active Energy" },
-  { value: "basal_energy_burned", label: "Basal Energy" },
-  { value: "apple_exercise_time", label: "Exercise Time" },
+const METRIC_GROUPS = [
+  {
+    label: "Cardiovascular",
+    metrics: [
+      { value: "heart_rate", label: "Heart Rate" },
+      { value: "resting_heart_rate", label: "Resting HR" },
+      { value: "heart_rate_variability", label: "HRV" },
+      { value: "blood_oxygen_saturation", label: "SpO2" },
+      { value: "respiratory_rate", label: "Resp. Rate" },
+      { value: "vo2_max", label: "VO2 Max" },
+    ],
+  },
+  {
+    label: "Sleep",
+    metrics: [{ value: "sleep_analysis", label: "Sleep Duration" }],
+  },
+  {
+    label: "Body",
+    metrics: [
+      { value: "weight_body_mass", label: "Weight" },
+      { value: "body_fat_percentage", label: "Body Fat" },
+    ],
+  },
+  {
+    label: "Activity",
+    metrics: [
+      { value: "active_energy", label: "Active Energy" },
+      { value: "basal_energy_burned", label: "Basal Energy" },
+      { value: "apple_exercise_time", label: "Exercise Time" },
+    ],
+  },
 ];
 
-type TimeRange = "30d" | "90d" | "1y";
+// Flat list for lookup
+const ALL_METRICS = METRIC_GROUPS.flatMap((g) => g.metrics);
+
+const PRESETS = [
+  { label: "Sleep vs HRV", x: "sleep_analysis", y: "heart_rate_variability" },
+  { label: "HRV vs RHR", x: "heart_rate_variability", y: "resting_heart_rate" },
+  { label: "Sleep vs RHR", x: "sleep_analysis", y: "resting_heart_rate" },
+  {
+    label: "Exercise vs HRV",
+    x: "apple_exercise_time",
+    y: "heart_rate_variability",
+  },
+];
+
+type TimeRange = "1d" | "30d" | "90d" | "1y";
 type Mode = "scatter" | "overlay";
 
 function daysFromRange(range_: TimeRange): number {
   switch (range_) {
+    case "1d":
+      return 1;
     case "30d":
       return 30;
     case "90d":
@@ -37,7 +72,39 @@ function daysFromRange(range_: TimeRange): number {
 }
 
 function getLabel(value: string): string {
-  return METRICS.find((m) => m.value === value)?.label ?? value;
+  return ALL_METRICS.find((m) => m.value === value)?.label ?? value;
+}
+
+function MetricSelect({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-zinc-500 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-1.5 text-sm
+                   focus:outline-none focus:ring-1 focus:ring-cyan-500"
+      >
+        {METRIC_GROUPS.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.metrics.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 export default function CorrelationPage() {
@@ -71,45 +138,35 @@ export default function CorrelationPage() {
         <TimeRangeSelector
           value={timeRange}
           onChange={(v) => setTimeRange(v as TimeRange)}
-          options={["30d", "90d", "1y"]}
+          options={["1d", "30d", "90d", "1y"]}
         />
+      </div>
+
+      {/* Presets */}
+      <div className="flex flex-wrap gap-2">
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => {
+              setXMetric(p.x);
+              setYMetric(p.y);
+            }}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              xMetric === p.x && yMetric === p.y
+                ? "bg-cyan-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
 
       {/* Metric selectors */}
       <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">X Axis</label>
-          <select
-            value={xMetric}
-            onChange={(e) => setXMetric(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-1.5 text-sm
-                       focus:outline-none focus:ring-1 focus:ring-cyan-500"
-          >
-            {METRICS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
+        <MetricSelect value={xMetric} onChange={setXMetric} label="X Axis" />
         <span className="text-zinc-500 text-sm pb-1">vs</span>
-
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Y Axis</label>
-          <select
-            value={yMetric}
-            onChange={(e) => setYMetric(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-1.5 text-sm
-                       focus:outline-none focus:ring-1 focus:ring-cyan-500"
-          >
-            {METRICS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <MetricSelect value={yMetric} onChange={setYMetric} label="Y Axis" />
 
         {/* Mode toggle */}
         <div className="flex gap-1">
@@ -172,6 +229,13 @@ export default function CorrelationPage() {
                   <span className="text-zinc-600">
                     ({data.count} data points)
                   </span>
+                </div>
+              )}
+
+              {/* Low data warning */}
+              {data.count < 7 && (
+                <div className="text-amber-500 text-sm p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                  Low data overlap — correlation may not be reliable.
                 </div>
               )}
 

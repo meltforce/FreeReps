@@ -4,6 +4,7 @@ import { fetchWorkoutDetail } from "../api";
 import HRTimelineChart from "../components/workouts/HRTimelineChart";
 import HRZoneBars from "../components/workouts/HRZoneBars";
 import RouteMap from "../components/workouts/RouteMap";
+import WorkoutSets from "../components/workouts/WorkoutSets";
 
 function formatDuration(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -107,14 +108,19 @@ export default function WorkoutDetailPage() {
         )}
       </div>
 
+      {/* Workout Sets (Alpha Progression data) */}
+      <WorkoutSets workoutId={id!} />
+
       {/* HR Timeline */}
       {hasHR && <HRTimelineChart hrData={w.HeartRateData!} />}
 
       {/* HR Zones */}
       {hasHR && <HRZoneBars hrData={w.HeartRateData!} />}
 
-      {/* Route Map */}
-      {hasRoute && <RouteMap route={w.RouteData!} />}
+      {/* Route Map — hidden for indoor or zero-distance workouts */}
+      {hasRoute && !w.IsIndoor && (w.Distance ?? 0) > 0.1 && (
+        <RouteMap route={w.RouteData!} />
+      )}
     </div>
   );
 }
