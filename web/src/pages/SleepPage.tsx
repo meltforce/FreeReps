@@ -5,27 +5,17 @@ import TimeRangeSelector from "../components/TimeRangeSelector";
 import SleepMetricCards from "../components/sleep/SleepMetricCards";
 import Hypnogram from "../components/sleep/Hypnogram";
 import SleepHistoryChart from "../components/sleep/SleepHistoryChart";
-
-type TimeRange = "7d" | "30d" | "90d";
-
-function daysFromRange(range_: TimeRange): number {
-  switch (range_) {
-    case "7d":
-      return 7;
-    case "30d":
-      return 30;
-    case "90d":
-      return 90;
-  }
-}
+import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function SleepPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
+  const [offset, setOffset] = useState(0);
 
-  const end = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - daysFromRange(timeRange) * 86400000)
-    .toISOString()
-    .split("T")[0];
+  const days = daysFromRange(timeRange);
+  const endDate = new Date(Date.now() - offset * days * 86400000);
+  const startDate = new Date(endDate.getTime() - days * 86400000);
+  const end = endDate.toISOString().split("T")[0];
+  const start = startDate.toISOString().split("T")[0];
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["sleep", start, end],
@@ -80,8 +70,12 @@ export default function SleepPage() {
         <h2 className="text-xl font-semibold text-zinc-100">Sleep</h2>
         <TimeRangeSelector
           value={timeRange}
-          onChange={(v) => setTimeRange(v as TimeRange)}
+          onChange={(v) => { setTimeRange(v as TimeRange); setOffset(0); }}
           options={["7d", "30d", "90d"]}
+          onPrev={() => setOffset((o) => o + 1)}
+          onNext={() => setOffset((o) => Math.max(0, o - 1))}
+          canGoNext={offset > 0}
+          dateLabel={formatDateLabel(start, end)}
         />
       </div>
 
@@ -109,7 +103,7 @@ export default function SleepPage() {
 
       {/* Sleep History */}
       {sessions.length > 0 && (
-        <SleepHistoryChart sessions={sessions} stages={stages} />
+        <SleepHistoryChart sessions={sessions} stages={stages} start={start} end={end} />
       )}
     </div>
   );

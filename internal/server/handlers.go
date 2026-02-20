@@ -237,12 +237,12 @@ func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Query sets for the workout's date (start of day to end of day)
-	wStart := workout.StartTime
-	dayStart := time.Date(wStart.Year(), wStart.Month(), wStart.Day(), 0, 0, 0, 0, wStart.Location())
-	dayEnd := dayStart.Add(24 * time.Hour)
+	// Query sets using workout time window (±2 hours) instead of full day
+	// to avoid leaking exercises from other workouts on the same day
+	windowStart := workout.StartTime.Add(-2 * time.Hour)
+	windowEnd := workout.EndTime.Add(2 * time.Hour)
 
-	sets, err := s.db.QueryWorkoutSets(r.Context(), dayStart, dayEnd, 1)
+	sets, err := s.db.QueryWorkoutSets(r.Context(), windowStart, windowEnd, 1)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

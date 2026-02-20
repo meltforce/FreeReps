@@ -183,6 +183,20 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, result 
 			}
 			result.SleepSessionsInserted++
 
+			// Also write sleep_analysis to health_metrics for correlation queries
+			qty := dp.TotalSleep
+			sleepMetric := models.HealthMetricRow{
+				Time:       dp.SleepEnd.Time,
+				UserID:     1,
+				MetricName: "sleep_analysis",
+				Source:     "Health Auto Export",
+				Units:      "hr",
+				Qty:        &qty,
+			}
+			if _, err := p.db.InsertHealthMetrics(ctx, []models.HealthMetricRow{sleepMetric}); err != nil {
+				p.log.Warn("failed to insert sleep_analysis metric", "error", err)
+			}
+
 		case SleepFormatUnaggregated:
 			var dp models.HAESleepStage
 			if err := json.Unmarshal(raw, &dp); err != nil {

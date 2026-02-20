@@ -126,8 +126,15 @@ function MetricCard({
   let subtitle: string;
 
   if (isCumulative && dailySum) {
-    value = Math.round(dailySum.Total).toString();
-    unit = displayUnit(row.MetricName, dailySum.Units);
+    let total = dailySum.Total;
+    let displayUnits = dailySum.Units;
+    // Convert kJ to kcal for display consistency
+    if (row.MetricName === "basal_energy_burned" && displayUnits === "kJ") {
+      total = total / 4.184;
+      displayUnits = "kcal";
+    }
+    value = Math.round(total).toString();
+    unit = displayUnit(row.MetricName, displayUnits);
     subtitle = "today";
   } else {
     value = getValue(row);

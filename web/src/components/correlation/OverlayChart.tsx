@@ -3,6 +3,7 @@ import type uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { CorrelationPoint } from "../../api";
 import AutoSizeUplot from "../AutoSizeUplot";
+import { axisValues24h } from "../../utils/chartFormat";
 
 interface Props {
   points: CorrelationPoint[];
@@ -44,6 +45,7 @@ export default function OverlayChart({ points, xLabel, yLabel }: Props) {
           stroke: "#52525b",
           grid: { stroke: "#27272a", width: 1 },
           ticks: { stroke: "#27272a" },
+          values: axisValues24h,
         },
         // Left Y axis for first metric
         {

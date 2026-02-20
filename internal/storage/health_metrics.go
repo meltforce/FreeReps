@@ -11,6 +11,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// cumulativeMetrics are metrics that should be summed (not averaged) when aggregating.
+var cumulativeMetrics = map[string]bool{
+	"active_energy":      true,
+	"basal_energy_burned": true,
+	"apple_exercise_time": true,
+}
+
 // InsertHealthMetrics batch-inserts health metric rows. Returns the number actually inserted
 // (skipped duplicates via ON CONFLICT DO NOTHING).
 func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
@@ -76,17 +83,24 @@ func (db *DB) GetLatestMetrics(ctx context.Context, userID int) ([]models.Health
 
 // GetTimeSeries returns aggregated time-series data using time_bucket.
 // bucketSize should be a PostgreSQL interval like '1 day', '1 hour'.
+// Cumulative metrics (active_energy, basal_energy_burned, apple_exercise_time)
+// use SUM; all others use AVG.
 func (db *DB) GetTimeSeries(ctx context.Context, metricName string, start, end time.Time, bucketSize string, userID int) ([]TimeSeriesPoint, error) {
-	rows, err := db.Pool.Query(ctx,
+	aggFunc := "AVG"
+	if cumulativeMetrics[metricName] {
+		aggFunc = "SUM"
+	}
+	query := fmt.Sprintf(
 		`SELECT time_bucket($1::interval, time) AS bucket,
-		        AVG(COALESCE(qty, avg_val)) AS avg_val,
+		        %s(COALESCE(qty, avg_val)) AS avg_val,
 		        MIN(COALESCE(qty, min_val)) AS min_val,
 		        MAX(COALESCE(qty, max_val)) AS max_val,
 		        COUNT(*) AS count
 		 FROM health_metrics
 		 WHERE metric_name = $2 AND time >= $3 AND time < $4 AND user_id = $5
 		 GROUP BY bucket
-		 ORDER BY bucket ASC`,
+		 ORDER BY bucket ASC`, aggFunc)
+	rows, err := db.Pool.Query(ctx, query,
 		bucketSize, metricName, start, end, userID)
 	if err != nil {
 		return nil, fmt.Errorf("querying time series: %w", err)
@@ -209,24 +223,34 @@ type CorrelationResult struct {
 }
 
 // GetCorrelation joins two metrics on time buckets and computes their Pearson correlation.
+// Uses SUM for cumulative metrics, AVG for all others.
 func (db *DB) GetCorrelation(ctx context.Context, xMetric, yMetric string, start, end time.Time, bucket string, userID int) (*CorrelationResult, error) {
-	rows, err := db.Pool.Query(ctx,
+	xAgg := "AVG"
+	if cumulativeMetrics[xMetric] {
+		xAgg = "SUM"
+	}
+	yAgg := "AVG"
+	if cumulativeMetrics[yMetric] {
+		yAgg = "SUM"
+	}
+	query := fmt.Sprintf(
 		`WITH x AS (
 			SELECT time_bucket($1::interval, time) AS bucket,
-			       AVG(COALESCE(qty, avg_val)) AS val
+			       %s(COALESCE(qty, avg_val)) AS val
 			FROM health_metrics
 			WHERE metric_name = $2 AND time >= $4 AND time < $5 AND user_id = $6
 			GROUP BY bucket
 		), y AS (
 			SELECT time_bucket($1::interval, time) AS bucket,
-			       AVG(COALESCE(qty, avg_val)) AS val
+			       %s(COALESCE(qty, avg_val)) AS val
 			FROM health_metrics
 			WHERE metric_name = $3 AND time >= $4 AND time < $5 AND user_id = $6
 			GROUP BY bucket
 		)
 		SELECT x.bucket, x.val, y.val
 		FROM x JOIN y ON x.bucket = y.bucket
-		ORDER BY x.bucket ASC`,
+		ORDER BY x.bucket ASC`, xAgg, yAgg)
+	rows, err := db.Pool.Query(ctx, query,
 		bucket, xMetric, yMetric, start, end, userID)
 	if err != nil {
 		return nil, fmt.Errorf("querying correlation: %w", err)

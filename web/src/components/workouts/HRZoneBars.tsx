@@ -35,13 +35,24 @@ export default function HRZoneBars({ hrData }: Props) {
       (new Date(hrData[i].Time).getTime() -
         new Date(hrData[i - 1].Time).getTime()) /
       1000;
-    if (dt <= 0 || dt > 300) continue; // skip gaps > 5 min
+    if (dt <= 0 || dt > 600) continue; // skip gaps > 10 min (covers strength rest periods)
     const zoneIdx = ZONES.findIndex((z) => bpm < z.max);
     if (zoneIdx >= 0) zoneSecs[zoneIdx] += dt;
   }
 
   const totalSecs = zoneSecs.reduce((a, b) => a + b, 0);
-  if (totalSecs === 0) return null;
+  if (totalSecs === 0) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-zinc-400 mb-2">
+          Time in HR Zones
+        </h3>
+        <p className="text-sm text-zinc-500">
+          Insufficient continuous HR data for zone analysis.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">

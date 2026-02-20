@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,7 +18,8 @@ var (
 	sessionHeaderRe = regexp.MustCompile(`^"(.+)";"(\d{4}-\d{2}-\d{2}\s+\d+:\d+)\s+h";"(.+)"$`)
 
 	// exerciseHeaderRe matches: "1. Exercise Name · Equipment · 8 reps[· modifiers]"[;"warmup info"]
-	exerciseHeaderRe = regexp.MustCompile(`^"(\d+)\.\s+(.+?)(?:\s+·\s+(\S.*?))?\s+·\s+(\d+)\s+reps(.*?)"(?:;"(.+)")?$`)
+	// Group 1: exercise number, Group 2: name+equipment, Group 3: target reps, Group 4: modifiers, Group 5: warmups
+	exerciseHeaderRe = regexp.MustCompile(`^"(\d+)\.\s+(.+?)\s+·\s+(\d+)\s+reps([^"]*)"(?:;"(.+)")?$`)
 
 	// setDataRe matches: 1;115;8;1
 	setDataRe = regexp.MustCompile(`^(\d+);(.+);(\d+);(.+)$`)
@@ -87,19 +89,20 @@ func Parse(r io.Reader) ([]models.AlphaSession, error) {
 				current.Exercises = append(current.Exercises, *currentExercise)
 			}
 			num, _ := strconv.Atoi(m[1])
-			targetReps, _ := strconv.Atoi(m[4])
+			targetReps, _ := strconv.Atoi(m[3])
 
-			// m[2] = exercise name, m[3] = equipment (optional, captured by regex)
+			// m[2] = "Name · Equipment" combined — split on last " · " separator
+			name, equipment := splitExerciseNameEquipment(m[2])
 			currentExercise = &models.AlphaExercise{
 				Number:     num,
-				Name:       strings.TrimSpace(m[2]),
-				Equipment:  strings.TrimSpace(m[3]),
+				Name:       name,
+				Equipment:  equipment,
 				TargetReps: targetReps,
 			}
 
-			// Parse warmup sets if present
-			if m[6] != "" {
-				warmups := parseWarmups(m[6])
+			// Parse warmup sets if present (group 5)
+			if m[5] != "" {
+				warmups := parseWarmups(m[5])
 				currentExercise.Sets = append(currentExercise.Sets, warmups...)
 			}
 			continue
@@ -126,7 +129,10 @@ func Parse(r io.Reader) ([]models.AlphaSession, error) {
 			continue
 		}
 
-		// Unknown line — skip silently (could be notes or other metadata)
+		// Unknown line — log if it looks like it could be an exercise header
+		if strings.HasPrefix(line, "\"") && !columnHeaderRe.MatchString(line) {
+			slog.Warn("alpha parser: unmatched line (possible exercise header)", "line", line)
+		}
 	}
 
 	// Flush remaining

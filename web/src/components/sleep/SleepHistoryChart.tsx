@@ -2,23 +2,38 @@ import { useMemo } from "react";
 import { SleepSession, SleepStage } from "../../api";
 
 const STAGE_COLORS: Record<string, string> = {
-  Deep: "#6366f1",
+  Deep: "#1e3a5f",
   Core: "#3b82f6",
-  REM: "#8b5cf6",
-  Awake: "#f59e0b",
+  REM: "#67e8f9",
+  Awake: "#ef4444",
 };
 
 interface Props {
   sessions: SleepSession[];
   stages: SleepStage[];
+  start: string;
+  end: string;
+}
+
+/** Generate all dates (YYYY-MM-DD) between start and end inclusive. */
+function generateDateRange(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const d = new Date(start + "T00:00:00");
+  const endD = new Date(end + "T00:00:00");
+  while (d <= endD) {
+    dates.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
 }
 
 /**
  * Apple Health-style sleep timeline chart.
  * Y-axis = clock time (inverted: evening at top, morning at bottom).
  * Each night is a column with stage-colored blocks positioned by time.
+ * Columns span the full requested date range so 7d and 30d look visually distinct.
  */
-export default function SleepHistoryChart({ sessions, stages }: Props) {
+export default function SleepHistoryChart({ sessions, stages, start, end }: Props) {
   const chartData = useMemo(() => {
     if (!sessions || sessions.length === 0) return null;
 
@@ -58,6 +73,13 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
       yLabels.push(`${hour.toString().padStart(2, "0")}:00`);
     }
 
+    // Build a map from date string → session index for quick lookup
+    const sessionByDate = new Map<string, number>();
+    sorted.forEach((session, idx) => {
+      const dateKey = new Date(session.SleepStart).toISOString().split("T")[0];
+      sessionByDate.set(dateKey, idx);
+    });
+
     // Map stages to sessions
     const sessionsWithStages = sorted.map((session) => {
       const sessionStart = new Date(session.SleepStart).getTime();
@@ -69,24 +91,39 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
       return { session, stages: sessionStages };
     });
 
+    // Generate full date range columns — each day is either a session or empty
+    const allDates = generateDateRange(start, end);
+    const columns: { date: string; sessionIdx: number | null }[] = allDates.map((d) => ({
+      date: d,
+      sessionIdx: sessionByDate.get(d) ?? null,
+    }));
+
     // Compute average sleep duration
     const totalSleepHours = sorted.reduce((sum, s) => sum + s.TotalSleep, 0);
     const avgSleepHours = totalSleepHours / sorted.length;
     const avgH = Math.floor(avgSleepHours);
     const avgM = Math.round((avgSleepHours - avgH) * 60);
 
+    // Date range label
+    const firstDate = new Date(start);
+    const lastDate = new Date(end);
+    const dateRangeLabel = `${firstDate.toLocaleDateString("de-DE", { day: "numeric", month: "short" })} – ${lastDate.toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" })}`;
+
     return {
       sessionsWithStages,
+      columns,
       minOffset,
       maxOffset,
       totalRange,
       yLabels,
       avgLabel: `${avgH}h ${avgM}m`,
-      count: sorted.length,
+      dateRangeLabel,
+      columnCount: columns.length,
+      sessionCount: sorted.length,
     };
-  }, [sessions, stages]);
+  }, [sessions, stages, start, end]);
 
-  if (!chartData || chartData.count === 0) {
+  if (!chartData || chartData.sessionCount === 0) {
     return (
       <div className="bg-zinc-900 rounded-lg p-6 text-zinc-500 text-sm">
         No sleep history data.
@@ -94,9 +131,10 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
     );
   }
 
-  const { sessionsWithStages, minOffset, totalRange, yLabels, avgLabel, count } =
+  const { sessionsWithStages, columns, minOffset, totalRange, yLabels, avgLabel, dateRangeLabel, columnCount } =
     chartData;
-  const showStages = count <= 60; // Show stage detail for up to ~2 months
+  const barPadding = columnCount <= 14 ? "15%" : "25%";
+  const showStages = columnCount <= 60; // Show stage detail for up to ~2 months
 
   const getOffsetHours = (date: Date): number => {
     let h = date.getHours() + date.getMinutes() / 60;
@@ -104,10 +142,16 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
     return h + 6;
   };
 
+  // Show date labels at a reasonable interval
+  const labelInterval = columnCount <= 14 ? 1 : columnCount <= 31 ? 2 : 5;
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-zinc-400">Sleep History</h3>
+        <h3 className="text-sm font-medium text-zinc-400">
+          Sleep History
+          <span className="text-xs text-zinc-500 ml-2 font-normal">{dateRangeLabel}</span>
+        </h3>
         <span className="text-sm text-zinc-300">
           Avg: <span className="font-medium text-zinc-100">{avgLabel}</span>
         </span>
@@ -117,7 +161,7 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
         {/* Chart area */}
         <div
           className="flex-1 min-w-0 relative"
-          style={{ height: `${Math.max(totalRange * 20, 120)}px` }}
+          style={{ height: `${Math.max(totalRange * 30, 250)}px` }}
         >
           {/* Grid lines */}
           {yLabels.map((_, i) => {
@@ -132,9 +176,38 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
             );
           })}
 
-          {/* Session columns */}
+          {/* Columns — one per date in the range */}
           <div className="absolute inset-0 flex items-stretch">
-            {sessionsWithStages.map(({ session, stages: sessionStages }, idx) => {
+            {columns.map(({ date, sessionIdx }, colIdx) => {
+              const hasSession = sessionIdx !== null;
+              const entry = hasSession ? sessionsWithStages[sessionIdx] : null;
+
+              // Date label
+              const showLabel = colIdx % labelInterval === 0;
+              const d = new Date(date + "T00:00:00");
+              const dayLabel = d.toLocaleDateString(undefined, {
+                weekday: columnCount <= 14 ? "short" : undefined,
+                day: "numeric",
+              });
+
+              if (!hasSession || !entry) {
+                // Empty column — no session for this date
+                return (
+                  <div
+                    key={date}
+                    className="flex-1 flex flex-col items-center relative"
+                    style={{ minWidth: 0 }}
+                  >
+                    {showLabel && (
+                      <span className="absolute bottom-0 translate-y-full pt-1 text-[10px] text-zinc-600 whitespace-nowrap">
+                        {dayLabel}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+
+              const { session, stages: sessionStages } = entry;
               const sleepStart = new Date(session.SleepStart);
               const sleepEnd = new Date(session.SleepEnd);
               const startOff = getOffsetHours(sleepStart);
@@ -142,15 +215,9 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
               const topPct = ((startOff - minOffset) / totalRange) * 100;
               const heightPct = ((endOff - startOff) / totalRange) * 100;
 
-              // Date label
-              const dayLabel = sleepStart.toLocaleDateString(undefined, {
-                weekday: count <= 14 ? "short" : undefined,
-                day: "numeric",
-              });
-
               return (
                 <div
-                  key={idx}
+                  key={date}
                   className="flex-1 flex flex-col items-center relative"
                   style={{ minWidth: 0 }}
                 >
@@ -168,8 +235,8 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
                           style={{
                             top: `${stTop}%`,
                             height: `${Math.max(stHeight, 0.5)}%`,
-                            left: "15%",
-                            right: "15%",
+                            left: barPadding,
+                            right: barPadding,
                             backgroundColor:
                               STAGE_COLORS[stage.Stage] ?? "#71717a",
                             opacity: 0.85,
@@ -195,9 +262,11 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
                   )}
 
                   {/* Date label at bottom */}
-                  <span className="absolute bottom-0 translate-y-full pt-1 text-[10px] text-zinc-500 whitespace-nowrap">
-                    {dayLabel}
-                  </span>
+                  {showLabel && (
+                    <span className="absolute bottom-0 translate-y-full pt-1 text-[10px] text-zinc-500 whitespace-nowrap">
+                      {dayLabel}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -207,7 +276,7 @@ export default function SleepHistoryChart({ sessions, stages }: Props) {
         {/* Y-axis labels (right side) */}
         <div
           className="shrink-0 w-12 relative"
-          style={{ height: `${Math.max(totalRange * 20, 120)}px` }}
+          style={{ height: `${Math.max(totalRange * 30, 250)}px` }}
         >
           {yLabels.map((label, i) => {
             const off = minOffset + i * 2;

@@ -3,6 +3,7 @@ import TimeSeriesChart from "../components/TimeSeriesChart";
 import MetricSelector from "../components/MetricSelector";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import { useState } from "react";
+import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 const METRIC_OPTIONS = [
   { value: "heart_rate", label: "Heart Rate", unit: "bpm" },
@@ -18,31 +19,16 @@ const METRIC_OPTIONS = [
   { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
 ];
 
-type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y";
-
-function daysFromRange(range_: TimeRange): number {
-  switch (range_) {
-    case "1d":
-      return 1;
-    case "7d":
-      return 7;
-    case "30d":
-      return 30;
-    case "90d":
-      return 90;
-    case "1y":
-      return 365;
-  }
-}
-
 export default function DashboardPage() {
   const [metric, setMetric] = useState("heart_rate");
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
+  const [offset, setOffset] = useState(0);
 
-  const end = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - daysFromRange(timeRange) * 86400000)
-    .toISOString()
-    .split("T")[0];
+  const days = daysFromRange(timeRange);
+  const endDate = new Date(Date.now() - offset * days * 86400000);
+  const startDate = new Date(endDate.getTime() - days * 86400000);
+  const end = endDate.toISOString().split("T")[0];
+  const start = startDate.toISOString().split("T")[0];
 
   const selected = METRIC_OPTIONS.find((m) => m.value === metric);
 
@@ -59,8 +45,12 @@ export default function DashboardPage() {
           />
           <TimeRangeSelector
             value={timeRange}
-            onChange={(v) => setTimeRange(v as TimeRange)}
+            onChange={(v) => { setTimeRange(v as TimeRange); setOffset(0); }}
             options={["1d", "7d", "30d", "90d", "1y"]}
+            onPrev={() => setOffset((o) => o + 1)}
+            onNext={() => setOffset((o) => Math.max(0, o - 1))}
+            canGoNext={offset > 0}
+            dateLabel={formatDateLabel(start, end)}
           />
         </div>
 

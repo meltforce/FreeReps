@@ -1,15 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchWorkoutSets, WorkoutSet } from "../../api";
 
+const STRENGTH_TYPES = new Set([
+  "Traditional Strength Training",
+  "Functional Strength Training",
+  "High Intensity Interval Training",
+  "Core Training",
+]);
+
 interface Props {
   workoutId: string;
+  workoutName: string;
 }
 
-export default function WorkoutSets({ workoutId }: Props) {
+export default function WorkoutSets({ workoutId, workoutName }: Props) {
+  const isStrength = STRENGTH_TYPES.has(workoutName);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["workoutSets", workoutId],
     queryFn: () => fetchWorkoutSets(workoutId),
+    enabled: isStrength,
   });
+
+  if (!isStrength) return null;
 
   if (isLoading) {
     return (

@@ -3,6 +3,7 @@ import { fetchTimeSeries, TimeSeriesPoint } from "../api";
 import { useMemo } from "react";
 import type uPlot from "uplot";
 import AutoSizeUplot from "./AutoSizeUplot";
+import { axisValues24h } from "../utils/chartFormat";
 
 interface Props {
   metric: string;
@@ -55,6 +56,7 @@ export default function TimeSeriesChart({
           stroke: "#52525b",
           grid: { stroke: "#27272a", width: 1 },
           ticks: { stroke: "#27272a" },
+          values: axisValues24h,
         },
         {
           stroke: "#52525b",
@@ -64,13 +66,7 @@ export default function TimeSeriesChart({
           labelSize: 14,
         },
       ],
-      scales: {
-        x: {
-          time: true,
-          min: Math.floor(new Date(start).getTime() / 1000),
-          max: Math.floor(new Date(end).getTime() / 1000) + 86400,
-        },
-      },
+      scales: { x: { time: true } },
       cursor: { drag: { x: true, y: false } },
     };
 
@@ -78,7 +74,7 @@ export default function TimeSeriesChart({
       opts,
       plotData: [new Float64Array(times), values] as uPlot.AlignedData,
     };
-  }, [data, label, unit, start, end]);
+  }, [data, label, unit]);
 
   if (isLoading) {
     return (

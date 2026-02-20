@@ -3,30 +3,18 @@ import { useState } from "react";
 import { fetchWorkouts } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import WorkoutList from "../components/workouts/WorkoutList";
-
-type TimeRange = "1d" | "30d" | "90d" | "1y";
-
-function daysFromRange(range_: TimeRange): number {
-  switch (range_) {
-    case "1d":
-      return 1;
-    case "30d":
-      return 30;
-    case "90d":
-      return 90;
-    case "1y":
-      return 365;
-  }
-}
+import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function WorkoutsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("90d");
   const [typeFilter, setTypeFilter] = useState("");
+  const [offset, setOffset] = useState(0);
 
-  const end = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - daysFromRange(timeRange) * 86400000)
-    .toISOString()
-    .split("T")[0];
+  const days = daysFromRange(timeRange);
+  const endDate = new Date(Date.now() - offset * days * 86400000);
+  const startDate = new Date(endDate.getTime() - days * 86400000);
+  const end = endDate.toISOString().split("T")[0];
+  const start = startDate.toISOString().split("T")[0];
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["workouts", start, end],
@@ -66,13 +54,18 @@ export default function WorkoutsPage() {
         <h2 className="text-xl font-semibold text-zinc-100">Workouts</h2>
         <TimeRangeSelector
           value={timeRange}
-          onChange={(v) => setTimeRange(v as TimeRange)}
-          options={["1d", "30d", "90d", "1y"]}
+          onChange={(v) => { setTimeRange(v as TimeRange); setOffset(0); }}
+          options={["1d", "7d", "30d", "90d", "1y"]}
+          onPrev={() => setOffset((o) => o + 1)}
+          onNext={() => setOffset((o) => Math.max(0, o - 1))}
+          canGoNext={offset > 0}
+          dateLabel={formatDateLabel(start, end)}
         />
       </div>
 
       <WorkoutList
         workouts={filtered}
+        allWorkouts={data ?? []}
         typeFilter={typeFilter}
         onTypeFilter={setTypeFilter}
       />

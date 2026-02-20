@@ -52,6 +52,19 @@ _(none)_
 - `react-router-dom` — SPA routing
 - `leaflet` + `react-leaflet` + `@types/leaflet` — workout route maps
 
+## Retest #3 Bug Fixes
+
+### Completed
+- [x] #20: Charts don't start at left edge — removed hardcoded x-scale min/max
+- [x] #21: Sleep History shows only 2 sessions — synthesize sessions from imported stages
+- [x] #23: Sleep correlation presets broken — write sleep_analysis to health_metrics table
+- [x] #24: Exercise time axis garbled — use SUM for cumulative metrics (active_energy, basal_energy_burned, apple_exercise_time)
+- [x] #22: Workout list card layout for "All" — compact list view when unfiltered
+- [x] #12: Time format inconsistency — 24h format across all uPlot charts
+- [x] Basal Cal shows kJ — convert to kcal in DailyOverview
+- [x] Workout header 12h — use de-DE locale with hour12: false
+- [x] Sleep history visual polish — Apple Health colors, taller chart, date range in header
+
 ### Known Bugs
 _(none yet — needs integration testing with real TimescaleDB)_
 

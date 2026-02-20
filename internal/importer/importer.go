@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/claude/freereps/internal/models"
 	"github.com/claude/freereps/internal/storage"
@@ -281,6 +283,13 @@ func (imp *Importer) importSleepDir(ctx context.Context, dir string) error {
 		imp.stats.SleepStagesInserted += inserted
 	}
 
+	// Synthesize sleep sessions from the imported stages
+	if !imp.dryRun {
+		if err := imp.synthesizeSleepSessions(ctx); err != nil {
+			return fmt.Errorf("synthesizing sleep sessions: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -302,6 +311,108 @@ func (imp *Importer) batchInsertSleepStages(ctx context.Context, rows []models.S
 		totalInserted += inserted
 	}
 	return totalInserted, nil
+}
+
+// synthesizeSleepSessions groups all sleep stages into nights and creates
+// sleep sessions + health_metrics rows for each night.
+func (imp *Importer) synthesizeSleepSessions(ctx context.Context) error {
+	// Query all stages for user 1 (import is single-user)
+	stages, err := imp.db.QuerySleepStages(ctx, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), 1)
+	if err != nil {
+		return fmt.Errorf("querying stages: %w", err)
+	}
+	if len(stages) == 0 {
+		return nil
+	}
+
+	// Sort by start time
+	sort.Slice(stages, func(i, j int) bool {
+		return stages[i].StartTime.Before(stages[j].StartTime)
+	})
+
+	// Group into nights: stages within 12 hours of each other
+	var nights [][]models.SleepStageRow
+	var currentNight []models.SleepStageRow
+
+	for _, stage := range stages {
+		if len(currentNight) == 0 {
+			currentNight = append(currentNight, stage)
+			continue
+		}
+		lastEnd := currentNight[len(currentNight)-1].EndTime
+		if stage.StartTime.Sub(lastEnd) > 12*time.Hour {
+			nights = append(nights, currentNight)
+			currentNight = []models.SleepStageRow{stage}
+		} else {
+			currentNight = append(currentNight, stage)
+		}
+	}
+	if len(currentNight) > 0 {
+		nights = append(nights, currentNight)
+	}
+
+	// Create a session for each night
+	var sessionsCreated int
+	for _, night := range nights {
+		sleepStart := night[0].StartTime
+		sleepEnd := night[len(night)-1].EndTime
+
+		var deep, core, rem, awake float64
+		for _, s := range night {
+			switch s.Stage {
+			case "Deep":
+				deep += s.DurationHr
+			case "Core":
+				core += s.DurationHr
+			case "REM":
+				rem += s.DurationHr
+			case "Awake":
+				awake += s.DurationHr
+			}
+		}
+
+		totalSleep := deep + core + rem
+		inBed := sleepEnd.Sub(sleepStart).Hours()
+		// Date = the day the person woke up
+		date := sleepEnd.Truncate(24 * time.Hour)
+
+		session := models.SleepSessionRow{
+			UserID:     1,
+			Date:       date,
+			TotalSleep: totalSleep,
+			Asleep:     totalSleep,
+			Core:       core,
+			Deep:       deep,
+			REM:        rem,
+			InBed:      inBed,
+			SleepStart: sleepStart,
+			SleepEnd:   sleepEnd,
+			InBedStart: sleepStart,
+			InBedEnd:   sleepEnd,
+		}
+
+		if err := imp.db.InsertSleepSession(ctx, session); err != nil {
+			return fmt.Errorf("inserting synthesized session: %w", err)
+		}
+		sessionsCreated++
+
+		// Also insert sleep_analysis health metric for correlation queries
+		qty := totalSleep
+		sleepMetric := models.HealthMetricRow{
+			Time:       sleepEnd,
+			UserID:     1,
+			MetricName: "sleep_analysis",
+			Source:     "FreeReps Import",
+			Units:      "hr",
+			Qty:        &qty,
+		}
+		if _, err := imp.db.InsertHealthMetrics(ctx, []models.HealthMetricRow{sleepMetric}); err != nil {
+			return fmt.Errorf("inserting sleep_analysis metric: %w", err)
+		}
+	}
+
+	imp.log.Info("synthesized sleep sessions", "nights", len(nights), "sessions_created", sessionsCreated)
+	return nil
 }
 
 // importWorkouts imports all workout .hae files and matches routes.

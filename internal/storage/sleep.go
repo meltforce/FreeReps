@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -105,4 +107,106 @@ func (db *DB) QuerySleepStages(ctx context.Context, start, end time.Time, userID
 		result = append(result, r)
 	}
 	return result, rows.Err()
+}
+
+// BackfillSleepSessions synthesizes sleep sessions from existing sleep stages
+// that don't yet have corresponding sessions. Called at server startup.
+func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error {
+	// Get all stages
+	stages, err := db.QuerySleepStages(ctx,
+		time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
+		1)
+	if err != nil {
+		return fmt.Errorf("querying stages for backfill: %w", err)
+	}
+	if len(stages) == 0 {
+		return nil
+	}
+
+	// Sort by start time
+	sort.Slice(stages, func(i, j int) bool {
+		return stages[i].StartTime.Before(stages[j].StartTime)
+	})
+
+	// Group into nights (gap > 12h = new night)
+	var nights [][]models.SleepStageRow
+	var currentNight []models.SleepStageRow
+
+	for _, stage := range stages {
+		if len(currentNight) == 0 {
+			currentNight = append(currentNight, stage)
+			continue
+		}
+		lastEnd := currentNight[len(currentNight)-1].EndTime
+		if stage.StartTime.Sub(lastEnd) > 12*time.Hour {
+			nights = append(nights, currentNight)
+			currentNight = []models.SleepStageRow{stage}
+		} else {
+			currentNight = append(currentNight, stage)
+		}
+	}
+	if len(currentNight) > 0 {
+		nights = append(nights, currentNight)
+	}
+
+	var created int
+	for _, night := range nights {
+		sleepStart := night[0].StartTime
+		sleepEnd := night[len(night)-1].EndTime
+
+		var deep, core, rem float64
+		for _, s := range night {
+			switch s.Stage {
+			case "Deep":
+				deep += s.DurationHr
+			case "Core":
+				core += s.DurationHr
+			case "REM":
+				rem += s.DurationHr
+			}
+		}
+
+		totalSleep := deep + core + rem
+		inBed := sleepEnd.Sub(sleepStart).Hours()
+		date := sleepEnd.Truncate(24 * time.Hour)
+
+		session := models.SleepSessionRow{
+			UserID:     1,
+			Date:       date,
+			TotalSleep: totalSleep,
+			Asleep:     totalSleep,
+			Core:       core,
+			Deep:       deep,
+			REM:        rem,
+			InBed:      inBed,
+			SleepStart: sleepStart,
+			SleepEnd:   sleepEnd,
+			InBedStart: sleepStart,
+			InBedEnd:   sleepEnd,
+		}
+
+		// ON CONFLICT DO NOTHING — won't overwrite existing sessions
+		if err := db.InsertSleepSession(ctx, session); err != nil {
+			return fmt.Errorf("inserting backfill session: %w", err)
+		}
+		created++
+
+		// Also insert sleep_analysis health metric
+		qty := totalSleep
+		sleepMetric := models.HealthMetricRow{
+			Time:       sleepEnd,
+			UserID:     1,
+			MetricName: "sleep_analysis",
+			Source:     "FreeReps Backfill",
+			Units:      "hr",
+			Qty:        &qty,
+		}
+		if _, err := db.InsertHealthMetrics(ctx, []models.HealthMetricRow{sleepMetric}); err != nil {
+			return fmt.Errorf("inserting backfill sleep_analysis metric: %w", err)
+		}
+	}
+
+	log.Info("sleep session backfill complete", "nights", len(nights), "sessions_created", created)
+	return nil
 }

@@ -57,13 +57,14 @@ export default function WorkoutDetailPage() {
       <div>
         <h2 className="text-xl font-semibold text-zinc-100">{w.Name}</h2>
         <div className="text-sm text-zinc-500 mt-1">
-          {new Date(w.StartTime).toLocaleDateString(undefined, {
+          {new Date(w.StartTime).toLocaleDateString("de-DE", {
             weekday: "long",
             year: "numeric",
             month: "long",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
+            hour12: false,
           })}
         </div>
       </div>
@@ -109,7 +110,7 @@ export default function WorkoutDetailPage() {
       </div>
 
       {/* Workout Sets (Alpha Progression data) */}
-      <WorkoutSets workoutId={id!} />
+      <WorkoutSets workoutId={id!} workoutName={w.Name} />
 
       {/* HR Timeline */}
       {hasHR && <HRTimelineChart hrData={w.HeartRateData!} />}

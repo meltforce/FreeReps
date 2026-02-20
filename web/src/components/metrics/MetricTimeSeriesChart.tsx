@@ -4,14 +4,13 @@ import "uplot/dist/uPlot.min.css";
 import { TimeSeriesPoint, MetricStats } from "../../api";
 import { movingAverage } from "../../utils/stats";
 import AutoSizeUplot from "../AutoSizeUplot";
+import { axisValues24h } from "../../utils/chartFormat";
 
 interface Props {
   data: TimeSeriesPoint[];
   stats: MetricStats | null;
   label: string;
   unit: string;
-  start?: string;
-  end?: string;
 }
 
 export default function MetricTimeSeriesChart({
@@ -19,8 +18,6 @@ export default function MetricTimeSeriesChart({
   stats,
   label,
   unit,
-  start,
-  end,
 }: Props) {
   const { opts, plotData } = useMemo(() => {
     if (!data || data.length === 0) return { opts: null, plotData: null };
@@ -89,6 +86,7 @@ export default function MetricTimeSeriesChart({
           stroke: "#52525b",
           grid: { stroke: "#27272a", width: 1 },
           ticks: { stroke: "#27272a" },
+          values: axisValues24h,
         },
         {
           stroke: "#52525b",
@@ -98,17 +96,7 @@ export default function MetricTimeSeriesChart({
           labelSize: 14,
         },
       ],
-      scales: {
-        x: {
-          time: true,
-          ...(start && end
-            ? {
-                min: Math.floor(new Date(start).getTime() / 1000),
-                max: Math.floor(new Date(end).getTime() / 1000) + 86400,
-              }
-            : {}),
-        },
-      },
+      scales: { x: { time: true } },
       cursor: { drag: { x: true, y: false } },
       bands: [
         {
@@ -128,7 +116,7 @@ export default function MetricTimeSeriesChart({
         ma7,
       ] as uPlot.AlignedData,
     };
-  }, [data, stats, label, unit, start, end]);
+  }, [data, stats, label, unit]);
 
   if (!opts || !plotData) {
     return (

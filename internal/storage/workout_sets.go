@@ -9,6 +9,14 @@ import (
 	"github.com/claude/freereps/internal/models"
 )
 
+// DeleteWorkoutSets removes all sets for a given session date and user, enabling clean re-imports.
+func (db *DB) DeleteWorkoutSets(ctx context.Context, sessionDate time.Time, userID int) error {
+	_, err := db.Pool.Exec(ctx,
+		`DELETE FROM workout_sets WHERE user_id = $1 AND session_date = $2`,
+		userID, sessionDate)
+	return err
+}
+
 // InsertWorkoutSets batch-inserts Alpha Progression set data. Returns count inserted.
 func (db *DB) InsertWorkoutSets(ctx context.Context, rows []models.WorkoutSetRow) (int64, error) {
 	if len(rows) == 0 {

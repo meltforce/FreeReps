@@ -61,6 +61,11 @@ func main() {
 	defer db.Close()
 	log.Info("database connected")
 
+	// Backfill sleep sessions from stages (idempotent — ON CONFLICT DO NOTHING)
+	if err := db.BackfillSleepSessions(ctx, log); err != nil {
+		log.Warn("sleep session backfill failed", "error", err)
+	}
+
 	// Create providers
 	haeProvider := hae.NewProvider(db, log)
 	alphaProvider := alpha.NewProvider(db, log)
