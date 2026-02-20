@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/claude/freereps/internal/models"
 )
@@ -21,13 +22,18 @@ type Stats struct {
 	FilesSkipped  int
 	FilesErrored  int
 
-	MetricPointsSent  int
-	SleepStagesSent   int
-	WorkoutsSent      int
-	RoutePointsSent   int
+	MetricPointsSent   int
+	SleepStagesSent    int
+	WorkoutsSent       int
+	RoutePointsSent    int
 	HRPointsCorrelated int
 
 	RejectedMetrics []string
+
+	// TCP mode stats
+	TCPMetricChunks  int
+	TCPWorkoutChunks int
+	TCPBytesSent     int64
 }
 
 // Uploader walks an AutoSync directory, converts .hae files to REST API format,
@@ -402,6 +408,138 @@ func (u *Uploader) sendWorkoutBatch(workouts []models.HAEWorkout, files []fileIn
 	}
 
 	return nil
+}
+
+// tcpMetric defines a metric to query from the HAE server.
+type tcpMetric struct {
+	Name      string
+	Aggregate bool // true = daily summary, false = raw data points
+}
+
+// tcpMetrics is the list of metrics to query individually from the HAE server.
+// Querying all metrics at once overwhelms the HAE TCP server, so we query
+// one metric per request and let the FreeReps DB merge them.
+var tcpMetrics = []tcpMetric{
+	{Name: "heart_rate"},
+	{Name: "resting_heart_rate"},
+	{Name: "heart_rate_variability"},
+	{Name: "blood_oxygen_saturation"},
+	{Name: "respiratory_rate"},
+	{Name: "vo2_max"},
+	{Name: "sleep_analysis"},
+	{Name: "apple_sleeping_wrist_temperature"},
+	{Name: "weight_body_mass"},
+	{Name: "body_fat_percentage"},
+	{Name: "active_energy", Aggregate: true},
+	// "basal_energy_burned" — skipped: ~8 MB/day of estimated BMR data, not useful
+	{Name: "apple_exercise_time", Aggregate: true},
+}
+
+// RunTCP queries the HAE TCP server for health data and forwards it to FreeReps.
+// It processes metrics individually (one per request) and workouts in time-range chunks.
+func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chunkDays int) (*Stats, error) {
+	hae := NewHAEClient(haeHost, haePort)
+	chunkDur := time.Duration(chunkDays) * 24 * time.Hour
+
+	// Phase 1: Health metrics — query each metric individually
+	u.log.Info("querying health metrics", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "chunk_days", chunkDays, "metrics", len(tcpMetrics))
+
+	for _, m := range tcpMetrics {
+		for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
+			chunkEnd := chunkStart.Add(chunkDur)
+			if chunkEnd.After(end) {
+				chunkEnd = end
+			}
+
+			u.log.Info("fetching metric",
+				"metric", m.Name,
+				"aggregate", m.Aggregate,
+				"from", chunkStart.Format("2006-01-02"),
+				"to", chunkEnd.Format("2006-01-02"),
+			)
+
+			result, err := hae.QueryMetricsWithRetry(chunkStart, chunkEnd, m.Name, m.Aggregate, u.log)
+			if err != nil {
+				u.log.Warn("failed to query metric, skipping",
+					"metric", m.Name,
+					"from", chunkStart.Format("2006-01-02"),
+					"to", chunkEnd.Format("2006-01-02"),
+					"error", err,
+				)
+				continue
+			}
+
+			if len(result) == 0 || string(result) == "null" {
+				u.log.Info("no data", "metric", m.Name)
+				continue
+			}
+
+			if u.dryRun {
+				u.log.Info("dry-run: would forward metric", "metric", m.Name, "bytes", len(result))
+			} else {
+				if err := u.client.SendRawJSON(result); err != nil {
+					return &u.stats, fmt.Errorf("forwarding %s: %w", m.Name, err)
+				}
+			}
+
+			u.stats.TCPMetricChunks++
+			u.stats.TCPBytesSent += int64(len(result))
+		}
+	}
+
+	// Phase 2: Workouts
+	u.log.Info("querying workouts", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"))
+
+	for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
+		chunkEnd := chunkStart.Add(chunkDur)
+		if chunkEnd.After(end) {
+			chunkEnd = end
+		}
+
+		u.log.Info("fetching workouts",
+			"from", chunkStart.Format("2006-01-02"),
+			"to", chunkEnd.Format("2006-01-02"),
+		)
+
+		result, err := hae.QueryWorkoutsWithRetry(chunkStart, chunkEnd, u.log)
+		if err != nil {
+			u.log.Warn("failed to query workouts, skipping",
+				"from", chunkStart.Format("2006-01-02"),
+				"to", chunkEnd.Format("2006-01-02"),
+				"error", err,
+			)
+			continue
+		}
+
+		if len(result) == 0 || string(result) == "null" {
+			u.log.Info("no workout data in chunk")
+			continue
+		}
+
+		if u.dryRun {
+			u.log.Info("dry-run: would forward workouts", "bytes", len(result))
+		} else {
+			if err := u.client.SendRawJSON(result); err != nil {
+				return &u.stats, fmt.Errorf("forwarding workouts: %w", err)
+			}
+		}
+
+		u.stats.TCPWorkoutChunks++
+		u.stats.TCPBytesSent += int64(len(result))
+	}
+
+	// Update sync state
+	if !u.dryRun {
+		endStr := end.Format("2006-01-02")
+		if err := u.state.SetSyncState("tcp_last_metrics_sync", endStr); err != nil {
+			u.log.Warn("failed to save metrics sync state", "error", err)
+		}
+		if err := u.state.SetSyncState("tcp_last_workouts_sync", endStr); err != nil {
+			u.log.Warn("failed to save workouts sync state", "error", err)
+		}
+	}
+
+	return &u.stats, nil
 }
 
 // decompressLZFSE decompresses an LZFSE-compressed file using the lzfse CLI tool.
