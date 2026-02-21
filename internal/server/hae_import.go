@@ -507,7 +507,7 @@ func (s *Server) handleHAEImportEvents(w http.ResponseWriter, r *http.Request) {
 
 	// Send current status immediately
 	state.mu.Lock()
-	fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(map[string]any{
+	_, _ = fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(map[string]any{
 		"step":  state.step,
 		"total": state.total,
 		"metric": state.metric,
@@ -524,7 +524,7 @@ func (s *Server) handleHAEImportEvents(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Event, evt.Data)
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Event, evt.Data)
 			flusher.Flush()
 
 			if evt.Event == "complete" || evt.Event == "error" {
