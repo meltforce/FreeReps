@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DayPicker } from "react-day-picker";
 import { format, parse } from "date-fns";
 import {
@@ -113,7 +114,16 @@ function Toggle({
 // HAE Import Section
 // ---------------------------------------------------------------------------
 
+function invalidateAllData(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["workouts"] });
+  queryClient.invalidateQueries({ queryKey: ["sleep"] });
+  queryClient.invalidateQueries({ queryKey: ["timeseries"] });
+  queryClient.invalidateQueries({ queryKey: ["latestMetrics"] });
+  queryClient.invalidateQueries({ queryKey: ["stats"] });
+}
+
 function HAEImportSection() {
+  const queryClient = useQueryClient();
   const [host, setHost] = useState(() => localStorage.getItem("hae_host") || "");
   const [port, setPort] = useState(() => localStorage.getItem("hae_port") || "9000");
   const [startDate, setStartDate] = useState("");
@@ -210,6 +220,7 @@ function HAEImportSection() {
         sleep_sessions: data.sleep_sessions,
         bytes_fetched: data.bytes_fetched,
       }));
+      invalidateAllData(queryClient);
       es.close();
     });
 
@@ -479,6 +490,7 @@ function HAEImportSection() {
 // ---------------------------------------------------------------------------
 
 function AlphaImportSection() {
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -507,6 +519,7 @@ function AlphaImportSection() {
       setResult(res);
       setSelectedFile(null);
       if (fileRef.current) fileRef.current.value = "";
+      invalidateAllData(queryClient);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

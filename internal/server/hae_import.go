@@ -144,6 +144,9 @@ func (s *Server) handleStartHAEImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end date (YYYY-MM-DD): " + err.Error()})
 		return
 	}
+	// Make end date inclusive: advance to start of next day so queries
+	// cover the entire end date (YYYY-MM-DD 00:00 → YYYY-MM-DD+1 00:00).
+	endDate = endDate.AddDate(0, 0, 1)
 
 	s.importMu.Lock()
 	if s.activeImport != nil && s.activeImport.running {
