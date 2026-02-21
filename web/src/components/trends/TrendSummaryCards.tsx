@@ -27,15 +27,10 @@ function pctChange(curr: number | null, prev: number | null): number | null {
 }
 
 function trendDirection(points: TimeSeriesPoint[]): "up" | "down" | "flat" {
-  const xs: (number | null)[] = [];
-  const ys: (number | null)[] = [];
-  for (let i = 0; i < points.length; i++) {
-    xs.push(i);
-    ys.push(points[i].avg);
-  }
+  const xs = points.map((_, i) => i);
+  const ys = points.map((p) => p.avg);
   const reg = linearRegression(xs, ys);
   if (!reg) return "flat";
-  // Normalize slope relative to mean to determine significance
   const validYs = ys.filter((y): y is number => y != null);
   if (validYs.length === 0) return "flat";
   const mean = validYs.reduce((a, b) => a + b, 0) / validYs.length;
@@ -43,6 +38,12 @@ function trendDirection(points: TimeSeriesPoint[]): "up" | "down" | "flat" {
   const relSlope = (reg.slope * points.length) / Math.abs(mean);
   if (Math.abs(relSlope) < 0.01) return "flat";
   return relSlope > 0 ? "up" : "down";
+}
+
+function changeColor(change: number): string {
+  if (change > 0) return "text-green-400";
+  if (change < 0) return "text-red-400";
+  return "text-zinc-500";
 }
 
 function TrendArrow({ dir }: { dir: "up" | "down" | "flat" }) {
@@ -84,15 +85,7 @@ export default function TrendSummaryCards({ metrics }: Props) {
             </div>
 
             {change != null && (
-              <div
-                className={`text-xs tabular-nums ${
-                  change > 0
-                    ? "text-green-400"
-                    : change < 0
-                      ? "text-red-400"
-                      : "text-zinc-500"
-                }`}
-              >
+              <div className={`text-xs tabular-nums ${changeColor(change)}`}>
                 {change > 0 ? "+" : ""}
                 {change.toFixed(1)}% vs prev
               </div>

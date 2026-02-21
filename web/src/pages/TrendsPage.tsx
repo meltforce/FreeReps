@@ -108,30 +108,23 @@ export default function TrendsPage() {
     setAggregation(range === "30d" ? "daily" : "weekly");
   }
 
-  // Build chart series data
-  const seriesData: SeriesData[] = selectedMetrics.map((metric, i) => {
+  // Build per-metric data used by both chart and summary cards
+  const metricData = selectedMetrics.map((metric, i) => {
     const meta = ALL_METRICS.find((m) => m.value === metric);
-    return {
-      metric,
-      label: meta?.label ?? metric,
-      unit: meta?.unit ?? "",
-      color: COLORS[i % COLORS.length],
-      points: tsQueries[i]?.data ?? [],
-    };
+    const label = meta?.label ?? metric;
+    const unit = meta?.unit ?? "";
+    const color = COLORS[i % COLORS.length];
+    const points = tsQueries[i]?.data ?? [];
+    return { metric, label, unit, color, points };
   });
 
-  // Build summary card data
-  const summaryMetrics = selectedMetrics.map((metric, i) => {
-    const meta = ALL_METRICS.find((m) => m.value === metric);
-    return {
-      label: meta?.label ?? metric,
-      unit: meta?.unit ?? "",
-      color: COLORS[i % COLORS.length],
-      stats: statsQueries[i]?.data ?? null,
-      prevStats: prevStatsQueries[i]?.data ?? null,
-      points: tsQueries[i]?.data ?? [],
-    };
-  });
+  const seriesData: SeriesData[] = metricData;
+
+  const summaryMetrics = metricData.map((d, i) => ({
+    ...d,
+    stats: statsQueries[i]?.data ?? null,
+    prevStats: prevStatsQueries[i]?.data ?? null,
+  }));
 
   const checkboxes = (
     <>

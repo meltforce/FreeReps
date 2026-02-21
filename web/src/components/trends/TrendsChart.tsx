@@ -46,25 +46,18 @@ export default function TrendsChart({ seriesData }: Props) {
       return arr;
     });
 
-    // Determine unique units for axis assignment
-    const uniqueUnits: string[] = [];
-    for (const s of seriesData) {
-      if (!uniqueUnits.includes(s.unit)) uniqueUnits.push(s.unit);
-    }
+    const uniqueUnits = [...new Set(seriesData.map((s) => s.unit))];
 
-    // Build uPlot series config
-    const series: uPlot.Series[] = [{}]; // time series placeholder
-    for (const s of seriesData) {
-      const unitIdx = uniqueUnits.indexOf(s.unit);
-      const scaleName = unitIdx === 0 ? "metric-left" : "metric-right";
-      series.push({
+    const series: uPlot.Series[] = [
+      {},
+      ...seriesData.map((s) => ({
         label: s.label,
         stroke: s.color,
         width: 2,
-        scale: scaleName,
+        scale: uniqueUnits.indexOf(s.unit) === 0 ? "metric-left" : "metric-right",
         spanGaps: true,
-      });
-    }
+      })),
+    ];
 
     // Build axes
     const axes: uPlot.Axis[] = [
