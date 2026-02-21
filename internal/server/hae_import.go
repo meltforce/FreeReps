@@ -356,6 +356,11 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 		state.mu.Unlock()
 	}
 
+	// Backfill sleep sessions from newly imported stages
+	if err := s.db.BackfillSleepSessions(ctx, s.log); err != nil {
+		s.log.Warn("sleep session backfill after import failed", "error", err)
+	}
+
 	// Broadcast completion
 	state.broadcast(sseEvent{
 		Event: "complete",

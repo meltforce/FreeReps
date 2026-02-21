@@ -129,8 +129,8 @@ func (db *DB) SleepStageUserIDs(ctx context.Context) ([]int, error) {
 }
 
 // BackfillSleepSessions synthesizes sleep sessions from existing sleep stages
-// that don't yet have corresponding sessions. Called at server startup.
-// Processes all users that have sleep stage data.
+// that don't yet have corresponding sessions. Called at server startup and
+// after each HAE TCP import. Idempotent (ON CONFLICT DO NOTHING).
 func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error {
 	userIDs, err := db.SleepStageUserIDs(ctx)
 	if err != nil {
