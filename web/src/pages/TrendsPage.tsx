@@ -21,9 +21,10 @@ const METRIC_GROUPS = [
   {
     label: "Sleep",
     metrics: [
-      { value: "sleep_duration", label: "Sleep Duration", unit: "hr" },
+      { value: "sleep_analysis", label: "Sleep Duration", unit: "hr" },
       { value: "blood_oxygen_saturation", label: "SpO2", unit: "%" },
       { value: "respiratory_rate", label: "Resp. Rate", unit: "brpm" },
+      { value: "apple_sleeping_wrist_temperature", label: "Wrist Temp", unit: "°C" },
     ],
   },
   {
