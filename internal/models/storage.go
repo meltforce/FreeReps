@@ -68,7 +68,7 @@ type WorkoutRow struct {
 	MinHeartRate       *float64
 	ElevationUp        *float64
 	ElevationDown      *float64
-	RawJSON            []byte
+	RawJSON            []byte `json:"-"`
 }
 
 // WorkoutHRRow is a row for the workout_heart_rate table.

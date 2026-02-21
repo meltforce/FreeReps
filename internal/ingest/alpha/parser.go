@@ -150,7 +150,7 @@ func Parse(r io.Reader) ([]models.AlphaSession, error) {
 func parseSessionDate(s string) (time.Time, error) {
 	// Try both formats: "2026-02-19 4:54" and "2026-02-19 16:54"
 	for _, layout := range []string{"2006-01-02 15:04", "2006-01-02 3:04"} {
-		t, err := time.Parse(layout, s)
+		t, err := time.ParseInLocation(layout, s, time.Local)
 		if err == nil {
 			return t, nil
 		}
