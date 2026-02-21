@@ -294,7 +294,8 @@ function HAEImportSection() {
     <div className="space-y-5">
       <p className="text-sm text-zinc-400">
         Import health data from the Health Auto Export TCP server running on your
-        iPhone. The app must be open and on the same network.
+        iPhone. The app must be open. Use your device's Tailscale hostname
+        (preferred) or the local IP shown in the app.
       </p>
 
       {/* Host + Port row */}
@@ -307,7 +308,7 @@ function HAEImportSection() {
             type="text"
             value={host}
             onChange={(e) => saveHost(e.target.value)}
-            placeholder="linus-iphone"
+            placeholder="e.g. my-iphone"
             disabled={isRunning}
             className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-cyan-600 focus:outline-none disabled:opacity-50"
           />

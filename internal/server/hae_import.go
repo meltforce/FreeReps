@@ -36,6 +36,8 @@ type haeImportState struct {
 	workoutsInserted int
 	sleepSessions    int
 	bytesFetched     int64
+	haeHost          string
+	haePort          int
 
 	// SSE subscribers
 	subs   map[chan sseEvent]struct{}
@@ -174,6 +176,8 @@ func (s *Server) handleStartHAEImport(w http.ResponseWriter, r *http.Request) {
 		total:     totalSteps,
 		startedAt: time.Now(),
 		subs:      make(map[chan sseEvent]struct{}),
+		haeHost:   req.HAEHost,
+		haePort:   req.HAEPort,
 	}
 
 	// Create import log with "running" status
@@ -398,6 +402,8 @@ func (s *Server) finalizeImport(state *haeImportState, userID int) {
 
 	metaJSON, _ := json.Marshal(map[string]any{
 		"bytes_fetched": state.bytesFetched,
+		"hae_host":      state.haeHost,
+		"hae_port":      state.haePort,
 	})
 	rawMeta := json.RawMessage(metaJSON)
 
