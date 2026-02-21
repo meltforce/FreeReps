@@ -18,6 +18,7 @@ type haeImportState struct {
 	mu       sync.Mutex
 	running  bool
 	cancel   context.CancelFunc
+	doneCh   chan struct{} // closed when goroutine exits
 	step     int
 	total    int
 	metric   string  // current metric/phase being processed
@@ -115,9 +116,17 @@ func (s *Server) handleStartHAEImport(w http.ResponseWriter, r *http.Request) {
 
 	s.importMu.Lock()
 	if s.activeImport != nil && s.activeImport.running {
+		// If context was already canceled, wait briefly for the goroutine to finish
+		prev := s.activeImport
 		s.importMu.Unlock()
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "an import is already running"})
-		return
+		select {
+		case <-prev.doneCh:
+			// Goroutine finished, proceed to start a new import
+		case <-time.After(5 * time.Second):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "an import is already running"})
+			return
+		}
+		s.importMu.Lock()
 	}
 
 	// Calculate total steps
@@ -132,6 +141,7 @@ func (s *Server) handleStartHAEImport(w http.ResponseWriter, r *http.Request) {
 	state := &haeImportState{
 		running:   true,
 		cancel:    cancel,
+		doneCh:    make(chan struct{}),
 		total:     totalSteps,
 		startedAt: time.Now(),
 		subs:      make(map[chan sseEvent]struct{}),
@@ -177,6 +187,7 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 		state.running = false
 		state.done = true
 		state.mu.Unlock()
+		close(state.doneCh)
 	}()
 
 	haeClient := upload.NewHAEClient(req.HAEHost, req.HAEPort)
@@ -188,7 +199,7 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 		for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
 			if ctx.Err() != nil {
 				state.mu.Lock()
-				state.err = ctx.Err()
+				state.err = fmt.Errorf("import canceled by user")
 				state.mu.Unlock()
 				s.finalizeImport(state, userID)
 				return
@@ -248,7 +259,7 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 	for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
 		if ctx.Err() != nil {
 			state.mu.Lock()
-			state.err = ctx.Err()
+			state.err = fmt.Errorf("import canceled by user")
 			state.mu.Unlock()
 			s.finalizeImport(state, userID)
 			return
@@ -334,9 +345,13 @@ func (s *Server) finalizeImport(state *haeImportState, userID int) {
 	status := "success"
 	var errMsg *string
 	if state.err != nil {
-		status = "error"
 		msg := state.err.Error()
 		errMsg = &msg
+		if msg == "import canceled by user" {
+			status = "cancelled"
+		} else {
+			status = "error"
+		}
 	}
 
 	ctx, cancel := contextWithTimeout()
@@ -363,15 +378,23 @@ func (s *Server) finalizeImport(state *haeImportState, userID int) {
 
 func (s *Server) handleCancelHAEImport(w http.ResponseWriter, r *http.Request) {
 	s.importMu.Lock()
-	defer s.importMu.Unlock()
-
 	if s.activeImport == nil || !s.activeImport.running {
+		s.importMu.Unlock()
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no import running"})
 		return
 	}
 
-	s.activeImport.cancel()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelling"})
+	state := s.activeImport
+	state.cancel()
+	s.importMu.Unlock()
+
+	// Wait briefly for goroutine to finish
+	select {
+	case <-state.doneCh:
+	case <-time.After(3 * time.Second):
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
 }
 
 func (s *Server) handleHAEImportStatus(w http.ResponseWriter, r *http.Request) {

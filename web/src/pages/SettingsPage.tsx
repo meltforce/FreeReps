@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import IdentityTab from "../components/settings/IdentityTab";
 import HAEImportTab from "../components/settings/HAEImportTab";
 import AlphaImportTab from "../components/settings/AlphaImportTab";
@@ -15,8 +15,16 @@ const TABS = [
 
 type TabID = (typeof TABS)[number]["id"];
 
+const VALID_TABS = new Set<string>(TABS.map((t) => t.id));
+
 export default function SettingsPage() {
-  const [tab, setTab] = useState<TabID>("identity");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramTab = searchParams.get("tab");
+  const tab: TabID = paramTab && VALID_TABS.has(paramTab) ? (paramTab as TabID) : "identity";
+
+  function setTab(id: TabID) {
+    setSearchParams({ tab: id }, { replace: true });
+  }
 
   return (
     <div>

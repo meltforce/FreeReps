@@ -96,14 +96,15 @@ func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(
 				"user_id", userID,
 			)
 
-			// Extract Tailscale node FQDN and tailnet name
+			// Extract hostname and tailnet from FQDN (e.g. "linus-macbook.tailnet-name.ts.net.")
 			var tsID, tailnet string
 			if whois.Node != nil {
-				tsID = whois.Node.Name
-				// Name is "hostname.tailnet.ts.net." — extract the tailnet part
-				parts := strings.Split(strings.TrimSuffix(tsID, "."), ".")
+				parts := strings.Split(strings.TrimSuffix(whois.Node.Name, "."), ".")
 				if len(parts) >= 3 {
-					tailnet = parts[len(parts)-3]
+					tsID = parts[0]                           // just hostname
+					tailnet = strings.Join(parts[1:], ".")    // tailnet-name.ts.net
+				} else {
+					tsID = whois.Node.Name
 				}
 			}
 

@@ -11,6 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   success: "bg-green-900/50 text-green-400 border-green-800",
   error: "bg-red-900/50 text-red-400 border-red-800",
   running: "bg-cyan-900/50 text-cyan-400 border-cyan-800",
+  cancelled: "bg-yellow-900/50 text-yellow-400 border-yellow-800",
 };
 
 function formatDuration(ms: number | null): string {
@@ -64,12 +65,12 @@ export default function ImportLogsTab() {
           <div className="flex gap-4 text-xs text-zinc-400 flex-wrap">
             {log.metrics_received > 0 && (
               <span>
-                Metrics: {log.metrics_inserted}/{log.metrics_received}
+                Metrics: {log.metrics_inserted} imported / {log.metrics_received} received
               </span>
             )}
             {log.workouts_received > 0 && (
               <span>
-                Workouts: {log.workouts_inserted}/{log.workouts_received}
+                Workouts: {log.workouts_inserted} imported / {log.workouts_received} received
               </span>
             )}
             {log.sleep_sessions > 0 && (

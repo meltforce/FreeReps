@@ -15,7 +15,6 @@ export default function HAEImportTab() {
   const [endDate, setEndDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [chunkDays, setChunkDays] = useState("7");
   const [dryRun, setDryRun] = useState(false);
 
   const [status, setStatus] = useState<HAEImportStatus | null>(null);
@@ -88,7 +87,6 @@ export default function HAEImportTab() {
         hae_port: parseInt(port, 10),
         start: startDate,
         end: endDate,
-        chunk_days: parseInt(chunkDays, 10),
         dry_run: dryRun,
       });
       setStatus({
@@ -99,7 +97,12 @@ export default function HAEImportTab() {
       });
       connectSSE();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+        setError("Could not start import. Is the HAE app open on your iPhone?");
+      } else {
+        setError(msg);
+      }
     } finally {
       setStarting(false);
     }
@@ -131,16 +134,17 @@ export default function HAEImportTab() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-xs text-zinc-500 uppercase mb-1">
-            HAE Host (iPhone IP)
+            HAE Host
           </label>
           <input
             type="text"
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder="192.168.1.xxx"
+            placeholder="linus-iphone"
             disabled={isRunning}
             className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-cyan-600 focus:outline-none disabled:opacity-50"
           />
+          <p className="text-xs text-zinc-600 mt-1">Tailscale hostname or local IP</p>
         </div>
         <div>
           <label className="block text-xs text-zinc-500 uppercase mb-1">
@@ -174,20 +178,6 @@ export default function HAEImportTab() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            disabled={isRunning}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-100 focus:border-cyan-600 focus:outline-none disabled:opacity-50"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-zinc-500 uppercase mb-1">
-            Chunk Days
-          </label>
-          <input
-            type="number"
-            value={chunkDays}
-            onChange={(e) => setChunkDays(e.target.value)}
-            min="1"
-            max="30"
             disabled={isRunning}
             className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-100 focus:border-cyan-600 focus:outline-none disabled:opacity-50"
           />

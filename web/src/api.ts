@@ -318,7 +318,6 @@ export async function startHAEImport(params: {
   hae_port: number;
   start: string;
   end: string;
-  chunk_days: number;
   dry_run: boolean;
 }): Promise<{ status: string; total_steps: number; log_id: number }> {
   const res = await fetch(`${BASE}/import/hae-tcp`, {

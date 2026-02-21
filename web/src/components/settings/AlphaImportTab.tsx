@@ -64,8 +64,9 @@ export default function AlphaImportTab() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <p className="text-sm text-green-400 mb-2">Upload successful</p>
           <div className="flex gap-4 text-xs text-zinc-400">
-            <span>Sets received: {result.metrics_received}</span>
-            <span>Sets inserted: {result.metrics_inserted}</span>
+            <span>Parsed: {result.metrics_received} sets</span>
+            <span>Imported: {result.metrics_inserted} new</span>
+            <span>Skipped: {result.metrics_received - result.metrics_inserted} duplicates</span>
           </div>
         </div>
       )}

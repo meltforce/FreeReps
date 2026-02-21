@@ -8,9 +8,8 @@ function formatDuration(sec: number): string {
   return `${m}m`;
 }
 
-function formatDistance(m: number): string {
-  if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
-  return `${Math.round(m)} m`;
+function formatDistance(km: number): string {
+  return `${km.toFixed(1)} km`;
 }
 
 export default function StatsTab() {
@@ -40,7 +39,7 @@ export default function StatsTab() {
       label: "Data Range",
       value:
         stats.earliest_data && stats.latest_data
-          ? `${new Date(stats.earliest_data).toLocaleDateString()} — ${new Date(stats.latest_data).toLocaleDateString()}`
+          ? `${new Date(stats.earliest_data).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} — ${new Date(stats.latest_data).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}`
           : "—",
     },
   ];

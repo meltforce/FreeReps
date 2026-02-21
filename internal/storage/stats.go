@@ -79,7 +79,10 @@ func (db *DB) GetDataStats(ctx context.Context, userID int) (*DataStats, error) 
 
 	// Workouts by type
 	rows, err := db.Pool.Query(ctx,
-		`SELECT name, COUNT(*), COALESCE(SUM(duration_sec), 0), SUM(distance)
+		`SELECT name, COUNT(*), COALESCE(SUM(duration_sec), 0),
+		        SUM(CASE WHEN distance_units = 'mi' THEN distance * 1.60934
+		                 WHEN distance_units = 'm'  THEN distance / 1000
+		                 ELSE distance END)
 		 FROM workouts
 		 WHERE user_id = $1
 		 GROUP BY name
