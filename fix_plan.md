@@ -112,7 +112,7 @@
 - [x] Open source prep: README.md, MIT LICENSE, install script
 - [ ] Docker Hub repo: `meltforce/freereps`
 - [x] Tailscale OAuth secrets for CI deploy
-- [ ] Production server setup
+- [x] Production server setup
 
 ## Notes
 
