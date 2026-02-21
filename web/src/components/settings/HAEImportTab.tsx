@@ -58,13 +58,17 @@ export default function HAEImportTab() {
 
     es.addEventListener("complete", (e) => {
       const data = JSON.parse(e.data);
-      setStatus({
+      setStatus((prev) => ({
+        ...prev,
         running: false,
         done: true,
-        metrics_chunks: data.metrics_chunks,
-        workout_chunks: data.workout_chunks,
-        bytes_sent: data.bytes_sent,
-      });
+        metrics_received: data.metrics_received,
+        metrics_inserted: data.metrics_inserted,
+        workouts_received: data.workouts_received,
+        workouts_inserted: data.workouts_inserted,
+        sleep_sessions: data.sleep_sessions,
+        bytes_fetched: data.bytes_fetched,
+      }));
       es.close();
     });
 
@@ -246,16 +250,23 @@ export default function HAEImportTab() {
           </div>
 
           {status.done && (
-            <div className="flex gap-4 text-xs text-zinc-400">
-              {status.metrics_chunks !== undefined && (
-                <span>Metric chunks: {status.metrics_chunks}</span>
-              )}
-              {status.workout_chunks !== undefined && (
-                <span>Workout chunks: {status.workout_chunks}</span>
-              )}
-              {status.bytes_sent !== undefined && (
+            <div className="flex gap-4 text-xs text-zinc-400 flex-wrap">
+              {(status.metrics_received ?? 0) > 0 && (
                 <span>
-                  Data: {(status.bytes_sent / 1024 / 1024).toFixed(1)} MB
+                  Metrics: {status.metrics_inserted} imported / {status.metrics_received} received
+                </span>
+              )}
+              {(status.workouts_received ?? 0) > 0 && (
+                <span>
+                  Workouts: {status.workouts_inserted} imported / {status.workouts_received} received
+                </span>
+              )}
+              {(status.sleep_sessions ?? 0) > 0 && (
+                <span>Sleep: {status.sleep_sessions} nights</span>
+              )}
+              {(status.bytes_fetched ?? 0) > 0 && (
+                <span>
+                  Data: {((status.bytes_fetched ?? 0) / 1024 / 1024).toFixed(1)} MB
                 </span>
               )}
             </div>

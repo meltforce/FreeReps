@@ -306,9 +306,12 @@ export interface HAEImportStatus {
   total?: number;
   metric?: string;
   chunk?: string;
-  metrics_chunks?: number;
-  workout_chunks?: number;
-  bytes_sent?: number;
+  metrics_received?: number;
+  metrics_inserted?: number;
+  workouts_received?: number;
+  workouts_inserted?: number;
+  sleep_sessions?: number;
+  bytes_fetched?: number;
   error?: string;
   log_id?: number;
 }

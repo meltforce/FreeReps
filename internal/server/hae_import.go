@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/claude/freereps/internal/ingest"
 	"github.com/claude/freereps/internal/models"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/claude/freereps/internal/upload"
@@ -28,10 +29,13 @@ type haeImportState struct {
 	logID    int64   // import_logs row id
 	startedAt time.Time
 
-	// Result counters
-	metricsChunks  int
-	workoutChunks  int
-	bytesSent      int64
+	// Result counters (accumulated from ingest.Result per chunk)
+	metricsReceived  int
+	metricsInserted  int64
+	workoutsReceived int
+	workoutsInserted int
+	sleepSessions    int
+	bytesFetched     int64
 
 	// SSE subscribers
 	subs   map[chan sseEvent]struct{}
@@ -241,16 +245,20 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 			}
 
 			if !req.DryRun {
-				// Unmarshal JSON-RPC result and ingest directly
-				if err := s.ingestRawHAEResult(ctx, result, userID); err != nil {
+				ir, err := s.ingestRawHAEResult(ctx, result, userID)
+				if err != nil {
 					s.log.Warn("ingest failed", "metric", m.Name, "chunk", chunkRange, "error", err)
 					continue
 				}
+				state.mu.Lock()
+				state.metricsReceived += ir.MetricsReceived
+				state.metricsInserted += ir.MetricsInserted
+				state.sleepSessions += ir.SleepSessionsInserted
+				state.mu.Unlock()
 			}
 
 			state.mu.Lock()
-			state.metricsChunks++
-			state.bytesSent += int64(len(result))
+			state.bytesFetched += int64(len(result))
 			state.mu.Unlock()
 		}
 	}
@@ -300,15 +308,19 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 		}
 
 		if !req.DryRun {
-			if err := s.ingestRawHAEResult(ctx, result, userID); err != nil {
+			ir, err := s.ingestRawHAEResult(ctx, result, userID)
+			if err != nil {
 				s.log.Warn("workout ingest failed", "chunk", chunkRange, "error", err)
 				continue
 			}
+			state.mu.Lock()
+			state.workoutsReceived += ir.WorkoutsReceived
+			state.workoutsInserted += ir.WorkoutsInserted
+			state.mu.Unlock()
 		}
 
 		state.mu.Lock()
-		state.workoutChunks++
-		state.bytesSent += int64(len(result))
+		state.bytesFetched += int64(len(result))
 		state.mu.Unlock()
 	}
 
@@ -316,9 +328,12 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 	state.broadcast(sseEvent{
 		Event: "complete",
 		Data: mustJSON(map[string]any{
-			"metrics_chunks": state.metricsChunks,
-			"workout_chunks": state.workoutChunks,
-			"bytes_sent":     state.bytesSent,
+			"metrics_received":  state.metricsReceived,
+			"metrics_inserted":  state.metricsInserted,
+			"workouts_received": state.workoutsReceived,
+			"workouts_inserted": state.workoutsInserted,
+			"sleep_sessions":    state.sleepSessions,
+			"bytes_fetched":     state.bytesFetched,
 		}),
 	})
 
@@ -326,13 +341,12 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 }
 
 // ingestRawHAEResult parses a raw HAE JSON-RPC result and ingests it via the HAE provider.
-func (s *Server) ingestRawHAEResult(ctx context.Context, raw json.RawMessage, userID int) error {
+func (s *Server) ingestRawHAEResult(ctx context.Context, raw json.RawMessage, userID int) (*ingest.Result, error) {
 	var payload models.HAEPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("unmarshaling HAE result: %w", err)
+		return nil, fmt.Errorf("unmarshaling HAE result: %w", err)
 	}
-	_, err := s.hae.Ingest(ctx, &payload, userID)
-	return err
+	return s.hae.Ingest(ctx, &payload, userID)
 }
 
 // finalizeImport updates the import_logs row with final results.
@@ -358,22 +372,23 @@ func (s *Server) finalizeImport(state *haeImportState, userID int) {
 	defer cancel()
 
 	metaJSON, _ := json.Marshal(map[string]any{
-		"metrics_chunks": state.metricsChunks,
-		"workout_chunks": state.workoutChunks,
-		"bytes_received": state.bytesSent,
+		"bytes_fetched": state.bytesFetched,
 	})
 	rawMeta := json.RawMessage(metaJSON)
 
 	if err := s.db.UpdateImportLog(ctx, state.logID, storage.ImportLog{
-		Status:       status,
-		DurationMs:   &durationMs,
-		ErrorMessage: errMsg,
-		Metadata:     &rawMeta,
+		Status:           status,
+		MetricsReceived:  state.metricsReceived,
+		MetricsInserted:  state.metricsInserted,
+		WorkoutsReceived: state.workoutsReceived,
+		WorkoutsInserted: state.workoutsInserted,
+		SleepSessions:    state.sleepSessions,
+		DurationMs:       &durationMs,
+		ErrorMessage:     errMsg,
+		Metadata:         &rawMeta,
 	}); err != nil {
 		s.log.Error("failed to finalize import log", "log_id", state.logID, "error", err)
 	}
-
-	_ = userID // already stored in the log row
 }
 
 func (s *Server) handleCancelHAEImport(w http.ResponseWriter, r *http.Request) {
@@ -411,16 +426,19 @@ func (s *Server) handleHAEImportStatus(w http.ResponseWriter, r *http.Request) {
 
 	state.mu.Lock()
 	resp := map[string]any{
-		"running":        state.running,
-		"done":           state.done,
-		"step":           state.step,
-		"total":          state.total,
-		"metric":         state.metric,
-		"chunk":          state.chunk,
-		"metrics_chunks": state.metricsChunks,
-		"workout_chunks": state.workoutChunks,
-		"bytes_sent":     state.bytesSent,
-		"log_id":         state.logID,
+		"running":           state.running,
+		"done":              state.done,
+		"step":              state.step,
+		"total":             state.total,
+		"metric":            state.metric,
+		"chunk":             state.chunk,
+		"metrics_received":  state.metricsReceived,
+		"metrics_inserted":  state.metricsInserted,
+		"workouts_received": state.workoutsReceived,
+		"workouts_inserted": state.workoutsInserted,
+		"sleep_sessions":    state.sleepSessions,
+		"bytes_fetched":     state.bytesFetched,
+		"log_id":            state.logID,
 	}
 	if state.err != nil {
 		resp["error"] = state.err.Error()
