@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/workouts", label: "Workouts" },
   { to: "/metrics", label: "Metrics" },
   { to: "/correlations", label: "Correlations" },
+  { to: "/trends", label: "Trends" },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
