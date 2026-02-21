@@ -5,6 +5,8 @@ const BASE = "/api/v1";
 export interface UserInfo {
   login: string;
   display_name: string;
+  tailscale_id?: string;
+  tailnet?: string;
 }
 
 export async function fetchMe(): Promise<UserInfo> {
@@ -239,5 +241,125 @@ export async function fetchCorrelation(
   });
   const res = await fetch(`${BASE}/correlation?${params}`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// --- Stats ---
+
+export interface WorkoutTypeStat {
+  name: string;
+  count: number;
+  total_duration_sec: number;
+  total_distance?: number | null;
+}
+
+export interface DataStats {
+  total_metric_rows: number;
+  total_workouts: number;
+  total_sleep_nights: number;
+  total_sets: number;
+  earliest_data: string | null;
+  latest_data: string | null;
+  workouts_by_type: WorkoutTypeStat[] | null;
+}
+
+export async function fetchStats(): Promise<DataStats> {
+  const res = await fetch(`${BASE}/stats`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// --- Import Logs ---
+
+export interface ImportLog {
+  id: number;
+  user_id: number;
+  created_at: string;
+  source: string;
+  status: string;
+  metrics_received: number;
+  metrics_inserted: number;
+  workouts_received: number;
+  workouts_inserted: number;
+  sleep_sessions: number;
+  sets_inserted: number;
+  duration_ms: number | null;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export async function fetchImportLogs(
+  limit: number = 50
+): Promise<ImportLog[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const res = await fetch(`${BASE}/import-logs?${params}`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// --- HAE TCP Import ---
+
+export interface HAEImportStatus {
+  running: boolean;
+  done?: boolean;
+  step?: number;
+  total?: number;
+  metric?: string;
+  chunk?: string;
+  metrics_chunks?: number;
+  workout_chunks?: number;
+  bytes_sent?: number;
+  error?: string;
+  log_id?: number;
+}
+
+export async function startHAEImport(params: {
+  hae_host: string;
+  hae_port: number;
+  start: string;
+  end: string;
+  chunk_days: number;
+  dry_run: boolean;
+}): Promise<{ status: string; total_steps: number; log_id: number }> {
+  const res = await fetch(`${BASE}/import/hae-tcp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function cancelHAEImport(): Promise<void> {
+  const res = await fetch(`${BASE}/import/hae-tcp`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
+}
+
+export async function fetchHAEImportStatus(): Promise<HAEImportStatus> {
+  const res = await fetch(`${BASE}/import/hae-tcp/status`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+// --- Alpha CSV Upload ---
+
+export async function uploadAlphaCSV(
+  file: File
+): Promise<{ metrics_received: number; metrics_inserted: number }> {
+  const res = await fetch(`${BASE}/ingest/alpha`, {
+    method: "POST",
+    headers: { "Content-Type": "text/csv" },
+    body: file,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
   return res.json();
 }

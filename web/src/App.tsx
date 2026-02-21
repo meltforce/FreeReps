@@ -10,6 +10,7 @@ const WorkoutsPage = lazy(() => import("./pages/WorkoutsPage"));
 const WorkoutDetailPage = lazy(() => import("./pages/WorkoutDetailPage"));
 const MetricsPage = lazy(() => import("./pages/MetricsPage"));
 const CorrelationPage = lazy(() => import("./pages/CorrelationPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 function PageFallback() {
   return (
@@ -77,6 +78,14 @@ export default function App() {
           element={
             <Page>
               <CorrelationPage />
+            </Page>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <Page>
+              <SettingsPage />
             </Page>
           }
         />

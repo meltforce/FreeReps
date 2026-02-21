@@ -410,16 +410,16 @@ func (u *Uploader) sendWorkoutBatch(workouts []models.HAEWorkout, files []fileIn
 	return nil
 }
 
-// tcpMetric defines a metric to query from the HAE server.
-type tcpMetric struct {
+// TCPMetric defines a metric to query from the HAE server.
+type TCPMetric struct {
 	Name      string
 	Aggregate bool // true = daily summary, false = raw data points
 }
 
-// tcpMetrics is the list of metrics to query individually from the HAE server.
+// TCPMetrics is the list of metrics to query individually from the HAE server.
 // Querying all metrics at once overwhelms the HAE TCP server, so we query
 // one metric per request and let the FreeReps DB merge them.
-var tcpMetrics = []tcpMetric{
+var TCPMetrics = []TCPMetric{
 	{Name: "heart_rate"},
 	{Name: "resting_heart_rate"},
 	{Name: "heart_rate_variability"},
@@ -446,13 +446,13 @@ func (u *Uploader) RunTCP(haeHost string, haePort int, start, end time.Time, chu
 	for cs := start; cs.Before(end); cs = cs.Add(chunkDur) {
 		numChunks++
 	}
-	totalSteps := len(tcpMetrics)*numChunks + numChunks // metrics + workouts
+	totalSteps := len(TCPMetrics)*numChunks + numChunks // metrics + workouts
 	currentStep := 0
 
 	// Phase 1: Health metrics — query each metric individually
-	u.log.Info("querying health metrics", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "chunk_days", chunkDays, "metrics", len(tcpMetrics), "total_requests", totalSteps)
+	u.log.Info("querying health metrics", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "chunk_days", chunkDays, "metrics", len(TCPMetrics), "total_requests", totalSteps)
 
-	for _, m := range tcpMetrics {
+	for _, m := range TCPMetrics {
 		for chunkStart := start; chunkStart.Before(end); chunkStart = chunkStart.Add(chunkDur) {
 			chunkEnd := chunkStart.Add(chunkDur)
 			if chunkEnd.After(end) {

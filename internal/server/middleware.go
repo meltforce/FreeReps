@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/claude/freereps/internal/storage"
@@ -21,6 +22,8 @@ const (
 type UserInfo struct {
 	Login       string `json:"login"`
 	DisplayName string `json:"display_name"`
+	TailscaleID string `json:"tailscale_id,omitempty"`
+	Tailnet     string `json:"tailnet,omitempty"`
 }
 
 // userIDFromContext returns the authenticated user's ID from the request context.
@@ -93,8 +96,24 @@ func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(
 				"user_id", userID,
 			)
 
+			// Extract Tailscale node FQDN and tailnet name
+			var tsID, tailnet string
+			if whois.Node != nil {
+				tsID = whois.Node.Name
+				// Name is "hostname.tailnet.ts.net." — extract the tailnet part
+				parts := strings.Split(strings.TrimSuffix(tsID, "."), ".")
+				if len(parts) >= 3 {
+					tailnet = parts[len(parts)-3]
+				}
+			}
+
 			ctx := context.WithValue(r.Context(), userIDKey, userID)
-			ctx = context.WithValue(ctx, userInfoKey, UserInfo{Login: login, DisplayName: displayName})
+			ctx = context.WithValue(ctx, userInfoKey, UserInfo{
+				Login:       login,
+				DisplayName: displayName,
+				TailscaleID: tsID,
+				Tailnet:     tailnet,
+			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -131,7 +150,7 @@ func RequestLogging(log *slog.Logger) func(http.Handler) http.Handler {
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

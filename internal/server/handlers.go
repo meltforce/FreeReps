@@ -27,13 +27,19 @@ func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	result, err := s.hae.Ingest(r.Context(), &payload, uid)
+	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		s.log.Error("ingest error", "error", err)
+		if result != nil {
+			go s.logImport(uid, "hae_rest", result, err, durationMs)
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
+	go s.logImport(uid, "hae_rest", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -43,13 +49,19 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	result, err := s.alpha.Ingest(r.Context(), r.Body, uid)
+	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		s.log.Error("alpha ingest error", "error", err)
+		if result != nil {
+			go s.logImport(uid, "alpha", result, err, durationMs)
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
+	go s.logImport(uid, "alpha", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
 

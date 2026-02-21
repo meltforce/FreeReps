@@ -48,9 +48,18 @@ export default function Layout({ children }: { children: ReactNode }) {
           </nav>
 
           {user && (
-            <span className="ml-auto text-xs text-zinc-500 shrink-0">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `ml-auto text-xs shrink-0 transition-colors ${
+                  isActive
+                    ? "text-cyan-400"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`
+              }
+            >
               {user.display_name || user.login}
-            </span>
+            </NavLink>
           )}
         </div>
       </header>

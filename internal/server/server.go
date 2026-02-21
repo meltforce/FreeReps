@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/hae"
@@ -23,6 +24,10 @@ type Server struct {
 	log    *slog.Logger
 	lc     *local.Client
 	router chi.Router
+
+	// HAE TCP import state (only one import at a time)
+	importMu     sync.Mutex
+	activeImport *haeImportState
 }
 
 // New creates a new Server with all routes configured.
@@ -104,6 +109,16 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/timeseries", s.handleTimeSeries)
 	s.router.Get("/api/v1/correlation", s.handleCorrelation)
 	s.router.Get("/api/v1/allowlist", s.handleAllowlist)
+
+	// Settings / admin endpoints
+	s.router.Get("/api/v1/stats", s.handleStats)
+	s.router.Get("/api/v1/import-logs", s.handleImportLogs)
+
+	// HAE TCP import
+	s.router.Post("/api/v1/import/hae-tcp", s.handleStartHAEImport)
+	s.router.Delete("/api/v1/import/hae-tcp", s.handleCancelHAEImport)
+	s.router.Get("/api/v1/import/hae-tcp/status", s.handleHAEImportStatus)
+	s.router.Get("/api/v1/import/hae-tcp/events", s.handleHAEImportEvents)
 }
 
 // SetFrontend mounts the embedded SPA filesystem.
