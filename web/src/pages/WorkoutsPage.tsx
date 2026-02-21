@@ -1,14 +1,43 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { fetchWorkouts } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import WorkoutList from "../components/workouts/WorkoutList";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function WorkoutsPage() {
-  const [timeRange, setTimeRange] = useState<TimeRange>("90d");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [offset, setOffset] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const timeRange = (searchParams.get("range") || "90d") as TimeRange;
+  const typeFilter = searchParams.get("type") || "";
+  const offset = parseInt(searchParams.get("offset") || "0", 10);
+
+  const setTimeRange = (v: TimeRange) => {
+    setSearchParams((prev) => {
+      prev.set("range", v);
+      prev.set("offset", "0");
+      return prev;
+    }, { replace: true });
+  };
+
+  const setTypeFilter = (v: string) => {
+    setSearchParams((prev) => {
+      if (v) {
+        prev.set("type", v);
+      } else {
+        prev.delete("type");
+      }
+      return prev;
+    }, { replace: true });
+  };
+
+  const setOffset = (updater: (prev: number) => number) => {
+    setSearchParams((prev) => {
+      const next = updater(parseInt(prev.get("offset") || "0", 10));
+      prev.set("offset", String(next));
+      return prev;
+    }, { replace: true });
+  };
 
   const days = daysFromRange(timeRange);
   const endDate = new Date(Date.now() - offset * days * 86400000);
@@ -54,7 +83,7 @@ export default function WorkoutsPage() {
         <h2 className="text-xl font-semibold text-zinc-100">Workouts</h2>
         <TimeRangeSelector
           value={timeRange}
-          onChange={(v) => { setTimeRange(v as TimeRange); setOffset(0); }}
+          onChange={(v) => setTimeRange(v as TimeRange)}
           options={["1d", "7d", "30d", "90d", "1y"]}
           onPrev={() => setOffset((o) => o + 1)}
           onNext={() => setOffset((o) => Math.max(0, o - 1))}

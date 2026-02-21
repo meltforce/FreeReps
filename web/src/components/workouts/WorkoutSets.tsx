@@ -3,9 +3,13 @@ import { fetchWorkoutSets, WorkoutSet } from "../../api";
 
 const STRENGTH_TYPES = new Set([
   "Traditional Strength Training",
+  "Traditionelles Krafttraining",
   "Functional Strength Training",
+  "Funktionales Krafttraining",
   "High Intensity Interval Training",
+  "Hochintensives Intervalltraining",
   "Core Training",
+  "Kerntraining",
 ]);
 
 interface Props {
