@@ -109,22 +109,62 @@ func (db *DB) QuerySleepStages(ctx context.Context, start, end time.Time, userID
 	return result, rows.Err()
 }
 
+// SleepStageUserIDs returns distinct user IDs that have sleep stage data.
+func (db *DB) SleepStageUserIDs(ctx context.Context) ([]int, error) {
+	rows, err := db.Pool.Query(ctx, `SELECT DISTINCT user_id FROM sleep_stages ORDER BY user_id`)
+	if err != nil {
+		return nil, fmt.Errorf("querying sleep stage user IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning user ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // BackfillSleepSessions synthesizes sleep sessions from existing sleep stages
 // that don't yet have corresponding sessions. Called at server startup.
+// Processes all users that have sleep stage data.
 func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error {
-	// Get all stages
-	stages, err := db.QuerySleepStages(ctx,
-		time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
-		1)
+	userIDs, err := db.SleepStageUserIDs(ctx)
 	if err != nil {
-		return fmt.Errorf("querying stages for backfill: %w", err)
+		return fmt.Errorf("getting user IDs for backfill: %w", err)
 	}
-	if len(stages) == 0 {
+	if len(userIDs) == 0 {
 		return nil
 	}
 
-	// Sort by start time
+	var totalCreated int
+	for _, userID := range userIDs {
+		created, err := db.backfillUserSleepSessions(ctx, log, userID)
+		if err != nil {
+			return fmt.Errorf("backfilling user %d: %w", userID, err)
+		}
+		totalCreated += created
+	}
+
+	log.Info("sleep session backfill complete", "users", len(userIDs), "sessions_created", totalCreated)
+	return nil
+}
+
+func (db *DB) backfillUserSleepSessions(ctx context.Context, log *slog.Logger, userID int) (int, error) {
+	stages, err := db.QuerySleepStages(ctx,
+		time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
+		userID)
+	if err != nil {
+		return 0, fmt.Errorf("querying stages: %w", err)
+	}
+	if len(stages) == 0 {
+		return 0, nil
+	}
+
 	sort.Slice(stages, func(i, j int) bool {
 		return stages[i].StartTime.Before(stages[j].StartTime)
 	})
@@ -155,7 +195,7 @@ func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error
 		sleepStart := night[0].StartTime
 		sleepEnd := night[len(night)-1].EndTime
 
-		var deep, core, rem float64
+		var deep, core, rem, awake, inBedDur float64
 		for _, s := range night {
 			switch s.Stage {
 			case "Deep":
@@ -164,6 +204,10 @@ func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error
 				core += s.DurationHr
 			case "REM":
 				rem += s.DurationHr
+			case "Awake":
+				awake += s.DurationHr
+			case "In Bed":
+				inBedDur += s.DurationHr
 			}
 		}
 
@@ -172,7 +216,7 @@ func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error
 		date := sleepEnd.Truncate(24 * time.Hour)
 
 		session := models.SleepSessionRow{
-			UserID:     1,
+			UserID:     userID,
 			Date:       date,
 			TotalSleep: totalSleep,
 			Asleep:     totalSleep,
@@ -186,27 +230,27 @@ func (db *DB) BackfillSleepSessions(ctx context.Context, log *slog.Logger) error
 			InBedEnd:   sleepEnd,
 		}
 
-		// ON CONFLICT DO NOTHING — won't overwrite existing sessions
 		if err := db.InsertSleepSession(ctx, session); err != nil {
-			return fmt.Errorf("inserting backfill session: %w", err)
+			return created, fmt.Errorf("inserting backfill session: %w", err)
 		}
 		created++
 
-		// Also insert sleep_analysis health metric
 		qty := totalSleep
 		sleepMetric := models.HealthMetricRow{
 			Time:       sleepEnd,
-			UserID:     1,
+			UserID:     userID,
 			MetricName: "sleep_analysis",
 			Source:     "FreeReps Backfill",
 			Units:      "hr",
 			Qty:        &qty,
 		}
 		if _, err := db.InsertHealthMetrics(ctx, []models.HealthMetricRow{sleepMetric}); err != nil {
-			return fmt.Errorf("inserting backfill sleep_analysis metric: %w", err)
+			return created, fmt.Errorf("inserting backfill sleep_analysis metric: %w", err)
 		}
 	}
 
-	log.Info("sleep session backfill complete", "nights", len(nights), "sessions_created", created)
-	return nil
+	if created > 0 {
+		log.Info("backfilled sleep sessions for user", "user_id", userID, "sessions", created)
+	}
+	return created, nil
 }

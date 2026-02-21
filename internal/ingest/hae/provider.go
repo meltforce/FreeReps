@@ -203,11 +203,15 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, userID 
 				p.log.Warn("skipping unaggregated sleep point", "error", err)
 				continue
 			}
+			stage, known := models.NormalizeSleepStage(dp.Value)
+			if !known {
+				p.log.Warn("unknown sleep stage name, storing as-is", "raw", dp.Value)
+			}
 			stageRow := models.SleepStageRow{
 				StartTime:  dp.StartDate.Time,
 				EndTime:    dp.EndDate.Time,
 				UserID:     userID,
-				Stage:      dp.Value,
+				Stage:      stage,
 				DurationHr: dp.Qty,
 			}
 			inserted, err := p.db.InsertSleepStages(ctx, []models.SleepStageRow{stageRow})
