@@ -115,6 +115,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/import-logs", s.handleImportLogs)
 
 	// HAE TCP import
+	s.router.Post("/api/v1/import/hae-tcp/check", s.handleCheckHAE)
 	s.router.Post("/api/v1/import/hae-tcp", s.handleStartHAEImport)
 	s.router.Delete("/api/v1/import/hae-tcp", s.handleCancelHAEImport)
 	s.router.Get("/api/v1/import/hae-tcp/status", s.handleHAEImportStatus)

@@ -1,0 +1,1 @@
+ALTER TABLE import_logs ADD COLUMN sets_received INT NOT NULL DEFAULT 0;

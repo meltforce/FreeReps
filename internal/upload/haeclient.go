@@ -141,6 +141,17 @@ func (c *HAEClient) callTool(toolName string, args map[string]any) (json.RawMess
 	return resp.Result, nil
 }
 
+// Ping checks if the HAE server is reachable with a short TCP dial.
+func (c *HAEClient) Ping() error {
+	addr := net.JoinHostPort(c.host, fmt.Sprintf("%d", c.port))
+	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		return fmt.Errorf("connecting to %s: %w", addr, err)
+	}
+	conn.Close() //nolint:errcheck
+	return nil
+}
+
 const maxRetries = 3
 
 // waitForServer polls the HAE server until it accepts connections or retries are exhausted.

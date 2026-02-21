@@ -84,6 +84,31 @@ type haeImportRequest struct {
 	DryRun    bool   `json:"dry_run"`
 }
 
+func (s *Server) handleCheckHAE(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		HAEHost string `json:"hae_host"`
+		HAEPort int    `json:"hae_port"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if req.HAEHost == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "hae_host is required"})
+		return
+	}
+	if req.HAEPort == 0 {
+		req.HAEPort = 9000
+	}
+
+	client := upload.NewHAEClient(req.HAEHost, req.HAEPort)
+	if err := client.Ping(); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"reachable": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reachable": true})
+}
+
 func (s *Server) handleStartHAEImport(w http.ResponseWriter, r *http.Request) {
 	uid, ok := mustUserID(w, r)
 	if !ok {

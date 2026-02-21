@@ -1,14 +1,12 @@
 import { useSearchParams } from "react-router-dom";
 import IdentityTab from "../components/settings/IdentityTab";
-import HAEImportTab from "../components/settings/HAEImportTab";
-import AlphaImportTab from "../components/settings/AlphaImportTab";
+import ImportTab from "../components/settings/ImportTab";
 import StatsTab from "../components/settings/StatsTab";
 import ImportLogsTab from "../components/settings/ImportLogsTab";
 
 const TABS = [
   { id: "identity", label: "Identity" },
-  { id: "hae", label: "HAE Import" },
-  { id: "alpha", label: "Alpha Import" },
+  { id: "import", label: "Import" },
   { id: "stats", label: "Stats" },
   { id: "logs", label: "Import Logs" },
 ] as const;
@@ -48,8 +46,7 @@ export default function SettingsPage() {
 
       <div>
         {tab === "identity" && <IdentityTab />}
-        {tab === "hae" && <HAEImportTab />}
-        {tab === "alpha" && <AlphaImportTab />}
+        {tab === "import" && <ImportTab />}
         {tab === "stats" && <StatsTab />}
         {tab === "logs" && <ImportLogsTab />}
       </div>

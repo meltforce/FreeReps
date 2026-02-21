@@ -61,6 +61,7 @@ func (s *Server) logImport(uid int, source string, result *ingest.Result, import
 		WorkoutsReceived: result.WorkoutsReceived,
 		WorkoutsInserted: result.WorkoutsInserted,
 		SleepSessions:    result.SleepSessionsInserted,
+		SetsReceived:     result.SetsReceived,
 		SetsInserted:     result.SetsInserted,
 		DurationMs:       &durationMs,
 		ErrorMessage:     errMsg,

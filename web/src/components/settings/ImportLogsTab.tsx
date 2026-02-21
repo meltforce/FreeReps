@@ -76,8 +76,10 @@ export default function ImportLogsTab() {
             {log.sleep_sessions > 0 && (
               <span>Sleep: {log.sleep_sessions}</span>
             )}
-            {log.sets_inserted > 0 && (
-              <span>Sets: {log.sets_inserted}</span>
+            {(log.sets_inserted > 0 || log.sets_received > 0) && (
+              <span>
+                Sets: {log.sets_inserted} imported / {log.sets_received} received
+              </span>
             )}
           </div>
 

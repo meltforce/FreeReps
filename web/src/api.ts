@@ -282,6 +282,7 @@ export interface ImportLog {
   workouts_received: number;
   workouts_inserted: number;
   sleep_sessions: number;
+  sets_received: number;
   sets_inserted: number;
   duration_ms: number | null;
   error_message: string | null;
@@ -346,6 +347,22 @@ export async function cancelHAEImport(): Promise<void> {
 export async function fetchHAEImportStatus(): Promise<HAEImportStatus> {
   const res = await fetch(`${BASE}/import/hae-tcp/status`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function checkHAEConnection(params: {
+  hae_host: string;
+  hae_port: number;
+}): Promise<{ reachable: boolean; error?: string }> {
+  const res = await fetch(`${BASE}/import/hae-tcp/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
   return res.json();
 }
 
