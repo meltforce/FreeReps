@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { fetchWorkouts } from "../api";
@@ -5,8 +6,28 @@ import TimeRangeSelector from "../components/TimeRangeSelector";
 import WorkoutList from "../components/workouts/WorkoutList";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
+const STORAGE_KEY = "workouts-filters";
+
 export default function WorkoutsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Restore filters from sessionStorage when navigating to bare /workouts
+  useEffect(() => {
+    if (!searchParams.has("range") && !searchParams.has("type") && !searchParams.has("offset")) {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        setSearchParams(new URLSearchParams(saved), { replace: true });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // Save filters to sessionStorage whenever they change
+  useEffect(() => {
+    if (searchParams.has("range") || searchParams.has("type") || searchParams.has("offset")) {
+      sessionStorage.setItem(STORAGE_KEY, searchParams.toString());
+    }
+  }, [searchParams]);
 
   const timeRange = (searchParams.get("range") || "90d") as TimeRange;
   const typeFilter = searchParams.get("type") || "";
