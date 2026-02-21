@@ -26,9 +26,7 @@ Apps like Athlytic compute scores but are closed-source, subscription-based, and
 ## Data Source: Health Auto Export
 
 The iOS app **[Health Auto Export](https://healthyapps.dev)** serves as the bridge between Apple Health and FreeReps.
-The iOS app **[Alpha Progression](https://alphaprogression.com/de/)** serves as source for detailed strength training workout data.(example data available in input/)
-
-)
+The iOS app **[Alpha Progression](https://alphaprogression.com/de/)** serves as source for detailed strength training workout data (example data available in input/).
 
 ### Integration
 
@@ -186,8 +184,8 @@ Model Context Protocol server — makes FreeReps data queryable for Claude (and 
 | `get_metric_stats` | Statistics for a metric (avg, min, max, stddev, trend) |
 | `get_correlation` | Compute correlation between two metrics (Pearson r, time range) |
 | `compare_periods` | Compare two time periods (e.g. this week vs. last week) |
+| `get_workout_sets` | Strength training set data from Alpha Progression (exercises, weight, reps, RIR) |
 | `list_available_metrics` | Which metrics are available + data availability time range |
-| `query_raw` | Flexible query with filter/aggregation for advanced analysis |
 
 **MCP Resources**:
 - `daily_summary` — Summary of the current day
@@ -206,51 +204,17 @@ Model Context Protocol server — makes FreeReps data queryable for Claude (and 
 - **File-based configuration**: YAML/TOML for server, DB, auth, personal parameters (age, HR zones).
 - **Idempotent ingest**: Duplicate data → no duplicates stored.
 
-## Open Design Decisions
+## Architecture Decisions
 
-### Backend Language
-
-| Option | Pro | Con |
+| Decision | Choice | Rationale |
 |---|---|---|
-| **Rust** | Performance, single binary, good MCP libs | Higher development effort |
-| **Go** | Simple, single binary, fast development | Less MCP ecosystem |
-| **TypeScript** | Full-stack synergies, shared types, closer to HAE server | No single binary, runtime dependency |
-
-### Frontend Stack
-
-| Option | Pro | Con |
-|---|---|---|
-| **React + Vite + Tailwind** | Large ecosystem, many chart libs | Bundle size, boilerplate |
-| **SvelteKit** | Lightweight, good DX, less code | Smaller ecosystem |
-
-### Chart Library
-
-| Option | Pro | Con |
-|---|---|---|
-| **Recharts** (React) | Declarative, easy | Not the most performant |
-| **D3** | Maximum flexibility (hypnogram, custom charts) | Steep learning curve |
-| **uPlot** | Extremely performant for time series | Less high-level API |
-| **Observable Plot** | Modern, declarative, D3-based | Relatively new |
-
-### Database
-
-| Option | Pro | Con |
-|---|---|---|
-| **SQLite** | Zero-config, single-file, embedded | Limited time-series features |
-| **DuckDB** | Analytically optimized, embedded, native rolling windows | Newer, less battle-tested |
-| **PostgreSQL + TimescaleDB** | Time-series optimized, powerful | External dependency |
-
-### MCP Transport
-
-- **stdio**: For local Claude Code integration
-- **SSE**: For remote access over network
-- **Both**: Most flexible option, recommended
-
-### Deployment
-
-- **Docker Compose**: Easiest homelab setup
-- **Standalone binary + embedded DB**: Minimal dependencies
-- **Both**: Docker for full-stack, binary for all-in-one
+| **Backend** | Go 1.25+ | Single binary, fast development, good concurrency |
+| **Frontend** | React 19 + Vite + Tailwind CSS 4 | Large ecosystem, TypeScript, rich chart libraries |
+| **Charts** | uPlot (time-series) + Recharts (bar/scatter) | uPlot for performance on large datasets, Recharts for declarative composability |
+| **Database** | PostgreSQL + TimescaleDB | Time-series optimized, hypertables, rolling aggregates |
+| **MCP Transport** | stdio + SSE | stdio for local Claude Code, SSE for remote/Tailscale access |
+| **Deployment** | Docker Compose | PostgreSQL + app in one stack, multi-stage build |
+| **Auth** | Tailscale tsnet | Zero-config TLS + identity, no passwords |
 
 ## Non-Goals (v1)
 
@@ -274,31 +238,33 @@ Update fix_plan.md after completing a task or discovering a bug.
 Update this file when you learn something about building/running the project.
 Commit after each unit of work with a descriptive message.
 
-## Notes
-(Updated by Claude as learnings accumulate)
-
 ## Development Roadmap
 
-### Phase 1 — Data Foundation
+### Phase 1 — Data Foundation ✅
 - Ingest API (Health Auto Export-compatible)
 - Database schema + storage layer
 - Minimal web UI: daily overview + single time-series charts
+- CLI upload tool (`freereps-upload`) for .hae files and TCP streaming
 
-### Phase 2 — Visualization
+### Phase 2 — Visualization ✅
 - Correlation Explorer (freely selectable X/Y, scatter + overlay)
 - Sleep view with hypnogram
-- Workout view with HR zones
+- Workout view with HR zones + Alpha Progression sets
 - Metrics deep dive with normal range
 
-### Phase 3 — MCP Integration
-- MCP server (stdio + SSE)
-- Tool definitions for data queries
-- Resources for daily summaries
+### Phase 3 — Tailscale + User Management ✅
+- Tailscale tsnet integration (zero-config TLS + identity)
+- User context scoping for all data
+- Settings page (identity, stats, import logs, uploads)
 
-### Phase 4 — Polish
-- Saveable views / dashboard configurations
+### Phase 4 — MCP Integration ✅
+- MCP server (stdio + SSE)
+- 8 tools + 3 resources
+- Full data query and analytics API
+
+### Phase 5 — Polish (not started)
 - Trend views
-- Settings UI
+- Saveable dashboard configurations
 - Responsive optimization
 
 ## References
