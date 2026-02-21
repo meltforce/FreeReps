@@ -16,7 +16,7 @@ func startMockTCPServer(t *testing.T, response []byte) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { ln.Close() }) //nolint:errcheck
 
 	port := ln.Addr().(*net.TCPAddr).Port
 
@@ -25,11 +25,11 @@ func startMockTCPServer(t *testing.T, response []byte) int {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer conn.Close() //nolint:errcheck
 
 		// Read the request (consume all available data)
 		buf := make([]byte, 4096)
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
 		conn.Read(buf) //nolint:errcheck
 
 		// Send the response
@@ -96,7 +96,7 @@ func TestQueryMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { ln.Close() }) //nolint:errcheck
 
 	port := ln.Addr().(*net.TCPAddr).Port
 
@@ -109,10 +109,10 @@ func TestQueryMetrics(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer conn.Close() //nolint:errcheck
 
 		buf := make([]byte, 4096)
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
 		n, _ := conn.Read(buf)
 
 		json.Unmarshal(buf[:n], &receivedReq) //nolint:errcheck
@@ -167,7 +167,7 @@ func TestQueryWorkouts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { ln.Close() }) //nolint:errcheck
 
 	port := ln.Addr().(*net.TCPAddr).Port
 
@@ -180,10 +180,10 @@ func TestQueryWorkouts(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer conn.Close() //nolint:errcheck
 
 		buf := make([]byte, 4096)
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
 		n, _ := conn.Read(buf)
 
 		json.Unmarshal(buf[:n], &receivedReq) //nolint:errcheck
@@ -263,7 +263,7 @@ func TestSyncState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer state.Close()
+	defer state.Close() //nolint:errcheck
 
 	// Get non-existent key returns empty string
 	val, err := state.GetSyncState("tcp_last_metrics_sync")

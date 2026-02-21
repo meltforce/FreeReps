@@ -266,7 +266,8 @@ Model Context Protocol server — makes FreeReps data queryable for Claude (and 
 
 Read specs/ before implementing. Specs are the source of truth.
 Search before writing. Don't assume something is missing — ripgrep the codebase first.
-One thing at a time. Implement, test, commit. Then move on.
+One thing at a time. Implement, test, lint, commit. Then move on.
+Lint before committing. Run `go vet ./...` and `golangci-lint run ./...` (or `make lint`) before every commit. Fix all issues first.
 No placeholders. Full implementations only. No TODO stubs.
 Tests are mandatory. Every new function gets a test. Test doc comments must explain WHY the test exists.
 Update fix_plan.md after completing a task or discovering a bug.

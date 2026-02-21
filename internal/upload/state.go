@@ -36,7 +36,7 @@ func OpenStateDB(dir string) (*StateDB, error) {
 		uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("creating state table: %w", err)
 	}
 
@@ -45,7 +45,7 @@ func OpenStateDB(dir string) (*StateDB, error) {
 		value TEXT NOT NULL
 	)`)
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("creating sync_state table: %w", err)
 	}
 
@@ -104,7 +104,7 @@ func HashFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {

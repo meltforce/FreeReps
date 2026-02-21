@@ -40,7 +40,7 @@ func (c *Client) FetchAllowlist() (map[string]bool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetching allowlist: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -82,7 +82,7 @@ func (c *Client) SendRawJSON(data []byte) error {
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		resp.Body.Close() //nolint:errcheck
 
 		if resp.StatusCode == http.StatusOK {
 			return nil
@@ -118,7 +118,7 @@ func (c *Client) SendPayload(payload models.HAEPayload) error {
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		resp.Body.Close() //nolint:errcheck
 
 		if resp.StatusCode == http.StatusOK {
 			return nil

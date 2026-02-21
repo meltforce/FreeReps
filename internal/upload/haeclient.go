@@ -101,12 +101,12 @@ func (c *HAEClient) callTool(toolName string, args map[string]any) (json.RawMess
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", c.host, c.port)
+	addr := net.JoinHostPort(c.host, fmt.Sprintf("%d", c.port))
 	conn, err := net.DialTimeout("tcp", addr, c.timeout)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s: %w", addr, err)
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck
 
 	if err := conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
 		return nil, fmt.Errorf("setting deadline: %w", err)
@@ -145,11 +145,11 @@ const maxRetries = 3
 
 // waitForServer polls the HAE server until it accepts connections or retries are exhausted.
 func (c *HAEClient) waitForServer(log *slog.Logger) bool {
-	addr := fmt.Sprintf("%s:%d", c.host, c.port)
+	addr := net.JoinHostPort(c.host, fmt.Sprintf("%d", c.port))
 	for i := 0; i < 10; i++ {
 		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 		if err == nil {
-			conn.Close()
+			conn.Close() //nolint:errcheck
 			return true
 		}
 		log.Info("waiting for HAE server to come back...", "attempt", i+1)

@@ -70,7 +70,7 @@ func main() {
 		log.Error("failed to open state database", "error", err)
 		os.Exit(1)
 	}
-	defer state.Close()
+	defer state.Close() //nolint:errcheck
 
 	// Create client (nil in dry-run mode)
 	var client *upload.Client
