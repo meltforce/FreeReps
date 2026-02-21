@@ -55,7 +55,7 @@ func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
 			return "/mcp"
 		}),
 		mcpserver.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-			uid := userIDFromContext(r)
+			uid, _ := userIDFromContext(r)
 			return freerepsmcp.WithUserID(ctx, uid)
 		}),
 	)

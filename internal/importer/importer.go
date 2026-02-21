@@ -38,12 +38,13 @@ type Importer struct {
 	db     *storage.DB
 	log    *slog.Logger
 	dryRun bool
+	userID int
 	stats  Stats
 }
 
 // New creates a new Importer.
-func New(db *storage.DB, log *slog.Logger, dryRun bool) *Importer {
-	return &Importer{db: db, log: log, dryRun: dryRun}
+func New(db *storage.DB, log *slog.Logger, dryRun bool, userID int) *Importer {
+	return &Importer{db: db, log: log, dryRun: dryRun, userID: userID}
 }
 
 // Import processes all .hae files under the given AutoSync directory.
@@ -161,7 +162,7 @@ func (imp *Importer) importMetricDir(ctx context.Context, dir, metricName string
 
 			row := models.HealthMetricRow{
 				Time:       models.AppleTimestampToTime(dp.Start),
-				UserID:     1,
+				UserID:     imp.userID,
 				MetricName: metricName,
 				Source:     dp.SourceName(),
 				Units:      dp.Unit,
@@ -257,7 +258,7 @@ func (imp *Importer) importSleepDir(ctx context.Context, dir string) error {
 			stages = append(stages, models.SleepStageRow{
 				StartTime:  models.AppleTimestampToTime(dp.Start),
 				EndTime:    models.AppleTimestampToTime(dp.End),
-				UserID:     1,
+				UserID:     imp.userID,
 				Stage:      stageType,
 				DurationHr: dp.SleepStageDuration(),
 				Source:     dp.SourceName(),
@@ -316,8 +317,7 @@ func (imp *Importer) batchInsertSleepStages(ctx context.Context, rows []models.S
 // synthesizeSleepSessions groups all sleep stages into nights and creates
 // sleep sessions + health_metrics rows for each night.
 func (imp *Importer) synthesizeSleepSessions(ctx context.Context) error {
-	// Query all stages for user 1 (import is single-user)
-	stages, err := imp.db.QuerySleepStages(ctx, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), 1)
+	stages, err := imp.db.QuerySleepStages(ctx, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC), imp.userID)
 	if err != nil {
 		return fmt.Errorf("querying stages: %w", err)
 	}
@@ -377,7 +377,7 @@ func (imp *Importer) synthesizeSleepSessions(ctx context.Context) error {
 		date := sleepEnd.Truncate(24 * time.Hour)
 
 		session := models.SleepSessionRow{
-			UserID:     1,
+			UserID:     imp.userID,
 			Date:       date,
 			TotalSleep: totalSleep,
 			Asleep:     totalSleep,
@@ -400,7 +400,7 @@ func (imp *Importer) synthesizeSleepSessions(ctx context.Context) error {
 		qty := totalSleep
 		sleepMetric := models.HealthMetricRow{
 			Time:       sleepEnd,
-			UserID:     1,
+			UserID:     imp.userID,
 			MetricName: "sleep_analysis",
 			Source:     "FreeReps Import",
 			Units:      "hr",
@@ -446,7 +446,7 @@ func (imp *Importer) importWorkouts(ctx context.Context, workoutDir, routeDir st
 
 		row := models.WorkoutRow{
 			ID:          workoutID,
-			UserID:      1,
+			UserID:      imp.userID,
 			Name:        workout.Name,
 			StartTime:   models.AppleTimestampToTime(workout.Start),
 			EndTime:     models.AppleTimestampToTime(workout.End),
@@ -525,7 +525,7 @@ func (imp *Importer) importRoute(ctx context.Context, routeFile string, workoutI
 		rows[i] = models.WorkoutRouteRow{
 			Time:               models.AppleTimestampToTime(loc.Time),
 			WorkoutID:          workoutID,
-			UserID:             1,
+			UserID:             imp.userID,
 			Latitude:           loc.Latitude,
 			Longitude:          loc.Longitude,
 			Altitude:           &elevation,

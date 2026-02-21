@@ -24,12 +24,22 @@ type UserInfo struct {
 }
 
 // userIDFromContext returns the authenticated user's ID from the request context.
-// Returns 1 (local dev user) if no identity middleware is active.
-func userIDFromContext(r *http.Request) int {
-	if id, ok := r.Context().Value(userIDKey).(int); ok {
-		return id
+// Returns (0, false) if no identity middleware has set a value.
+func userIDFromContext(r *http.Request) (int, bool) {
+	id, ok := r.Context().Value(userIDKey).(int)
+	return id, ok
+}
+
+// mustUserID extracts the user ID from the request context and writes a 500
+// error if identity middleware has not run. Returns false when the response
+// has been written and the caller should return immediately.
+func mustUserID(w http.ResponseWriter, r *http.Request) (int, bool) {
+	uid, ok := userIDFromContext(r)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no authenticated user in request context"})
+		return 0, false
 	}
-	return 1
+	return uid, true
 }
 
 // userInfoFromContext returns the authenticated user's identity from the request context.

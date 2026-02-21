@@ -22,7 +22,12 @@ func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.hae.Ingest(r.Context(), &payload, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := s.hae.Ingest(r.Context(), &payload, uid)
 	if err != nil {
 		s.log.Error("ingest error", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -33,7 +38,12 @@ func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
-	result, err := s.alpha.Ingest(r.Context(), r.Body, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := s.alpha.Ingest(r.Context(), r.Body, uid)
 	if err != nil {
 		s.log.Error("alpha ingest error", "error", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -47,7 +57,10 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 var cumulativeMetrics = []string{"active_energy", "basal_energy_burned", "apple_exercise_time"}
 
 func (s *Server) handleLatestMetrics(w http.ResponseWriter, r *http.Request) {
-	uid := userIDFromContext(r)
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
 	rows, err := s.db.GetLatestMetrics(r.Context(), uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -83,7 +96,12 @@ func (s *Server) handleQueryMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := s.db.QueryHealthMetrics(r.Context(), name, start, end, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	rows, err := s.db.QueryHealthMetrics(r.Context(), name, start, end, uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -92,13 +110,16 @@ func (s *Server) handleQueryMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleQuerySleep(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
 	start, end, err := parseTimeRange(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-
-	uid := userIDFromContext(r)
 	sessions, err := s.db.QuerySleepSessions(r.Context(), start, end, uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -125,7 +146,12 @@ func (s *Server) handleQueryWorkouts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nameFilter := r.URL.Query().Get("type")
-	workouts, err := s.db.QueryWorkouts(r.Context(), start, end, userIDFromContext(r), nameFilter)
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	workouts, err := s.db.QueryWorkouts(r.Context(), start, end, uid, nameFilter)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -141,7 +167,12 @@ func (s *Server) handleGetWorkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := s.db.GetWorkout(r.Context(), workoutID, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	detail, err := s.db.GetWorkout(r.Context(), workoutID, uid)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "workout not found"})
 		return
@@ -162,7 +193,12 @@ func (s *Server) handleMetricStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := s.db.GetMetricStats(r.Context(), metric, start, end, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := s.db.GetMetricStats(r.Context(), metric, start, end, uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -194,7 +230,12 @@ func (s *Server) handleTimeSeries(w http.ResponseWriter, r *http.Request) {
 		bucket = "1 day"
 	}
 
-	points, err := s.db.GetTimeSeries(r.Context(), metric, start, end, bucket, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	points, err := s.db.GetTimeSeries(r.Context(), metric, start, end, bucket, uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -221,7 +262,12 @@ func (s *Server) handleCorrelation(w http.ResponseWriter, r *http.Request) {
 		bucket = "1 day"
 	}
 
-	result, err := s.db.GetCorrelation(r.Context(), xMetric, yMetric, start, end, bucket, userIDFromContext(r))
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := s.db.GetCorrelation(r.Context(), xMetric, yMetric, start, end, bucket, uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -230,14 +276,17 @@ func (s *Server) handleCorrelation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
 	idStr := chi.URLParam(r, "id")
 	workoutID, err := uuid.Parse(idStr)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid workout ID"})
 		return
 	}
-
-	uid := userIDFromContext(r)
 
 	// Fetch workout to get its date range
 	workout, err := s.db.GetWorkout(r.Context(), workoutID, uid)

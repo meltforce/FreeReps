@@ -16,13 +16,19 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	autoSyncPath := flag.String("path", "", "path to AutoSync directory (required)")
 	dryRun := flag.Bool("dry-run", false, "report counts without inserting into database")
+	userID := flag.Int("user-id", 1, "user ID to assign imported data to")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	if *autoSyncPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: freereps-import -config config.yaml -path /path/to/AutoSync [-dry-run]\n")
+		fmt.Fprintf(os.Stderr, "Usage: freereps-import -config config.yaml -path /path/to/AutoSync [-dry-run] [-user-id N]\n")
 		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *userID < 1 {
+		log.Error("user-id must be >= 1", "user_id", *userID)
 		os.Exit(1)
 	}
 
@@ -64,8 +70,10 @@ func main() {
 	defer db.Close()
 	log.Info("database connected")
 
+	log.Info("importing data", "user_id", *userID)
+
 	// Run import
-	imp := importer.New(db, log, *dryRun)
+	imp := importer.New(db, log, *dryRun, *userID)
 	stats, err := imp.Import(ctx, *autoSyncPath)
 	if err != nil {
 		log.Error("import failed", "error", err)
