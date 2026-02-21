@@ -32,11 +32,7 @@ func (p *Provider) Ingest(ctx context.Context, r io.Reader, userID int) (*ingest
 	result := &ingest.Result{}
 	var allRows []models.WorkoutSetRow
 
-	// Delete existing sets per session so re-imports always reflect the latest parser output.
 	for _, s := range sessions {
-		if err := p.db.DeleteWorkoutSets(ctx, s.Date, userID); err != nil {
-			return nil, fmt.Errorf("deleting existing sets for session %s: %w", s.Date.Format("2006-01-02"), err)
-		}
 		for _, ex := range s.Exercises {
 			for _, set := range ex.Sets {
 				allRows = append(allRows, models.WorkoutSetRow{
@@ -64,9 +60,8 @@ func (p *Provider) Ingest(ctx context.Context, r io.Reader, userID int) (*ingest
 		if err != nil {
 			return nil, fmt.Errorf("inserting sets: %w", err)
 		}
-		result.MetricsReceived = len(allRows)
-		result.MetricsInserted = inserted
-		result.MetricsSkipped = int64(len(allRows)) - inserted
+		result.SetsReceived = len(allRows)
+		result.SetsInserted = inserted
 	}
 
 	return result, nil

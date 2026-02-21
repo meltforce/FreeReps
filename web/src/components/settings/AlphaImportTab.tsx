@@ -5,8 +5,8 @@ export default function AlphaImportTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{
-    metrics_received: number;
-    metrics_inserted: number;
+    sets_received: number;
+    sets_inserted: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,9 +64,9 @@ export default function AlphaImportTab() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <p className="text-sm text-green-400 mb-2">Upload successful</p>
           <div className="flex gap-4 text-xs text-zinc-400">
-            <span>Parsed: {result.metrics_received} sets</span>
-            <span>Imported: {result.metrics_inserted} new</span>
-            <span>Skipped: {result.metrics_received - result.metrics_inserted} duplicates</span>
+            <span>Parsed: {result.sets_received} sets</span>
+            <span>Imported: {result.sets_inserted} new</span>
+            <span>Skipped: {result.sets_received - result.sets_inserted} duplicates</span>
           </div>
         </div>
       )}

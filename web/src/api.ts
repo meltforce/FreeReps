@@ -350,7 +350,7 @@ export async function fetchHAEImportStatus(): Promise<HAEImportStatus> {
 
 export async function uploadAlphaCSV(
   file: File
-): Promise<{ metrics_received: number; metrics_inserted: number }> {
+): Promise<{ sets_received: number; sets_inserted: number }> {
   const res = await fetch(`${BASE}/ingest/alpha`, {
     method: "POST",
     headers: { "Content-Type": "text/csv" },
