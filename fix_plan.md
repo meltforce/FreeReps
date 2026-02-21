@@ -111,7 +111,7 @@
 - [x] Release: release.yml (CalVer tags, Docker Hub latest + versioned, macOS binaries)
 - [x] Open source prep: README.md, MIT LICENSE, install script
 - [ ] Docker Hub repo: `meltforce/freereps`
-- [ ] Tailscale OAuth secrets for CI deploy
+- [x] Tailscale OAuth secrets for CI deploy
 - [ ] Production server setup
 
 ## Notes
