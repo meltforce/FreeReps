@@ -16,8 +16,8 @@ type Result struct {
 	WorkoutHRPoints  int64 `json:"workout_hr_points,omitempty"`
 	WorkoutRoutePoints int64 `json:"workout_route_points,omitempty"`
 
-	SetsReceived int   `json:"sets_received,omitempty"`
-	SetsInserted int64 `json:"sets_inserted,omitempty"`
+	SetsReceived int   `json:"sets_received"`
+	SetsInserted int64 `json:"sets_inserted"`
 
 	Message string `json:"message,omitempty"`
 }
