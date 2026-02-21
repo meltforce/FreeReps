@@ -132,7 +132,7 @@ func TestQueryMetrics(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
 
-	_, err = client.QueryMetrics(start, end, "heart_rate,hrv")
+	_, err = client.QueryMetrics(start, end, "heart_rate,hrv", false)
 	if err != nil {
 		t.Fatalf("QueryMetrics returned error: %v", err)
 	}
