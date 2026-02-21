@@ -124,18 +124,29 @@ func (s *Server) routes() {
 
 // SetFrontend mounts the embedded SPA filesystem.
 // Unmatched routes serve index.html for client-side routing.
+// Hashed assets get long cache; index.html is never cached.
 func (s *Server) SetFrontend(webFS fs.FS) {
 	fileServer := http.FileServerFS(webFS)
 
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path[1:] // strip leading /
+
 		// Try to serve the exact file first
-		f, err := webFS.Open(r.URL.Path[1:]) // strip leading /
+		f, err := webFS.Open(path)
 		if err == nil {
 			_ = f.Close()
+			// Vite hashed assets (assets/*) are immutable — cache forever.
+			// Everything else (index.html) must not be cached.
+			if len(path) > 7 && path[:7] == "assets/" {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			}
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 		// Fallback to index.html for SPA routing
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		r.URL.Path = "/"
 		fileServer.ServeHTTP(w, r)
 	})

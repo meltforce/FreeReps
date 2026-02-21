@@ -7,6 +7,7 @@ import {
   fetchHAEImportStatus,
   checkHAEConnection,
   uploadAlphaCSV,
+  fetchImportLogs,
   type HAEImportStatus,
 } from "../../api";
 
@@ -136,6 +137,30 @@ function HAEImportSection() {
   const savePort = useCallback((v: string) => {
     setPort(v);
     localStorage.setItem("hae_port", v);
+  }, []);
+
+  // On mount: restore host from last import if localStorage is empty
+  useEffect(() => {
+    if (!host) {
+      fetchImportLogs(10)
+        .then((logs) => {
+          const haeTcp = logs.find(
+            (l) => l.source === "hae_tcp" && l.metadata?.hae_host
+          );
+          if (haeTcp?.metadata?.hae_host) {
+            const lastHost = String(haeTcp.metadata.hae_host);
+            setHost(lastHost);
+            localStorage.setItem("hae_host", lastHost);
+            if (haeTcp.metadata?.hae_port) {
+              const lastPort = String(haeTcp.metadata.hae_port);
+              setPort(lastPort);
+              localStorage.setItem("hae_port", lastPort);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll for status on mount to catch already-running imports
@@ -276,7 +301,7 @@ function HAEImportSection() {
       <div className="flex gap-3">
         <div className="flex-[2]">
           <label className="block text-xs text-zinc-500 uppercase mb-1">
-            HAE Host
+            Host
           </label>
           <input
             type="text"
