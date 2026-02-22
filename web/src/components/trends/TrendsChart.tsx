@@ -46,20 +46,27 @@ export default function TrendsChart({ seriesData }: Props) {
       return arr;
     });
 
-    const uniqueUnits = [...new Set(seriesData.map((s) => s.unit))];
-
+    // Each metric gets its own scale so different value ranges don't
+    // compress each other (e.g. SpO2 ~95% vs Body Fat ~13%).
     const series: uPlot.Series[] = [
       {},
-      ...seriesData.map((s) => ({
+      ...seriesData.map((s, i) => ({
         label: s.label,
         stroke: s.color,
         width: 2,
-        scale: uniqueUnits.indexOf(s.unit) === 0 ? "metric-left" : "metric-right",
+        scale: `metric-${i}`,
         spanGaps: true,
       })),
     ];
 
-    // Build axes
+    // Visible axes: left for first metric, right for the first metric
+    // with a different unit (if any). All other scales auto-range invisibly.
+    const uniqueUnits = [...new Set(seriesData.map((s) => s.unit))];
+    const rightUnit = uniqueUnits.length > 1 ? uniqueUnits[1] : null;
+    const rightIdx = rightUnit
+      ? seriesData.findIndex((s) => s.unit === rightUnit)
+      : -1;
+
     const axes: uPlot.Axis[] = [
       {
         stroke: "#52525b",
@@ -71,32 +78,31 @@ export default function TrendsChart({ seriesData }: Props) {
         stroke: "#52525b",
         grid: { stroke: "#27272a", width: 1 },
         ticks: { stroke: "#27272a33" },
-        label: uniqueUnits[0] ?? "",
+        label: seriesData[0].unit,
         labelSize: 14,
-        scale: "metric-left",
+        scale: "metric-0",
         side: 3,
         size: 60,
       },
     ];
 
-    const scales: uPlot.Scales = {
-      x: { time: true },
-      "metric-left": { auto: true },
-    };
-
-    if (uniqueUnits.length > 1) {
+    if (rightIdx > 0) {
       axes.push({
         stroke: "#52525b",
         grid: { show: false },
         ticks: { stroke: "#52525b33" },
-        label: uniqueUnits.slice(1).join(", "),
+        label: rightUnit!,
         labelSize: 14,
-        scale: "metric-right",
+        scale: `metric-${rightIdx}`,
         side: 1,
         size: 60,
       });
-      scales["metric-right"] = { auto: true };
     }
+
+    const scales: uPlot.Scales = { x: { time: true } };
+    seriesData.forEach((_, i) => {
+      scales[`metric-${i}`] = { auto: true };
+    });
 
     const opts: uPlot.Options = {
       width: 0,
