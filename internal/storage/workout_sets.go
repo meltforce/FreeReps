@@ -50,16 +50,20 @@ func (db *DB) InsertWorkoutSets(ctx context.Context, rows []models.WorkoutSetRow
 	return tag.RowsAffected(), nil
 }
 
-// QueryWorkoutSets retrieves workout sets in a date range.
-func (db *DB) QueryWorkoutSets(ctx context.Context, start, end time.Time, userID int) ([]models.WorkoutSetRow, error) {
-	rows, err := db.Pool.Query(ctx,
-		`SELECT user_id, session_name, session_date, session_duration,
+// QueryWorkoutSets retrieves workout sets in a date range, optionally filtered by exercise name.
+func (db *DB) QueryWorkoutSets(ctx context.Context, start, end time.Time, userID int, exerciseFilter string) ([]models.WorkoutSetRow, error) {
+	query := `SELECT user_id, session_name, session_date, session_duration,
 		 exercise_number, exercise_name, equipment, target_reps,
 		 is_warmup, set_number, weight_kg, is_bodyweight_plus, reps, rir
 		 FROM workout_sets
-		 WHERE session_date >= $1 AND session_date < $2 AND user_id = $3
-		 ORDER BY session_date DESC, exercise_number ASC, is_warmup DESC, set_number ASC`,
-		start, end, userID)
+		 WHERE session_date >= $1 AND session_date < $2 AND user_id = $3`
+	args := []any{start, end, userID}
+	if exerciseFilter != "" {
+		query += ` AND exercise_name ILIKE '%' || $4 || '%'`
+		args = append(args, exerciseFilter)
+	}
+	query += ` ORDER BY session_date DESC, exercise_number ASC, is_warmup DESC, set_number ASC`
+	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying workout sets: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/claude/freereps/internal/ingest/alpha"
@@ -54,6 +55,7 @@ func (s *Server) SetTailscale(lc *local.Client) {
 // SetMCP mounts an MCP SSE server at /mcp/.
 // The SSE context function injects the authenticated user ID from the HTTP
 // request into the MCP handler context, giving tools automatic user scoping.
+// MCP routes use the same Tailscale identity middleware as all other endpoints.
 func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
 	sseServer := mcpserver.NewSSEServer(mcpSrv,
 		mcpserver.WithDynamicBasePath(func(r *http.Request, sessionID string) string {
@@ -64,8 +66,9 @@ func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
 			return freerepsmcp.WithUserID(ctx, uid)
 		}),
 	)
-	s.router.Handle("/mcp/sse", sseServer.SSEHandler())
-	s.router.Handle("/mcp/message", sseServer.MessageHandler())
+	identity := s.identityMiddleware()
+	s.router.Handle("/mcp/sse", identity(sseServer.SSEHandler()))
+	s.router.Handle("/mcp/message", identity(sseServer.MessageHandler()))
 }
 
 // ServeHTTP implements http.Handler.
@@ -73,13 +76,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
-func (s *Server) routes() {
-	s.router.Use(RequestLogging(s.log))
-	s.router.Use(CORS)
-
-	// Identity middleware: tsnet-based or dev fallback.
-	// Applied after routes() via a lazy middleware that checks s.lc at request time.
-	s.router.Use(func(next http.Handler) http.Handler {
+// identityMiddleware returns middleware that resolves user identity via Tailscale
+// (production) or assigns user_id=1 (dev mode). Checks s.lc at request time so
+// SetTailscale can be called after New().
+func (s *Server) identityMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if s.lc != nil {
 				TailscaleIdentity(s.lc, s.db, s.log)(next).ServeHTTP(w, r)
@@ -87,39 +88,53 @@ func (s *Server) routes() {
 				DevIdentity(next).ServeHTTP(w, r)
 			}
 		})
+	}
+}
+
+func (s *Server) routes() {
+	s.router.Use(RequestLogging(s.log))
+	s.router.Use(CORS)
+
+	// All routes require identity (Tailscale or dev fallback).
+	s.router.Group(func(r chi.Router) {
+		r.Use(s.identityMiddleware())
+
+		// Ingest endpoints
+		r.Route("/api/v1/ingest", func(r chi.Router) {
+			r.Post("/", s.handleHAEIngest)
+			r.Post("/alpha", s.handleAlphaIngest)
+		})
+
+		// User identity
+		r.Get("/api/v1/me", s.handleMe)
+
+		// Dashboard API endpoints
+		r.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
+		r.Get("/api/v1/metrics", s.handleQueryMetrics)
+		r.Get("/api/v1/sleep", s.handleQuerySleep)
+		r.Get("/api/v1/workouts", s.handleQueryWorkouts)
+		r.Get("/api/v1/workouts/{id}", s.handleGetWorkout)
+		r.Get("/api/v1/workouts/{id}/sets", s.handleWorkoutSets)
+		r.Get("/api/v1/metrics/stats", s.handleMetricStats)
+		r.Get("/api/v1/timeseries", s.handleTimeSeries)
+		r.Get("/api/v1/correlation", s.handleCorrelation)
+		r.Get("/api/v1/allowlist", s.handleAllowlist)
+		r.Get("/api/v1/sleep/summary", s.handleSleepSummary)
+		r.Get("/api/v1/workouts/sets", s.handleQueryWorkoutSets)
+		r.Get("/api/v1/training/summary", s.handleTrainingSummary)
+		r.Get("/api/v1/training/intensity", s.handleTrainingIntensity)
+
+		// Settings / admin endpoints
+		r.Get("/api/v1/stats", s.handleStats)
+		r.Get("/api/v1/import-logs", s.handleImportLogs)
+
+		// HAE TCP import
+		r.Post("/api/v1/import/hae-tcp/check", s.handleCheckHAE)
+		r.Post("/api/v1/import/hae-tcp", s.handleStartHAEImport)
+		r.Delete("/api/v1/import/hae-tcp", s.handleCancelHAEImport)
+		r.Get("/api/v1/import/hae-tcp/status", s.handleHAEImportStatus)
+		r.Get("/api/v1/import/hae-tcp/events", s.handleHAEImportEvents)
 	})
-
-	// Ingest endpoints
-	s.router.Route("/api/v1/ingest", func(r chi.Router) {
-		r.Post("/", s.handleHAEIngest)
-		r.Post("/alpha", s.handleAlphaIngest)
-	})
-
-	// User identity
-	s.router.Get("/api/v1/me", s.handleMe)
-
-	// Dashboard API endpoints
-	s.router.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
-	s.router.Get("/api/v1/metrics", s.handleQueryMetrics)
-	s.router.Get("/api/v1/sleep", s.handleQuerySleep)
-	s.router.Get("/api/v1/workouts", s.handleQueryWorkouts)
-	s.router.Get("/api/v1/workouts/{id}", s.handleGetWorkout)
-	s.router.Get("/api/v1/workouts/{id}/sets", s.handleWorkoutSets)
-	s.router.Get("/api/v1/metrics/stats", s.handleMetricStats)
-	s.router.Get("/api/v1/timeseries", s.handleTimeSeries)
-	s.router.Get("/api/v1/correlation", s.handleCorrelation)
-	s.router.Get("/api/v1/allowlist", s.handleAllowlist)
-
-	// Settings / admin endpoints
-	s.router.Get("/api/v1/stats", s.handleStats)
-	s.router.Get("/api/v1/import-logs", s.handleImportLogs)
-
-	// HAE TCP import
-	s.router.Post("/api/v1/import/hae-tcp/check", s.handleCheckHAE)
-	s.router.Post("/api/v1/import/hae-tcp", s.handleStartHAEImport)
-	s.router.Delete("/api/v1/import/hae-tcp", s.handleCancelHAEImport)
-	s.router.Get("/api/v1/import/hae-tcp/status", s.handleHAEImportStatus)
-	s.router.Get("/api/v1/import/hae-tcp/events", s.handleHAEImportEvents)
 }
 
 // SetFrontend mounts the embedded SPA filesystem.
@@ -130,6 +145,12 @@ func (s *Server) SetFrontend(webFS fs.FS) {
 
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[1:] // strip leading /
+
+		// API and well-known paths must not fall through to the SPA.
+		if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, ".well-known/") {
+			http.NotFound(w, r)
+			return
+		}
 
 		// Try to serve the exact file first
 		f, err := webFS.Open(path)

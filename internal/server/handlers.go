@@ -312,7 +312,7 @@ func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
 	windowStart := workout.StartTime.Add(-2 * time.Hour)
 	windowEnd := workout.EndTime.Add(2 * time.Hour)
 
-	sets, err := s.db.QueryWorkoutSets(r.Context(), windowStart, windowEnd, uid)
+	sets, err := s.db.QueryWorkoutSets(r.Context(), windowStart, windowEnd, uid, "")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -327,6 +327,100 @@ func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, metrics)
+}
+
+func (s *Server) handleSleepSummary(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	bucket := r.URL.Query().Get("bucket")
+	if bucket == "" {
+		bucket = "1 month"
+	}
+
+	summary, err := s.db.GetSleepSummary(r.Context(), start, end, bucket, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
+func (s *Server) handleQueryWorkoutSets(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	exerciseFilter := r.URL.Query().Get("exercise")
+
+	sets, err := s.db.QueryWorkoutSets(r.Context(), start, end, uid, exerciseFilter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, sets)
+}
+
+func (s *Server) handleTrainingSummary(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	bucket := r.URL.Query().Get("bucket")
+	if bucket == "" {
+		bucket = "1 month"
+	}
+
+	summary, err := s.db.GetTrainingSummary(r.Context(), start, end, bucket, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
+func (s *Server) handleTrainingIntensity(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	exerciseFilter := r.URL.Query().Get("exercise")
+
+	intensity, err := s.db.GetTrainingIntensity(r.Context(), start, end, uid, exerciseFilter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, intensity)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

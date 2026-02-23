@@ -13,12 +13,12 @@ var cumulativeMetrics = []string{"active_energy", "basal_energy_burned", "apple_
 func (h *handlers) dailySummary(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uid := UserIDFromContext(ctx)
 
-	latest, err := h.db.GetLatestMetrics(ctx, uid)
+	latest, err := h.ds.GetLatestMetrics(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	sums, err := h.db.GetDailySums(ctx, uid, cumulativeMetrics)
+	sums, err := h.ds.GetDailySums(ctx, uid, cumulativeMetrics)
 	if err != nil {
 		h.log.Warn("daily_summary: daily sums failed", "error", err)
 	}
@@ -27,12 +27,12 @@ func (h *handlers) dailySummary(ctx context.Context, req mcp.ReadResourceRequest
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	tomorrow := today.AddDate(0, 0, 1)
 
-	sessions, err := h.db.QuerySleepSessions(ctx, today.AddDate(0, 0, -1), tomorrow, uid)
+	sessions, err := h.ds.QuerySleepSessions(ctx, today.AddDate(0, 0, -1), tomorrow, uid)
 	if err != nil {
 		h.log.Warn("daily_summary: sleep query failed", "error", err)
 	}
 
-	workouts, err := h.db.QueryWorkouts(ctx, today, tomorrow, uid, "")
+	workouts, err := h.ds.QueryWorkouts(ctx, today, tomorrow, uid, "")
 	if err != nil {
 		h.log.Warn("daily_summary: workout query failed", "error", err)
 	}
@@ -64,7 +64,7 @@ func (h *handlers) recentWorkouts(ctx context.Context, req mcp.ReadResourceReque
 	end := time.Now()
 	start := end.AddDate(0, 0, -14)
 
-	workouts, err := h.db.QueryWorkouts(ctx, start, end, uid, "")
+	workouts, err := h.ds.QueryWorkouts(ctx, start, end, uid, "")
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (h *handlers) recentWorkouts(ctx context.Context, req mcp.ReadResourceReque
 }
 
 func (h *handlers) metricCatalog(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	metrics, err := h.db.GetAllowedMetrics(ctx)
+	metrics, err := h.ds.GetAllowedMetrics(ctx)
 	if err != nil {
 		return nil, err
 	}

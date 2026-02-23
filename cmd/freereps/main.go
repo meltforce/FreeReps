@@ -41,6 +41,22 @@ func main() {
 	log := slog.New(slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	log.Info("FreeReps starting", "version", Version)
 
+	// Remote MCP mode: proxy to REST API over Tailscale, no config/DB needed.
+	if mcpAPIURL := os.Getenv("MCP_API_URL"); *mcpMode && mcpAPIURL != "" {
+		log.Info("MCP remote mode", "api_url", mcpAPIURL)
+		client := freerepsmcp.NewHTTPClient(mcpAPIURL)
+		mcpSrv := freerepsmcp.New(client, Version, log)
+		if err := mcpserver.ServeStdio(mcpSrv,
+			mcpserver.WithStdioContextFunc(func(ctx context.Context) context.Context {
+				return freerepsmcp.WithUserID(ctx, 1)
+			}),
+		); err != nil {
+			log.Error("MCP remote stdio server error", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// Load config
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -48,13 +64,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Run migrations
+	// Run migrations (skip in MCP stdio mode — DB is managed by the server)
 	dsn := cfg.Database.DSN()
-	if err := storage.RunMigrations(dsn, "migrations"); err != nil {
-		log.Error("migration failed", "error", err)
-		os.Exit(1)
+	if !*mcpMode {
+		if err := storage.RunMigrations(dsn, "migrations"); err != nil {
+			log.Error("migration failed", "error", err)
+			os.Exit(1)
+		}
+		log.Info("migrations applied")
 	}
-	log.Info("migrations applied")
 
 	if *migrateOnly {
 		log.Info("migrate-only: exiting")
