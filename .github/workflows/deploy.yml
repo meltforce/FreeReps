@@ -42,6 +42,6 @@ jobs:
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no root@freereps-lxc \
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.DEPLOY_HOST }} \
             "docker pull meltforce/freereps:edge && \
              cd /opt/docker/stacks/freereps && docker compose up -d"

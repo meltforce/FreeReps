@@ -26,12 +26,31 @@ pgdata/
 
 # Config (may contain secrets)
 config.yaml
+config.mcp.yaml
 
 # Tailscale state
 tsnet-*/
 
 # Input data (user health exports — not committed)
 input/
+
+# Claude Code local config
+.claude/settings.local.json
+.claude/skills/
+.claude/agents/
+mcp-test/
+
+# Internal docs (not for public repo)
+fix_plan.md
+test-plan.md
+test-report.md
+test-checklist.md
+browser-test-report.md
+settings-issues.md
+docs/mcp-coaching-tools-test-cases.md
+
+# Database files
+*.db
 
 # Test coverage
 coverage.out

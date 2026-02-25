@@ -1,6 +1,8 @@
 # FreeReps
 
-**FREE Records, Evaluation & Processing Server**
+**F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
+
+> **Work in Progress** — FreeReps is under active development. Core features (data ingest, dashboard, MCP server) are functional, but the project is not yet polished for general use. Expect rough edges, breaking changes, and incomplete documentation. Contributions and feedback are welcome!
 
 A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
 
@@ -8,7 +10,7 @@ A self-hosted server that receives Apple Health data, stores it persistently, vi
 
 Apple Health collects extensive data but offers no way to relate metrics to each other, no API for external analysis, and no export into a queryable system you own.
 
-Apps like Athlytic compute scores but are closed-source, subscription-based, and opaque. FreeReps takes the opposite approach: **raw data + flexible visualization + LLM for interpretation**.
+Other apps compute scores but are closed-source, subscription-based, and opaque. FreeReps takes the opposite approach: **raw data + flexible visualization + LLM for interpretation**.
 
 ## Architecture
 
@@ -43,9 +45,14 @@ Apps like Athlytic compute scores but are closed-source, subscription-based, and
 | Frontend | React + Vite + Tailwind |
 | Charts | uPlot (time-series) + Recharts (bar/scatter) |
 | Database | PostgreSQL + TimescaleDB |
-| Auth | Tailscale (tsnet) — zero-config TLS + identity |
+| Auth & Networking | [Tailscale](https://tailscale.com/) (tsnet) — zero-config TLS + identity |
 | Config | YAML |
 | Deployment | Docker Compose |
+
+## Prerequisites
+
+- **[Tailscale](https://tailscale.com/)** — FreeReps uses Tailscale for authentication and TLS natively (via [tsnet](https://tailscale.com/kb/1244/tsnet)). There are no passwords or API keys — access is controlled by your tailnet. Tailscale must be set up before running FreeReps.
+- **[Health Auto Export](https://apps.apple.com/app/health-auto-export-json-csv/id1115567069)** (iOS) — Currently the only supported way to get Apple Health data into FreeReps. The app exports health data as JSON (via REST API automation) or as `.hae` files (via iCloud Drive).
 
 ## Quick Start
 
