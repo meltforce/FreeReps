@@ -238,6 +238,8 @@ func (s *Server) handleTimeSeries(w http.ResponseWriter, r *http.Request) {
 		bucket = "1 hour"
 	case "weekly":
 		bucket = "1 week"
+	case "monthly":
+		bucket = "1 month"
 	case "daily", "":
 		bucket = "1 day"
 	}

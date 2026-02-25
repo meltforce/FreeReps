@@ -42,6 +42,8 @@ func bucketToAgg(bucket string) string {
 		return "daily"
 	case "1 week":
 		return "weekly"
+	case "1 month":
+		return "monthly"
 	default:
 		return "daily"
 	}

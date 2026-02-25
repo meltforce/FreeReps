@@ -147,7 +147,7 @@ func (h *handlers) getHealthMetrics(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(points)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": points})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
@@ -255,7 +255,7 @@ func (h *handlers) getWorkouts(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(workouts)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": workouts})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
@@ -277,7 +277,7 @@ func (h *handlers) getWorkoutSets(ctx context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(sets)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": sets})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
@@ -291,7 +291,7 @@ func (h *handlers) listAvailableMetrics(ctx context.Context, _ mcp.CallToolReque
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(metrics)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": metrics})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
@@ -397,7 +397,7 @@ func (h *handlers) getTrainingSummary(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(summary)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": summary})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
@@ -479,7 +479,7 @@ func (h *handlers) getSleepSummary(ctx context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultError("query failed: " + err.Error()), nil
 	}
 
-	result, err := mcp.NewToolResultJSON(summary)
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": summary})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}
