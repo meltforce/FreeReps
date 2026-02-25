@@ -173,7 +173,7 @@ func TestBucketToAgg(t *testing.T) {
 		{"1 hour", "hourly"},
 		{"1 day", "daily"},
 		{"1 week", "weekly"},
-		{"1 month", "daily"}, // unknown bucket falls back to daily
+		{"1 month", "monthly"},
 	}
 	for _, tc := range cases {
 		if got := bucketToAgg(tc.bucket); got != tc.want {
