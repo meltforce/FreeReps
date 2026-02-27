@@ -53,6 +53,7 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 
 - **[Tailscale](https://tailscale.com/)** — FreeReps uses Tailscale for authentication and TLS natively (via [tsnet](https://tailscale.com/kb/1244/tsnet)). There are no passwords or API keys — access is controlled by your tailnet. Tailscale must be set up before running FreeReps.
 - **[Health Auto Export](https://apps.apple.com/app/health-auto-export-json-csv/id1115567069)** (iOS) — Currently the only supported way to get Apple Health data into FreeReps. The app exports health data as JSON (via REST API automation) or as `.hae` files (via iCloud Drive).
+- **[mcp-proxy](https://github.com/sparfenyuk/mcp-proxy)** (optional) — Required for connecting Claude Desktop to a remote FreeReps instance. Bridges stdio↔SSE transports. Install with `brew install mcp-proxy` or `pip install mcp-proxy`.
 
 ## Quick Start
 
