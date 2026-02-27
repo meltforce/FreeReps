@@ -165,9 +165,28 @@ Add to your Claude Code MCP config:
 }
 ```
 
-### SSE (Network)
+### SSE (Remote via mcp-proxy)
 
-The MCP SSE endpoint is automatically available at `/mcp/sse` when the server is running with Tailscale enabled.
+The MCP SSE endpoint is available at `/mcp/sse` when the server is running. To connect Claude Desktop (or other stdio-only clients) to a remote FreeReps instance, use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) to bridge stdio↔SSE:
+
+```bash
+brew install mcp-proxy   # or: pip install mcp-proxy
+```
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "freereps": {
+      "command": "mcp-proxy",
+      "args": ["https://freereps.your-tailnet.ts.net/mcp/sse"]
+    }
+  }
+}
+```
+
+No local FreeReps binary needed — `mcp-proxy` handles the transport bridging, and Tailscale handles authentication.
 
 ## Supported Metrics
 

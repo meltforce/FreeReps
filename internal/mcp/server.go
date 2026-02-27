@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/claude/freereps/internal/storage"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -26,7 +27,7 @@ func WithUserID(ctx context.Context, userID int) context.Context {
 }
 
 // New creates an MCP server with all tools and resources registered.
-func New(ds DataSource, version string, log *slog.Logger) *server.MCPServer {
+func New(ds *storage.DB, version string, log *slog.Logger) *server.MCPServer {
 	s := server.NewMCPServer("FreeReps", version,
 		server.WithToolCapabilities(false),
 		server.WithResourceCapabilities(false, false),
@@ -62,7 +63,7 @@ func New(ds DataSource, version string, log *slog.Logger) *server.MCPServer {
 
 // handlers holds dependencies for MCP tool/resource handlers.
 type handlers struct {
-	ds  DataSource
+	ds  *storage.DB
 	log *slog.Logger
 }
 

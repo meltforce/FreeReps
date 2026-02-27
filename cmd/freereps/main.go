@@ -41,22 +41,6 @@ func main() {
 	log := slog.New(slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	log.Info("FreeReps starting", "version", Version)
 
-	// Remote MCP mode: proxy to REST API over Tailscale, no config/DB needed.
-	if mcpAPIURL := os.Getenv("MCP_API_URL"); *mcpMode && mcpAPIURL != "" {
-		log.Info("MCP remote mode", "api_url", mcpAPIURL)
-		client := freerepsmcp.NewHTTPClient(mcpAPIURL)
-		mcpSrv := freerepsmcp.New(client, Version, log)
-		if err := mcpserver.ServeStdio(mcpSrv,
-			mcpserver.WithStdioContextFunc(func(ctx context.Context) context.Context {
-				return freerepsmcp.WithUserID(ctx, 1)
-			}),
-		); err != nil {
-			log.Error("MCP remote stdio server error", "error", err)
-			os.Exit(1)
-		}
-		return
-	}
-
 	// Load config
 	cfg, err := config.Load(*configPath)
 	if err != nil {

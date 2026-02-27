@@ -119,10 +119,6 @@ func (s *Server) routes() {
 		r.Get("/api/v1/timeseries", s.handleTimeSeries)
 		r.Get("/api/v1/correlation", s.handleCorrelation)
 		r.Get("/api/v1/allowlist", s.handleAllowlist)
-		r.Get("/api/v1/sleep/summary", s.handleSleepSummary)
-		r.Get("/api/v1/workouts/sets", s.handleQueryWorkoutSets)
-		r.Get("/api/v1/training/summary", s.handleTrainingSummary)
-		r.Get("/api/v1/training/intensity", s.handleTrainingIntensity)
 
 		// Settings / admin endpoints
 		r.Get("/api/v1/stats", s.handleStats)
