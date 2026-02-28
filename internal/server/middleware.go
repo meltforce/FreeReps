@@ -7,9 +7,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/claude/freereps/internal/storage"
-	"tailscale.com/client/local"
+	"tailscale.com/client/tailscale/apitype"
 )
+
+// whoisClient abstracts Tailscale WhoIs lookups for testing.
+type whoisClient interface {
+	WhoIs(ctx context.Context, remoteAddr string) (*apitype.WhoIsResponse, error)
+}
+
+// userStore abstracts user database operations for testing.
+type userStore interface {
+	GetOrCreateUser(ctx context.Context, login, displayName string) (int, error)
+	GetPrimaryUser(ctx context.Context) (int, string, error)
+}
 
 type contextKey int
 
@@ -55,8 +65,10 @@ func userInfoFromContext(r *http.Request) UserInfo {
 
 // TailscaleIdentity returns middleware that resolves the Tailscale user identity
 // from each request and stores the user ID in the request context.
-// Tagged devices (no personal owner) are rejected with 403.
-func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(http.Handler) http.Handler {
+// Tagged devices (e.g. MCP proxies) are resolved to the tailnet owner by looking
+// up the primary user from the database. If no real user has logged in yet, tagged
+// devices are rejected with 403.
+func TailscaleIdentity(lc whoisClient, db userStore, log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			whois, err := lc.WhoIs(r.Context(), r.RemoteAddr)
@@ -66,18 +78,35 @@ func TailscaleIdentity(lc *local.Client, db *storage.DB, log *slog.Logger) func(
 				return
 			}
 
+			var login, displayName string
+
 			if whois.Node != nil && whois.Node.IsTagged() {
-				http.Error(w, `{"error":"access denied: personal Tailscale login required"}`, http.StatusForbidden)
-				return
+				// Tagged device (e.g. tsmcp proxy) — resolve to tailnet owner.
+				ownerID, ownerLogin, err := db.GetPrimaryUser(r.Context())
+				if err != nil {
+					log.Warn("tagged device access denied: no registered user yet",
+						"node", whois.Node.ComputedName)
+					http.Error(w, `{"error":"access denied: no registered user yet; log in from a personal device first"}`, http.StatusForbidden)
+					return
+				}
+				login = ownerLogin
+				displayName = ownerLogin
+
+				log.Info("tagged device resolved to owner",
+					"node", whois.Node.ComputedName,
+					"owner_login", ownerLogin,
+					"owner_id", ownerID,
+				)
+			} else {
+				// Personal device — use WhoIs identity.
+				login = whois.UserProfile.LoginName
+				if login == "" {
+					http.Error(w, `{"error":"access denied: personal Tailscale login required"}`, http.StatusForbidden)
+					return
+				}
+				displayName = whois.UserProfile.DisplayName
 			}
 
-			login := whois.UserProfile.LoginName
-			if login == "" {
-				http.Error(w, `{"error":"access denied: personal Tailscale login required"}`, http.StatusForbidden)
-				return
-			}
-
-			displayName := whois.UserProfile.DisplayName
 			nodeName := ""
 			if whois.Node != nil {
 				nodeName = whois.Node.ComputedName

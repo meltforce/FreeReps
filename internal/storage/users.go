@@ -1,6 +1,10 @@
 package storage
 
-import "context"
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5"
+)
 
 // GetOrCreateUser finds or creates a user by Tailscale login name.
 // Returns the user ID. Updates last_seen and display_name on each call.
@@ -14,4 +18,19 @@ func (db *DB) GetOrCreateUser(ctx context.Context, login, displayName string) (i
 		RETURNING id
 	`, login, displayName).Scan(&id)
 	return id, err
+}
+
+// GetPrimaryUser returns the first user with a real Tailscale login (contains @).
+// Returns pgx.ErrNoRows if no real user has logged in yet.
+func (db *DB) GetPrimaryUser(ctx context.Context) (id int, login string, err error) {
+	err = db.Pool.QueryRow(ctx, `
+		SELECT id, login FROM users
+		WHERE login LIKE '%@%'
+		ORDER BY created_at ASC
+		LIMIT 1
+	`).Scan(&id, &login)
+	if err == pgx.ErrNoRows {
+		return 0, "", pgx.ErrNoRows
+	}
+	return
 }
