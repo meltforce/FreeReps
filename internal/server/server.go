@@ -52,23 +52,19 @@ func (s *Server) SetTailscale(lc *local.Client) {
 	s.lc = lc
 }
 
-// SetMCP mounts an MCP SSE server at /mcp/.
-// The SSE context function injects the authenticated user ID from the HTTP
+// SetMCP mounts an MCP Streamable HTTP server at /mcp.
+// The HTTP context function injects the authenticated user ID from the HTTP
 // request into the MCP handler context, giving tools automatic user scoping.
 // MCP routes use the same Tailscale identity middleware as all other endpoints.
 func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
-	sseServer := mcpserver.NewSSEServer(mcpSrv,
-		mcpserver.WithDynamicBasePath(func(r *http.Request, sessionID string) string {
-			return "/mcp"
-		}),
-		mcpserver.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
+	httpServer := mcpserver.NewStreamableHTTPServer(mcpSrv,
+		mcpserver.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
 			uid, _ := userIDFromContext(r)
 			return freerepsmcp.WithUserID(ctx, uid)
 		}),
 	)
 	identity := s.identityMiddleware()
-	s.router.Handle("/mcp/sse", identity(sseServer.SSEHandler()))
-	s.router.Handle("/mcp/message", identity(sseServer.MessageHandler()))
+	s.router.Handle("/mcp", identity(httpServer))
 }
 
 // ServeHTTP implements http.Handler.
