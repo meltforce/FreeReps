@@ -56,3 +56,7 @@ docs/mcp-coaching-tools-test-cases.md
 coverage.out
 coverage.html
 web/tsconfig.tsbuildinfo
+
+# Binary variants
+/freereps-*
+/use
