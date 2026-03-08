@@ -6,6 +6,16 @@
 
 A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
 
+## Screenshots
+
+| Dashboard | Sleep |
+|:-:|:-:|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Sleep](docs/screenshots/sleep.png) |
+
+| Metrics | Trends |
+|:-:|:-:|
+| ![Metrics](docs/screenshots/metrics.png) | ![Trends](docs/screenshots/trends.png) |
+
 ## Why FreeReps?
 
 Apple Health collects extensive data but offers no way to relate metrics to each other, no API for external analysis, and no export into a queryable system you own.
