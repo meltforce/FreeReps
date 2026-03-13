@@ -49,6 +49,13 @@ func New(ds *storage.DB, version string, log *slog.Logger) *server.MCPServer {
 		server.ServerTool{Tool: toolGetTrainingSummary, Handler: h.getTrainingSummary},
 		server.ServerTool{Tool: toolGetTrainingIntensity, Handler: h.getTrainingIntensity},
 		server.ServerTool{Tool: toolGetSleepSummary, Handler: h.getSleepSummary},
+		server.ServerTool{Tool: toolGetECGRecordings, Handler: h.getECGRecordings},
+		server.ServerTool{Tool: toolGetAudiograms, Handler: h.getAudiograms},
+		server.ServerTool{Tool: toolGetActivitySummaries, Handler: h.getActivitySummaries},
+		server.ServerTool{Tool: toolGetMedications, Handler: h.getMedications},
+		server.ServerTool{Tool: toolGetVisionPrescriptions, Handler: h.getVisionPrescriptions},
+		server.ServerTool{Tool: toolGetStateOfMind, Handler: h.getStateOfMind},
+		server.ServerTool{Tool: toolGetCategorySamples, Handler: h.getCategorySamples},
 	)
 
 	// Resources

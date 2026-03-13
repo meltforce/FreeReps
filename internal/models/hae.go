@@ -60,8 +60,15 @@ type HAEPayload struct {
 
 // HAEData contains the arrays of health data.
 type HAEData struct {
-	Metrics  []HAEMetric  `json:"metrics"`
-	Workouts []HAEWorkout `json:"workouts"`
+	Metrics             []HAEMetric             `json:"metrics"`
+	Workouts            []HAEWorkout            `json:"workouts"`
+	ECGRecordings       []HAEECGRecording       `json:"ecg_recordings,omitempty"`
+	Audiograms          []HAEAudiogram          `json:"audiograms,omitempty"`
+	ActivitySummaries   []HAEActivitySummary    `json:"activity_summaries,omitempty"`
+	Medications         []HAEMedication         `json:"medications,omitempty"`
+	VisionPrescriptions []HAEVisionPrescription `json:"vision_prescriptions,omitempty"`
+	StateOfMind         []HAEStateOfMind        `json:"state_of_mind,omitempty"`
+	CategorySamples     []HAECategorySample     `json:"category_samples,omitempty"`
 }
 
 // HAEMetric is a single metric entry with name, units, and data points.
@@ -73,23 +80,26 @@ type HAEMetric struct {
 
 // HAEMetricDataPoint is a standard metric data point with qty.
 type HAEMetricDataPoint struct {
-	Date HAETime `json:"date"`
-	Qty  float64 `json:"qty"`
+	Date       HAETime `json:"date"`
+	Qty        float64 `json:"qty"`
+	SourceUUID *string `json:"source_uuid,omitempty"`
 }
 
 // HAEHeartRateDataPoint has Min/Avg/Max fields (capitalized in HAE JSON).
 type HAEHeartRateDataPoint struct {
-	Date HAETime `json:"date"`
-	Min  float64 `json:"Min"`
-	Avg  float64 `json:"Avg"`
-	Max  float64 `json:"Max"`
+	Date       HAETime `json:"date"`
+	Min        float64 `json:"Min"`
+	Avg        float64 `json:"Avg"`
+	Max        float64 `json:"Max"`
+	SourceUUID *string `json:"source_uuid,omitempty"`
 }
 
 // HAEBloodPressureDataPoint has systolic/diastolic fields.
 type HAEBloodPressureDataPoint struct {
-	Date      HAETime `json:"date"`
-	Systolic  float64 `json:"systolic"`
-	Diastolic float64 `json:"diastolic"`
+	Date       HAETime `json:"date"`
+	Systolic   float64 `json:"systolic"`
+	Diastolic  float64 `json:"diastolic"`
+	SourceUUID *string `json:"source_uuid,omitempty"`
 }
 
 // HAESleepAggregated is a nightly sleep summary (Summarize Data: ON).
@@ -169,14 +179,95 @@ type HAEWorkoutHRPoint struct {
 
 // HAERoutePoint is a GPS point from a workout route.
 type HAERoutePoint struct {
-	Latitude            float64 `json:"latitude"`
-	Longitude           float64 `json:"longitude"`
-	Altitude            float64 `json:"altitude"`
-	Course              float64 `json:"course"`
-	CourseAccuracy      float64 `json:"courseAccuracy"`
-	HorizontalAccuracy  float64 `json:"horizontalAccuracy"`
-	VerticalAccuracy    float64 `json:"verticalAccuracy"`
-	Timestamp           HAETime `json:"timestamp"`
-	Speed               float64 `json:"speed"`
-	SpeedAccuracy       float64 `json:"speedAccuracy"`
+	Latitude           float64 `json:"latitude"`
+	Longitude          float64 `json:"longitude"`
+	Altitude           float64 `json:"altitude"`
+	Course             float64 `json:"course"`
+	CourseAccuracy     float64 `json:"courseAccuracy"`
+	HorizontalAccuracy float64 `json:"horizontalAccuracy"`
+	VerticalAccuracy   float64 `json:"verticalAccuracy"`
+	Timestamp          HAETime `json:"timestamp"`
+	Speed              float64 `json:"speed"`
+	SpeedAccuracy      float64 `json:"speedAccuracy"`
+}
+
+// HAEECGRecording is an ECG recording from HealthBeat.
+type HAEECGRecording struct {
+	ID                  string    `json:"id"`
+	Classification      string    `json:"classification"`
+	AverageHeartRate    *float64  `json:"average_heart_rate,omitempty"`
+	SamplingFrequency   *float64  `json:"sampling_frequency,omitempty"`
+	VoltageMeasurements []float64 `json:"voltage_measurements,omitempty"`
+	StartDate           HAETime   `json:"start_date"`
+	Source              string    `json:"source,omitempty"`
+}
+
+// HAEAudiogram is an audiogram from HealthBeat.
+type HAEAudiogram struct {
+	ID                string               `json:"id"`
+	SensitivityPoints []AudiogramSensPoint `json:"sensitivity_points"`
+	StartDate         HAETime              `json:"start_date"`
+	Source            string               `json:"source,omitempty"`
+}
+
+// AudiogramSensPoint is a single frequency/sensitivity measurement.
+type AudiogramSensPoint struct {
+	Frequency float64  `json:"hz"`
+	LeftEar   *float64 `json:"left_db,omitempty"`
+	RightEar  *float64 `json:"right_db,omitempty"`
+}
+
+// HAEActivitySummary is an Apple Watch activity rings summary.
+type HAEActivitySummary struct {
+	Date             string   `json:"date"`
+	ActiveEnergy     *float64 `json:"active_energy,omitempty"`
+	ActiveEnergyGoal *float64 `json:"active_energy_goal,omitempty"`
+	ExerciseTime     *float64 `json:"exercise_time,omitempty"`
+	ExerciseTimeGoal *float64 `json:"exercise_time_goal,omitempty"`
+	StandHours       *float64 `json:"stand_hours,omitempty"`
+	StandHoursGoal   *float64 `json:"stand_hours_goal,omitempty"`
+}
+
+// HAEMedication is a medication dose event.
+type HAEMedication struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Dosage    *string  `json:"dosage,omitempty"`
+	LogStatus *string  `json:"log_status,omitempty"`
+	StartDate HAETime  `json:"start_date"`
+	EndDate   *HAETime `json:"end_date,omitempty"`
+	Source    string   `json:"source,omitempty"`
+}
+
+// HAEVisionPrescription is a glasses/contacts prescription.
+type HAEVisionPrescription struct {
+	ID               string                 `json:"id"`
+	DateIssued       HAETime                `json:"date_issued"`
+	ExpirationDate   *HAETime               `json:"expiration_date,omitempty"`
+	PrescriptionType *string                `json:"prescription_type,omitempty"`
+	RightEye         map[string]interface{} `json:"right_eye,omitempty"`
+	LeftEye          map[string]interface{} `json:"left_eye,omitempty"`
+	Source           string                 `json:"source,omitempty"`
+}
+
+// HAEStateOfMind is an iOS 18+ mood/emotion record.
+type HAEStateOfMind struct {
+	ID           string  `json:"id"`
+	Kind         int     `json:"kind"`
+	Valence      float64 `json:"valence"`
+	Labels       []int   `json:"labels,omitempty"`
+	Associations []int   `json:"associations,omitempty"`
+	StartDate    HAETime `json:"start_date"`
+	Source       string  `json:"source,omitempty"`
+}
+
+// HAECategorySample is an HKCategorySample record.
+type HAECategorySample struct {
+	ID         string  `json:"id"`
+	Type       string  `json:"type"`
+	Value      int     `json:"value"`
+	ValueLabel *string `json:"value_label,omitempty"`
+	StartDate  HAETime `json:"start_date"`
+	EndDate    HAETime `json:"end_date"`
+	Source     string  `json:"source,omitempty"`
 }

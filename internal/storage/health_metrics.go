@@ -13,9 +13,20 @@ import (
 
 // cumulativeMetrics are metrics that should be summed (not averaged) when aggregating.
 var cumulativeMetrics = map[string]bool{
-	"active_energy":      true,
-	"basal_energy_burned": true,
-	"apple_exercise_time": true,
+	"active_energy":                true,
+	"basal_energy_burned":          true,
+	"apple_exercise_time":          true,
+	"step_count":                   true,
+	"distance_walking_running":     true,
+	"distance_cycling":             true,
+	"distance_swimming":            true,
+	"distance_wheelchair":          true,
+	"flights_climbed":              true,
+	"apple_move_time":              true,
+	"apple_stand_time":             true,
+	"push_count":                   true,
+	"swimming_stroke_count":        true,
+	"distance_downhill_snow_sports": true,
 }
 
 // InsertHealthMetrics batch-inserts health metric rows. Returns the number actually inserted
@@ -25,19 +36,19 @@ func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetri
 		return 0, nil
 	}
 
-	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic)
+	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid)
 VALUES `
-	args := make([]any, 0, len(rows)*11)
+	args := make([]any, 0, len(rows)*12)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 11
+		base := i * 12
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12,
 		))
 		args = append(args, r.Time, r.UserID, r.MetricName, r.Source, r.Units,
-			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic)
+			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic, r.SourceUUID)
 	}
 
 	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"
@@ -52,7 +63,7 @@ VALUES `
 // QueryHealthMetrics retrieves health metrics by name and time range.
 func (db *DB) QueryHealthMetrics(ctx context.Context, metricName string, start, end time.Time, userID int) ([]models.HealthMetricRow, error) {
 	rows, err := db.Pool.Query(ctx,
-		`SELECT time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic
+		`SELECT time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid
 		 FROM health_metrics
 		 WHERE metric_name = $1 AND time >= $2 AND time < $3 AND user_id = $4
 		 ORDER BY time ASC`,
@@ -68,7 +79,7 @@ func (db *DB) QueryHealthMetrics(ctx context.Context, metricName string, start, 
 // GetLatestMetrics returns the most recent data point for each metric.
 func (db *DB) GetLatestMetrics(ctx context.Context, userID int) ([]models.HealthMetricRow, error) {
 	rows, err := db.Pool.Query(ctx,
-		`SELECT DISTINCT ON (metric_name) time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic
+		`SELECT DISTINCT ON (metric_name) time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid
 		 FROM health_metrics
 		 WHERE user_id = $1
 		 ORDER BY metric_name, time DESC`,
@@ -306,7 +317,7 @@ func scanHealthMetricRows(rows pgx.Rows) ([]models.HealthMetricRow, error) {
 	for rows.Next() {
 		var r models.HealthMetricRow
 		if err := rows.Scan(&r.Time, &r.UserID, &r.MetricName, &r.Source, &r.Units,
-			&r.Qty, &r.MinVal, &r.AvgVal, &r.MaxVal, &r.Systolic, &r.Diastolic); err != nil {
+			&r.Qty, &r.MinVal, &r.AvgVal, &r.MaxVal, &r.Systolic, &r.Diastolic, &r.SourceUUID); err != nil {
 			return nil, fmt.Errorf("scanning health metric row: %w", err)
 		}
 		result = append(result, r)

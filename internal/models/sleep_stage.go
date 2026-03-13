@@ -28,7 +28,8 @@ var sleepStageMap = map[string]string{
 	"kern":    SleepStageCore,
 	"tief":    SleepStageDeep,
 	"wach":    SleepStageAwake,
-	"im bett": SleepStageInBed,
+	"im bett":   SleepStageInBed,
+	"schlafend": SleepStageAsleep,
 
 	// French
 	"paradoxal":  SleepStageREM,

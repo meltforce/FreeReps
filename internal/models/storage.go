@@ -19,6 +19,7 @@ type HealthMetricRow struct {
 	MaxVal     *float64
 	Systolic   *float64
 	Diastolic  *float64
+	SourceUUID *uuid.UUID
 }
 
 // SleepSessionRow is a row ready for insertion into the sleep_sessions table.
@@ -112,4 +113,85 @@ type WorkoutSetRow struct {
 	IsBodyweightPlus bool
 	Reps             int
 	RIR              float64
+}
+
+// ECGRecordingRow is a row for the ecg_recordings table.
+type ECGRecordingRow struct {
+	ID                  uuid.UUID
+	UserID              int
+	Classification      string
+	AverageHeartRate    *float64
+	SamplingFrequency   *float64
+	VoltageMeasurements []byte // raw JSON array of floats
+	StartDate           time.Time
+	Source              string
+}
+
+// AudiogramRow is a row for the audiograms table.
+type AudiogramRow struct {
+	ID                uuid.UUID
+	UserID            int
+	SensitivityPoints []byte // raw JSON array of {hz, left_db, right_db}
+	StartDate         time.Time
+	Source            string
+}
+
+// ActivitySummaryRow is a row for the activity_summaries table.
+type ActivitySummaryRow struct {
+	UserID           int
+	Date             time.Time
+	ActiveEnergy     *float64
+	ActiveEnergyGoal *float64
+	ExerciseTime     *float64
+	ExerciseTimeGoal *float64
+	StandHours       *float64
+	StandHoursGoal   *float64
+}
+
+// MedicationRow is a row for the medications table.
+type MedicationRow struct {
+	ID        uuid.UUID
+	UserID    int
+	Name      string
+	Dosage    *string
+	LogStatus *string
+	StartDate time.Time
+	EndDate   *time.Time
+	Source    string
+}
+
+// VisionPrescriptionRow is a row for the vision_prescriptions table.
+type VisionPrescriptionRow struct {
+	ID               uuid.UUID
+	UserID           int
+	DateIssued       time.Time
+	ExpirationDate   *time.Time
+	PrescriptionType *string
+	RightEye         []byte // raw JSON
+	LeftEye          []byte // raw JSON
+	Source           string
+}
+
+// StateOfMindRow is a row for the state_of_mind table.
+type StateOfMindRow struct {
+	ID           uuid.UUID
+	UserID       int
+	Kind         int
+	Valence      float64
+	Labels       []int
+	Associations []int
+	StartDate    time.Time
+	Source       string
+}
+
+// CategorySampleRow is a row for the category_samples table.
+type CategorySampleRow struct {
+	ID         uuid.UUID
+	UserID     int
+	Type       string
+	Value      int
+	ValueLabel *string
+	StartDate  time.Time
+	EndDate    time.Time
+	Source     string
 }

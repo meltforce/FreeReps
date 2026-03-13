@@ -116,6 +116,15 @@ func (s *Server) routes() {
 		r.Get("/api/v1/correlation", s.handleCorrelation)
 		r.Get("/api/v1/allowlist", s.handleAllowlist)
 
+		// Health data endpoints
+		r.Get("/api/v1/ecg", s.handleGetECGRecordings)
+		r.Get("/api/v1/audiograms", s.handleGetAudiograms)
+		r.Get("/api/v1/activity-summaries", s.handleGetActivitySummaries)
+		r.Get("/api/v1/medications", s.handleGetMedications)
+		r.Get("/api/v1/vision-prescriptions", s.handleGetVisionPrescriptions)
+		r.Get("/api/v1/state-of-mind", s.handleGetStateOfMind)
+		r.Get("/api/v1/category-samples", s.handleGetCategorySamples)
+
 		// Settings / admin endpoints
 		r.Get("/api/v1/stats", s.handleStats)
 		r.Get("/api/v1/import-logs", s.handleImportLogs)

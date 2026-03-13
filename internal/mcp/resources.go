@@ -8,7 +8,13 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-var cumulativeMetrics = []string{"active_energy", "basal_energy_burned", "apple_exercise_time"}
+var cumulativeMetrics = []string{
+	"active_energy", "basal_energy_burned", "apple_exercise_time",
+	"step_count", "distance_walking_running", "distance_cycling",
+	"distance_swimming", "distance_wheelchair", "flights_climbed",
+	"apple_move_time", "apple_stand_time", "push_count",
+	"swimming_stroke_count", "distance_downhill_snow_sports",
+}
 
 func (h *handlers) dailySummary(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uid := UserIDFromContext(ctx)

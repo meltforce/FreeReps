@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/claude/freereps/internal/ingest"
@@ -39,6 +40,55 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload, userI
 	if len(payload.Data.Workouts) > 0 {
 		if err := p.processWorkouts(ctx, payload.Data.Workouts, userID, result); err != nil {
 			return result, fmt.Errorf("processing workouts: %w", err)
+		}
+	}
+
+	// Process ECG recordings
+	if len(payload.Data.ECGRecordings) > 0 {
+		if err := p.processECGRecordings(ctx, payload.Data.ECGRecordings, userID, result); err != nil {
+			return result, fmt.Errorf("processing ECG recordings: %w", err)
+		}
+	}
+
+	// Process audiograms
+	if len(payload.Data.Audiograms) > 0 {
+		if err := p.processAudiograms(ctx, payload.Data.Audiograms, userID, result); err != nil {
+			return result, fmt.Errorf("processing audiograms: %w", err)
+		}
+	}
+
+	// Process activity summaries
+	if len(payload.Data.ActivitySummaries) > 0 {
+		if err := p.processActivitySummaries(ctx, payload.Data.ActivitySummaries, userID, result); err != nil {
+			return result, fmt.Errorf("processing activity summaries: %w", err)
+		}
+	}
+
+	// Process medications
+	if len(payload.Data.Medications) > 0 {
+		if err := p.processMedications(ctx, payload.Data.Medications, userID, result); err != nil {
+			return result, fmt.Errorf("processing medications: %w", err)
+		}
+	}
+
+	// Process vision prescriptions
+	if len(payload.Data.VisionPrescriptions) > 0 {
+		if err := p.processVisionPrescriptions(ctx, payload.Data.VisionPrescriptions, userID, result); err != nil {
+			return result, fmt.Errorf("processing vision prescriptions: %w", err)
+		}
+	}
+
+	// Process state of mind
+	if len(payload.Data.StateOfMind) > 0 {
+		if err := p.processStateOfMind(ctx, payload.Data.StateOfMind, userID, result); err != nil {
+			return result, fmt.Errorf("processing state of mind: %w", err)
+		}
+	}
+
+	// Process category samples
+	if len(payload.Data.CategorySamples) > 0 {
+		if err := p.processCategorySamples(ctx, payload.Data.CategorySamples, userID, result); err != nil {
+			return result, fmt.Errorf("processing category samples: %w", err)
 		}
 	}
 
@@ -125,6 +175,12 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 		row.MinVal = &dp.Min
 		row.AvgVal = &dp.Avg
 		row.MaxVal = &dp.Max
+		if dp.SourceUUID != nil {
+			parsed, err := uuid.Parse(*dp.SourceUUID)
+			if err == nil {
+				row.SourceUUID = &parsed
+			}
+		}
 
 	case ShapeBloodPressure:
 		var dp models.HAEBloodPressureDataPoint
@@ -134,6 +190,12 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 		row.Time = dp.Date.Time
 		row.Systolic = &dp.Systolic
 		row.Diastolic = &dp.Diastolic
+		if dp.SourceUUID != nil {
+			parsed, err := uuid.Parse(*dp.SourceUUID)
+			if err == nil {
+				row.SourceUUID = &parsed
+			}
+		}
 
 	default: // ShapeQty
 		var dp models.HAEMetricDataPoint
@@ -142,6 +204,12 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 		}
 		row.Time = dp.Date.Time
 		row.Qty = &dp.Qty
+		if dp.SourceUUID != nil {
+			parsed, err := uuid.Parse(*dp.SourceUUID)
+			if err == nil {
+				row.SourceUUID = &parsed
+			}
+		}
 	}
 
 	return row, nil
@@ -342,5 +410,301 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWor
 			result.WorkoutRoutePoints += n
 		}
 	}
+	return nil
+}
+
+func (p *Provider) processECGRecordings(ctx context.Context, recordings []models.HAEECGRecording, userID int, result *ingest.Result) error {
+	for _, rec := range recordings {
+		id, err := uuid.Parse(rec.ID)
+		if err != nil {
+			p.log.Warn("skipping ECG recording: invalid UUID", "id", rec.ID, "error", err)
+			continue
+		}
+
+		var voltageMeasurements []byte
+		if len(rec.VoltageMeasurements) > 0 {
+			voltageMeasurements, err = json.Marshal(rec.VoltageMeasurements)
+			if err != nil {
+				p.log.Warn("skipping ECG recording: failed to marshal voltage measurements", "id", rec.ID, "error", err)
+				continue
+			}
+		}
+
+		row := models.ECGRecordingRow{
+			ID:                  id,
+			UserID:              userID,
+			Classification:      rec.Classification,
+			AverageHeartRate:    rec.AverageHeartRate,
+			SamplingFrequency:   rec.SamplingFrequency,
+			VoltageMeasurements: voltageMeasurements,
+			StartDate:           rec.StartDate.Time,
+			Source:              rec.Source,
+		}
+
+		inserted, err := p.db.InsertECGRecording(ctx, row)
+		if err != nil {
+			p.log.Warn("failed to insert ECG recording", "id", rec.ID, "error", err)
+			continue
+		}
+		if inserted {
+			result.ECGRecordingsInserted++
+		}
+	}
+	return nil
+}
+
+func (p *Provider) processAudiograms(ctx context.Context, audiograms []models.HAEAudiogram, userID int, result *ingest.Result) error {
+	for _, ag := range audiograms {
+		id, err := uuid.Parse(ag.ID)
+		if err != nil {
+			p.log.Warn("skipping audiogram: invalid UUID", "id", ag.ID, "error", err)
+			continue
+		}
+
+		var sensitivityPoints []byte
+		if len(ag.SensitivityPoints) > 0 {
+			sensitivityPoints, err = json.Marshal(ag.SensitivityPoints)
+			if err != nil {
+				p.log.Warn("skipping audiogram: failed to marshal sensitivity points", "id", ag.ID, "error", err)
+				continue
+			}
+		}
+
+		row := models.AudiogramRow{
+			ID:                id,
+			UserID:            userID,
+			SensitivityPoints: sensitivityPoints,
+			StartDate:         ag.StartDate.Time,
+			Source:            ag.Source,
+		}
+
+		inserted, err := p.db.InsertAudiogram(ctx, row)
+		if err != nil {
+			p.log.Warn("failed to insert audiogram", "id", ag.ID, "error", err)
+			continue
+		}
+		if inserted {
+			result.AudiogramsInserted++
+		}
+	}
+	return nil
+}
+
+func (p *Provider) processActivitySummaries(ctx context.Context, summaries []models.HAEActivitySummary, userID int, result *ingest.Result) error {
+	var rows []models.ActivitySummaryRow
+	for _, s := range summaries {
+		date, err := time.Parse("2006-01-02", s.Date)
+		if err != nil {
+			p.log.Warn("skipping activity summary: bad date", "date", s.Date, "error", err)
+			continue
+		}
+
+		rows = append(rows, models.ActivitySummaryRow{
+			UserID:           userID,
+			Date:             date,
+			ActiveEnergy:     s.ActiveEnergy,
+			ActiveEnergyGoal: s.ActiveEnergyGoal,
+			ExerciseTime:     s.ExerciseTime,
+			ExerciseTimeGoal: s.ExerciseTimeGoal,
+			StandHours:       s.StandHours,
+			StandHoursGoal:   s.StandHoursGoal,
+		})
+	}
+
+	if len(rows) > 0 {
+		inserted, err := p.db.InsertActivitySummaries(ctx, rows)
+		if err != nil {
+			return fmt.Errorf("inserting activity summaries: %w", err)
+		}
+		result.ActivitySummariesInserted = inserted
+	}
+	return nil
+}
+
+func (p *Provider) processMedications(ctx context.Context, medications []models.HAEMedication, userID int, result *ingest.Result) error {
+	for _, med := range medications {
+		id, err := uuid.Parse(med.ID)
+		if err != nil {
+			p.log.Warn("skipping medication: invalid UUID", "id", med.ID, "error", err)
+			continue
+		}
+
+		row := models.MedicationRow{
+			ID:        id,
+			UserID:    userID,
+			Name:      med.Name,
+			Dosage:    med.Dosage,
+			LogStatus: med.LogStatus,
+			StartDate: med.StartDate.Time,
+			Source:    med.Source,
+		}
+		if med.EndDate != nil {
+			t := med.EndDate.Time
+			row.EndDate = &t
+		}
+
+		inserted, err := p.db.InsertMedication(ctx, row)
+		if err != nil {
+			p.log.Warn("failed to insert medication", "id", med.ID, "error", err)
+			continue
+		}
+		if inserted {
+			result.MedicationsInserted++
+		}
+	}
+	return nil
+}
+
+func (p *Provider) processVisionPrescriptions(ctx context.Context, prescriptions []models.HAEVisionPrescription, userID int, result *ingest.Result) error {
+	for _, vp := range prescriptions {
+		id, err := uuid.Parse(vp.ID)
+		if err != nil {
+			p.log.Warn("skipping vision prescription: invalid UUID", "id", vp.ID, "error", err)
+			continue
+		}
+
+		var rightEye, leftEye []byte
+		if vp.RightEye != nil {
+			rightEye, err = json.Marshal(vp.RightEye)
+			if err != nil {
+				p.log.Warn("skipping vision prescription: failed to marshal right_eye", "id", vp.ID, "error", err)
+				continue
+			}
+		}
+		if vp.LeftEye != nil {
+			leftEye, err = json.Marshal(vp.LeftEye)
+			if err != nil {
+				p.log.Warn("skipping vision prescription: failed to marshal left_eye", "id", vp.ID, "error", err)
+				continue
+			}
+		}
+
+		row := models.VisionPrescriptionRow{
+			ID:               id,
+			UserID:           userID,
+			DateIssued:       vp.DateIssued.Time,
+			PrescriptionType: vp.PrescriptionType,
+			RightEye:         rightEye,
+			LeftEye:          leftEye,
+			Source:           vp.Source,
+		}
+		if vp.ExpirationDate != nil {
+			t := vp.ExpirationDate.Time
+			row.ExpirationDate = &t
+		}
+
+		inserted, err := p.db.InsertVisionPrescription(ctx, row)
+		if err != nil {
+			p.log.Warn("failed to insert vision prescription", "id", vp.ID, "error", err)
+			continue
+		}
+		if inserted {
+			result.VisionPrescriptionsInserted++
+		}
+	}
+	return nil
+}
+
+func (p *Provider) processStateOfMind(ctx context.Context, records []models.HAEStateOfMind, userID int, result *ingest.Result) error {
+	var rows []models.StateOfMindRow
+	for _, som := range records {
+		id, err := uuid.Parse(som.ID)
+		if err != nil {
+			p.log.Warn("skipping state of mind: invalid UUID", "id", som.ID, "error", err)
+			continue
+		}
+
+		rows = append(rows, models.StateOfMindRow{
+			ID:           id,
+			UserID:       userID,
+			Kind:         som.Kind,
+			Valence:      som.Valence,
+			Labels:       som.Labels,
+			Associations: som.Associations,
+			StartDate:    som.StartDate.Time,
+			Source:       som.Source,
+		})
+	}
+
+	if len(rows) > 0 {
+		inserted, err := p.db.InsertStateOfMind(ctx, rows)
+		if err != nil {
+			return fmt.Errorf("inserting state of mind: %w", err)
+		}
+		result.StateOfMindInserted = inserted
+	}
+	return nil
+}
+
+func (p *Provider) processCategorySamples(ctx context.Context, samples []models.HAECategorySample, userID int, result *ingest.Result) error {
+	var rows []models.CategorySampleRow
+	for _, cs := range samples {
+		id, err := uuid.Parse(cs.ID)
+		if err != nil {
+			p.log.Warn("skipping category sample: invalid UUID", "id", cs.ID, "error", err)
+			continue
+		}
+
+		rows = append(rows, models.CategorySampleRow{
+			ID:         id,
+			UserID:     userID,
+			Type:       cs.Type,
+			Value:      cs.Value,
+			ValueLabel: cs.ValueLabel,
+			StartDate:  cs.StartDate.Time,
+			EndDate:    cs.EndDate.Time,
+			Source:     cs.Source,
+		})
+	}
+
+	if len(rows) > 0 {
+		inserted, err := p.db.InsertCategorySamples(ctx, rows)
+		if err != nil {
+			return fmt.Errorf("inserting category samples: %w", err)
+		}
+		result.CategorySamplesInserted = inserted
+	}
+
+	// Extract sleep stages from sleep category samples.
+	var sleepStages []models.SleepStageRow
+	for _, cs := range samples {
+		if !strings.EqualFold(cs.Type, "HKCategoryTypeIdentifierSleepAnalysis") &&
+			!strings.EqualFold(cs.Type, "sleep_analysis") &&
+			!strings.Contains(strings.ToLower(cs.Type), "sleep") {
+			continue
+		}
+		if cs.ValueLabel == nil {
+			continue
+		}
+		label := *cs.ValueLabel
+		// Strip "Asleep " prefix: "Asleep Core" → "Core", "Asleep Deep" → "Deep", etc.
+		if after, ok := strings.CutPrefix(label, "Asleep "); ok {
+			if after == "Unspecified" {
+				label = "Asleep"
+			} else {
+				label = after
+			}
+		}
+		stage, known := models.NormalizeSleepStage(label)
+		if !known {
+			p.log.Warn("unknown sleep stage from category sample, storing as-is", "raw", label)
+		}
+		sleepStages = append(sleepStages, models.SleepStageRow{
+			StartTime:  cs.StartDate.Time,
+			EndTime:    cs.EndDate.Time,
+			UserID:     userID,
+			Stage:      stage,
+			DurationHr: cs.EndDate.Time.Sub(cs.StartDate.Time).Hours(),
+			Source:     cs.Source,
+		})
+	}
+	if len(sleepStages) > 0 {
+		inserted, err := p.db.InsertSleepStages(ctx, sleepStages)
+		if err != nil {
+			return fmt.Errorf("inserting sleep stages from category samples: %w", err)
+		}
+		result.SleepStagesInserted += inserted
+	}
+
 	return nil
 }

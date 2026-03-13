@@ -125,6 +125,49 @@ var toolComparePeriods = mcp.NewTool("compare_periods",
 	mcp.WithString("period_b_end", mcp.Required(), mcp.Description("Period B end date")),
 )
 
+var toolGetECGRecordings = mcp.NewTool("get_ecg_recordings",
+	mcp.WithDescription("Query ECG recordings by date range. Returns id, classification, average heart rate, start date, and source."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetAudiograms = mcp.NewTool("get_audiograms",
+	mcp.WithDescription("Query audiograms by date range. Returns id, sensitivity points, start date, and source."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetActivitySummaries = mcp.NewTool("get_activity_summaries",
+	mcp.WithDescription("Query daily activity summaries by date range. Returns date, active energy, exercise time, stand hours, and their goals."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetMedications = mcp.NewTool("get_medications",
+	mcp.WithDescription("Query medication records by date range. Returns id, name, dosage, log status, start date, and source."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetVisionPrescriptions = mcp.NewTool("get_vision_prescriptions",
+	mcp.WithDescription("Query vision prescriptions by date range. Returns all prescription fields including eye details."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetStateOfMind = mcp.NewTool("get_state_of_mind",
+	mcp.WithDescription("Query state of mind records by date range. Returns id, kind, valence, labels, associations, start date."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+)
+
+var toolGetCategorySamples = mcp.NewTool("get_category_samples",
+	mcp.WithDescription("Query category samples by date range and optional type filter. Returns id, type, value, value label, start/end dates."),
+	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("type", mcp.Description("Filter by category sample type (e.g. 'sleepAnalysis', 'menstrualFlow')")),
+)
+
 // --- Tool handlers ---
 
 func (h *handlers) getHealthMetrics(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -480,6 +523,154 @@ func (h *handlers) getSleepSummary(ctx context.Context, req mcp.CallToolRequest)
 	}
 
 	result, err := mcp.NewToolResultJSON(map[string]any{"data": summary})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getECGRecordings(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	recordings, err := h.ds.QueryECGRecordings(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_ecg_recordings", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": recordings})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getAudiograms(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	audiograms, err := h.ds.QueryAudiograms(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_audiograms", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": audiograms})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getActivitySummaries(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	summaries, err := h.ds.QueryActivitySummaries(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_activity_summaries", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": summaries})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getMedications(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	medications, err := h.ds.QueryMedications(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_medications", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": medications})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getVisionPrescriptions(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	prescriptions, err := h.ds.QueryVisionPrescriptions(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_vision_prescriptions", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": prescriptions})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getStateOfMind(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+
+	records, err := h.ds.QueryStateOfMind(ctx, start, end, uid)
+	if err != nil {
+		h.log.Error("mcp get_state_of_mind", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": records})
+	if err != nil {
+		return mcp.NewToolResultError("serialization failed"), nil
+	}
+	return result, nil
+}
+
+func (h *handlers) getCategorySamples(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start, end, err := defaultTimeRange(req.GetString("start", ""), req.GetString("end", ""))
+	if err != nil {
+		return mcp.NewToolResultError("invalid date format: " + err.Error()), nil
+	}
+
+	uid := UserIDFromContext(ctx)
+	typeFilter := req.GetString("type", "")
+
+	samples, err := h.ds.QueryCategorySamples(ctx, start, end, uid, typeFilter)
+	if err != nil {
+		h.log.Error("mcp get_category_samples", "error", err)
+		return mcp.NewToolResultError("query failed: " + err.Error()), nil
+	}
+
+	result, err := mcp.NewToolResultJSON(map[string]any{"data": samples})
 	if err != nil {
 		return mcp.NewToolResultError("serialization failed"), nil
 	}

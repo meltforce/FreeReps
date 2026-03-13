@@ -19,5 +19,13 @@ type Result struct {
 	SetsReceived int   `json:"sets_received"`
 	SetsInserted int64 `json:"sets_inserted"`
 
+	ECGRecordingsInserted    int   `json:"ecg_recordings_inserted,omitempty"`
+	AudiogramsInserted       int   `json:"audiograms_inserted,omitempty"`
+	ActivitySummariesInserted int64 `json:"activity_summaries_inserted,omitempty"`
+	MedicationsInserted      int   `json:"medications_inserted,omitempty"`
+	VisionPrescriptionsInserted int `json:"vision_prescriptions_inserted,omitempty"`
+	StateOfMindInserted      int64 `json:"state_of_mind_inserted,omitempty"`
+	CategorySamplesInserted  int64 `json:"category_samples_inserted,omitempty"`
+
 	Message string `json:"message,omitempty"`
 }

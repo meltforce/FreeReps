@@ -39,6 +39,12 @@ func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if result.SleepStagesInserted > 0 {
+		if err := s.db.BackfillSleepSessions(r.Context(), s.log); err != nil {
+			s.log.Warn("sleep session backfill after REST ingest failed", "error", err)
+		}
+	}
+
 	go s.logImport(uid, "hae_rest", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
@@ -66,7 +72,13 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 }
 
 // cumulativeMetrics are metrics that should show daily totals instead of latest value.
-var cumulativeMetrics = []string{"active_energy", "basal_energy_burned", "apple_exercise_time"}
+var cumulativeMetrics = []string{
+	"active_energy", "basal_energy_burned", "apple_exercise_time",
+	"step_count", "distance_walking_running", "distance_cycling",
+	"distance_swimming", "distance_wheelchair", "flights_climbed",
+	"apple_move_time", "apple_stand_time", "push_count",
+	"swimming_stroke_count", "distance_downhill_snow_sports",
+}
 
 func (s *Server) handleLatestMetrics(w http.ResponseWriter, r *http.Request) {
 	uid, ok := mustUserID(w, r)
@@ -329,6 +341,148 @@ func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, metrics)
+}
+
+func (s *Server) handleGetECGRecordings(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	recordings, err := s.db.QueryECGRecordings(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, recordings)
+}
+
+func (s *Server) handleGetAudiograms(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	audiograms, err := s.db.QueryAudiograms(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, audiograms)
+}
+
+func (s *Server) handleGetActivitySummaries(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	summaries, err := s.db.QueryActivitySummaries(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, summaries)
+}
+
+func (s *Server) handleGetMedications(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	medications, err := s.db.QueryMedications(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, medications)
+}
+
+func (s *Server) handleGetVisionPrescriptions(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	prescriptions, err := s.db.QueryVisionPrescriptions(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, prescriptions)
+}
+
+func (s *Server) handleGetStateOfMind(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	records, err := s.db.QueryStateOfMind(r.Context(), start, end, uid)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, records)
+}
+
+func (s *Server) handleGetCategorySamples(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	typeFilter := r.URL.Query().Get("type")
+
+	samples, err := s.db.QueryCategorySamples(r.Context(), start, end, uid, typeFilter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, samples)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
