@@ -2,11 +2,13 @@
 
 **F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
 
-> **Work in Progress** — FreeReps is under active development. Core features (data ingest, dashboard, MCP server) are functional, but the project is not yet polished for general use. Expect rough edges, breaking changes, and incomplete documentation. Contributions and feedback are welcome!
-
 A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
 
-**Monorepo:** `server/` contains the Go backend + React frontend. `app/` contains the iOS companion app (FreeReps for iOS) that syncs HealthKit data directly to the server.
+**Monorepo:** `server/` contains the Go backend + React frontend. `app/` contains the iOS companion app that syncs HealthKit data directly to the server.
+
+## Acknowledgements
+
+The FreeReps iOS companion app is based on [HealthBeat](https://github.com/kempu/HealthBeat) by kempu, an open-source iOS app for syncing Apple Health data. HealthBeat was adapted into the FreeReps companion app for the self-hosted FreeReps server. Licensed under the MIT License.
 
 ## Screenshots
 
@@ -27,15 +29,15 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 ## Architecture
 
 ```
-┌──────────────┐     HTTP POST      ┌─────────────────────────────────────────┐
-│ Health Auto   │ ────────────────→  │              FreeReps                   │
-│ Export (iOS)  │    JSON/Batch      │                                         │
+┌──────────────┐     HealthKit       ┌─────────────────────────────────────────┐
+│ FreeReps     │ ────────────────→   │              FreeReps Server            │
+│ iOS App      │    HTTP POST        │                                         │
 └──────────────┘                     │  ┌──────────┐  ┌─────────────────┐     │
                                      │  │ Ingest   │→ │  Storage (DB)   │     │
-┌──────────────┐   freereps-upload   │  │ API      │  │  Time Series    │     │
-│ .hae Files   │ ────────────────→   │  └──────────┘  └────────┬────────┘     │
-│ (iCloud)     │    HTTPS/Tailscale  │                         │              │
-└──────────────┘                     │              ┌──────────┴──────────┐   │
+                                     │  │ API      │  │  Time Series    │     │
+                                     │  └──────────┘  └────────┬────────┘     │
+                                     │                         │              │
+                                     │              ┌──────────┴──────────┐   │
                                      │              ▼                     ▼   │
                                      │  ┌────────────────┐  ┌─────────────┐  │
                                      │  │ Web Dashboard  │  │ MCP Server  │  │
@@ -54,17 +56,48 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 | Component | Technology |
 |-----------|------------|
 | Backend | Go (single binary with embedded frontend) |
-| Frontend | React + Vite + Tailwind |
+| Frontend | React 19 + Vite + Tailwind CSS 4 |
 | Charts | uPlot (time-series) + Recharts (bar/scatter) |
 | Database | PostgreSQL + TimescaleDB |
 | Auth & Networking | [Tailscale](https://tailscale.com/) (tsnet) — zero-config TLS + identity |
+| iOS App | Swift (HealthKit, BackgroundTasks, ActivityKit) |
 | Config | YAML |
 | Deployment | Docker Compose |
+
+## iOS Companion App
+
+The FreeReps companion app syncs Apple HealthKit data directly to the server over HTTP. No intermediate cloud services, no third-party dependencies — just HealthKit to your server.
+
+### What it syncs
+
+- **85+ quantity types** — steps, heart rate, blood pressure, blood glucose, body temperature, VO2 max, nutrition, audio exposure, and more
+- **22 category types** — sleep analysis, menstrual cycles, symptoms, mindfulness, heart events, stand hours
+- **Workouts** — activity type, duration, energy burned, distance, swim strokes, flights climbed
+- **Blood pressure** — systolic/diastolic correlation pairs
+- **ECG recordings** — classification, heart rate, voltage measurements
+- **Audiograms** — hearing sensitivity by frequency
+- **Workout routes** — GPS coordinates recorded during workouts
+- **Activity summaries** — daily ring data (active energy, exercise minutes, stand hours)
+
+### Features
+
+- **Full and incremental sync** — initial backfill of all historical data, then ongoing incremental syncs
+- **Real-time background sync** — HealthKit observer queries for immediate delivery when new data is recorded
+- **Background processing** — periodic sync via BGProcessingTask when the app isn't active
+- **Live Activity** — sync progress on the lock screen and Dynamic Island
+- **CSV import** — import Alpha Progression CSV files via share sheet or file picker
+- **No dependencies** — pure Swift using only Apple frameworks
+
+### Requirements
+
+- iOS 16.2+
+- Physical device (HealthKit is not available in the Simulator)
+- A running FreeReps server accessible from the device's network
 
 ## Prerequisites
 
 - **[Tailscale](https://tailscale.com/)** — FreeReps uses Tailscale for authentication and TLS natively (via [tsnet](https://tailscale.com/kb/1244/tsnet)). There are no passwords or API keys — access is controlled by your tailnet. Tailscale must be set up before running FreeReps.
-- **[Health Auto Export](https://apps.apple.com/app/health-auto-export-json-csv/id1115567069)** (iOS) — Currently the only supported way to get Apple Health data into FreeReps. The app exports health data as JSON (via REST API automation) or as `.hae` files (via iCloud Drive).
+- **[Health Auto Export](https://apps.apple.com/app/health-auto-export-json-csv/id1115567069)** (iOS, optional) — An alternative way to get Apple Health data into FreeReps via `.hae` file exports uploaded with `freereps-upload`. Not needed if using the FreeReps companion app.
 - **[mcp-proxy](https://github.com/sparfenyuk/mcp-proxy)** (optional) — Required for connecting Claude Desktop to a remote FreeReps instance. Bridges stdio↔SSE transports. Install with `brew install mcp-proxy` or `pip install mcp-proxy`.
 
 ## Quick Start
@@ -78,6 +111,14 @@ cp config.example.yaml config.yaml
 # Edit config.yaml — set database password, enable Tailscale
 docker compose up -d
 ```
+
+### iOS App
+
+1. Open `app/FreeReps.xcodeproj` in Xcode
+2. Set your development team and bundle identifier in **Signing & Capabilities**
+3. Build and run on a physical device
+4. In Settings, enter your FreeReps server URL
+5. Grant HealthKit permissions and start syncing
 
 ### Upload Tool (macOS)
 
@@ -129,18 +170,19 @@ curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scrip
 
 ## Data Sources
 
-### Health Auto Export (iOS)
+### FreeReps iOS App (recommended)
 
-The iOS app [Health Auto Export](https://healthyapps.dev) serves as the bridge between Apple Health and FreeReps.
+The companion app syncs HealthKit data directly to the server via HTTP POST. Supports full historical backfill and real-time incremental sync.
 
-- **REST API Automation**: The app pushes data via HTTP POST in JSON format
-- **File Export**: Monthly `.hae` file exports via iCloud Drive, uploaded with `freereps-upload`
+### Health Auto Export (iOS, legacy)
+
+The iOS app [Health Auto Export](https://healthyapps.dev) can export Apple Health data as `.hae` files to iCloud Drive, which can then be uploaded to FreeReps using the `freereps-upload` CLI tool.
 
 ### Alpha Progression (iOS)
 
 [Alpha Progression](https://alphaprogression.com) CSV exports provide detailed strength training data (exercises, sets, reps, weight, RIR).
 
-Upload via the dashboard or POST to `/api/v1/ingest/alpha`.
+Upload via the dashboard, the iOS companion app (share sheet / file picker), or POST to `/api/v1/ingest/alpha`.
 
 ## Dashboard Features
 
@@ -223,8 +265,9 @@ No local FreeReps binary needed — `mcp-proxy` handles the transport bridging, 
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/ingest/` | POST | Ingest Health Auto Export JSON |
+| `/api/v1/ingest/` | POST | Ingest health data JSON |
 | `/api/v1/ingest/alpha` | POST | Ingest Alpha Progression CSV |
+| `/api/v1/ingest/import` | POST | Unified import (auto-detects format) |
 | `/api/v1/metrics/latest` | GET | Latest value per metric |
 | `/api/v1/metrics` | GET | Time-range metric query |
 | `/api/v1/metrics/stats` | GET | Metric statistics (avg, min, max, stddev) |
