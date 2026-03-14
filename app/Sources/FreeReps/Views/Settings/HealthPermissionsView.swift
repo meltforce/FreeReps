@@ -23,7 +23,16 @@ struct HealthPermissionsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if !vm.permissionsRequested {
+                    if vm.isRequestingPermissions {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Requesting permissions…")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                    } else if !vm.permissionsRequested {
                         actionButton(
                             label: "Request All Permissions",
                             icon: "checkmark.shield.fill",

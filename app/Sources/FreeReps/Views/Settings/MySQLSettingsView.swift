@@ -28,23 +28,6 @@ struct FreeRepsSettingsView: View {
             }
 
             Section {
-                Picker("Initial Backfill", selection: Binding(
-                    get: { vm.config.backfillYears ?? 0 },
-                    set: { vm.config.backfillYears = $0 == 0 ? nil : $0 }
-                )) {
-                    Text("1 Year").tag(1)
-                    Text("2 Years").tag(2)
-                    Text("5 Years").tag(5)
-                    Text("10 Years").tag(10)
-                    Text("All Data").tag(0)
-                }
-            } header: {
-                Text("Sync")
-            } footer: {
-                Text("How far back to sync HealthKit data on first full sync. Subsequent syncs only check recent data.")
-            }
-
-            Section {
                 Button {
                     vm.testConnection()
                 } label: {

@@ -37,8 +37,8 @@
 		AABB00000000000000020026 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010025 /* Assets.xcassets */; };
 		AABB00000000000000020027 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010026 /* Assets.xcassets */; };
 		AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010035 /* BackgroundSyncManager.swift */; };
-		AABB0000000000000002003B /* DataValidationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003A /* DataValidationViewModel.swift */; };
-		AABB0000000000000002003C /* DataValidationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003B /* DataValidationView.swift */; };
+		AABB0000000000000002003E /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003D /* AcknowledgementsView.swift */; };
+		AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003E /* SyncAdvancedView.swift */; };
 		AABB0000000000000002003D /* BrandFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003C /* BrandFooter.swift */; };
 /* End PBXBuildFile section */
 
@@ -100,8 +100,8 @@
 		AABB00000000000000010025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB00000000000000010026 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB00000000000000010035 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
-		AABB0000000000000001003A /* DataValidationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataValidationViewModel.swift; sourceTree = "<group>"; };
-		AABB0000000000000001003B /* DataValidationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataValidationView.swift; sourceTree = "<group>"; };
+		AABB0000000000000001003D /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
+		AABB0000000000000001003E /* SyncAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAdvancedView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003C /* BrandFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandFooter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -182,7 +182,6 @@
 			children = (
 				AABB0000000000000001000B /* SyncViewModel.swift */,
 				AABB0000000000000001000C /* SettingsViewModel.swift */,
-				AABB0000000000000001003A /* DataValidationViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -212,7 +211,8 @@
 				AABB00000000000000010015 /* SettingsView.swift */,
 				AABB00000000000000010016 /* MySQLSettingsView.swift */,
 				AABB00000000000000010017 /* HealthPermissionsView.swift */,
-				AABB0000000000000001003B /* DataValidationView.swift */,
+				AABB0000000000000001003D /* AcknowledgementsView.swift */,
+				AABB0000000000000001003E /* SyncAdvancedView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -374,8 +374,8 @@
 				AABB0000000000000002000C /* SettingsViewModel.swift in Sources */,
 				AABB0000000000000002000E /* CategoryStatusCard.swift in Sources */,
 				AABB0000000000000002000F /* SyncDashboardView.swift in Sources */,
-				AABB0000000000000002003B /* DataValidationViewModel.swift in Sources */,
-				AABB0000000000000002003C /* DataValidationView.swift in Sources */,
+				AABB0000000000000002003E /* AcknowledgementsView.swift in Sources */,
+				AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */,
 				AABB0000000000000002003D /* BrandFooter.swift in Sources */,
 				AABB00000000000000020015 /* SettingsView.swift in Sources */,
 				AABB00000000000000020016 /* MySQLSettingsView.swift in Sources */,

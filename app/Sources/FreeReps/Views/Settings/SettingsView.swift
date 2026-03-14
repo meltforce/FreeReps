@@ -5,7 +5,6 @@ struct SettingsView: View {
     @StateObject private var vm = SettingsViewModel()
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
     @AppStorage("backgroundSyncEnabled") private var backgroundSyncEnabled = true
-    @State private var showResetSyncConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -75,55 +74,40 @@ struct SettingsView: View {
                     }
 
                     NavigationLink {
-                        DataValidationView(syncViewModel: syncViewModel)
+                        SyncAdvancedView(vm: vm, syncViewModel: syncViewModel)
                     } label: {
                         HStack(spacing: 12) {
-                            iconBox("checkmark.shield.fill", color: .green)
+                            iconBox("gearshape.fill", color: .gray)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Data Validation")
+                                Text("Advanced")
                                     .font(.subheadline.weight(.semibold))
-                                Text("Compare Apple Health vs FreeReps")
+                                Text("Backfill settings, reset sync state")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
-
-                    Button(role: .destructive) {
-                        showResetSyncConfirmation = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            iconBox("arrow.counterclockwise", color: .red)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Reset Sync State")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Clears all sync progress. Next sync will re-send all data.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .disabled(syncViewModel.isAnySyncRunning)
                 }
 
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
-                    LabeledContent("Backend", value: "FreeReps HTTP API")
                     LabeledContent("HealthKit Types", value: "\(HealthDataTypes.allQuantityTypes.count + HealthDataTypes.allCategoryTypes.count)")
+                    NavigationLink {
+                        AcknowledgementsView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            iconBox("doc.text.fill", color: .indigo)
+                            Text("Acknowledgements")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
                 }
 
                 BrandFooter()
             }
             .navigationTitle("Settings")
             .onAppear { vm.refreshPermissionsState() }
-            .alert("Reset Sync State", isPresented: $showResetSyncConfirmation) {
-                Button("Reset", role: .destructive) {
-                    syncViewModel.resetAllSyncState()
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This will clear all sync progress and cursors. The next sync will re-send all health data to FreeReps. Server-side data is not affected.")
-            }
+            .onChange(of: vm.config) { vm.saveConfig() }
         }
     }
 
