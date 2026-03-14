@@ -43,9 +43,10 @@ func DetectFormat(data []byte) Format {
 
 var (
 	// Alpha Progression session header: "Name";"2026-02-19 4:54 h";"1:02 hr"
-	alphaSessionRe = regexp.MustCompile(`"[^"]+"\s*;\s*"\d{4}-\d{2}-\d{2}\s+\d+:\d+\s*h"\s*;\s*"[^"]+"`)
-	// Alpha Progression column header
-	alphaColumnRe = regexp.MustCompile(`#;KG;REPS;RIR`)
+	// Delimiter may be semicolon or tab.
+	alphaSessionRe = regexp.MustCompile(`"[^"]+"\s*[;\t]\s*"\d{4}-\d{2}-\d{2}\s+\d+:\d+\s*h"\s*[;\t]\s*"[^"]+"`)
+	// Alpha Progression column header (semicolon or tab delimited)
+	alphaColumnRe = regexp.MustCompile(`#[;\t]KG[;\t]REPS[;\t]RIR`)
 	// Alpha Progression exercise header: "1. Exercise Name · Equipment · 8 reps"
 	alphaExerciseRe = regexp.MustCompile(`"\d+\.\s+.+\s+·\s+\d+\s+reps`)
 )

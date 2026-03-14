@@ -239,6 +239,42 @@ func TestEmptyInput(t *testing.T) {
 	}
 }
 
+// TestParseTabDelimited verifies that tab-delimited Alpha Progression exports parse correctly.
+// Some versions of Alpha Progression export with tabs instead of semicolons.
+func TestParseTabDelimited(t *testing.T) {
+	tabCSV := "\"Full Body\"\t\"2026-01-08 8:21 h\"\t\"1:39 hr\"\n" +
+		"\"1. Seated Shoulder Press · Smith machine · 6 reps\"\t\"WU1 · 15 kg · 9 reps\"\n" +
+		"#\tKG\tREPS\tRIR\n" +
+		"1\t42,5\t8\t0,5\n" +
+		"2\t42,5\t6\t0,5\n"
+	sessions, err := Parse(strings.NewReader(tabCSV))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("sessions = %d, want 1", len(sessions))
+	}
+	if sessions[0].Name != "Full Body" {
+		t.Errorf("session name = %q, want Full Body", sessions[0].Name)
+	}
+	if len(sessions[0].Exercises) != 1 {
+		t.Fatalf("exercises = %d, want 1", len(sessions[0].Exercises))
+	}
+	ex := sessions[0].Exercises[0]
+	if ex.Name != "Seated Shoulder Press" {
+		t.Errorf("exercise name = %q", ex.Name)
+	}
+	if len(ex.Sets) != 3 { // 1 warmup + 2 working
+		t.Errorf("sets = %d, want 3", len(ex.Sets))
+	}
+	if ex.Sets[1].WeightKg != 42.5 {
+		t.Errorf("set 1 weight = %f, want 42.5", ex.Sets[1].WeightKg)
+	}
+	if ex.Sets[1].RIR != 0.5 {
+		t.Errorf("set 1 RIR = %f, want 0.5", ex.Sets[1].RIR)
+	}
+}
+
 // TestSplitExerciseNameEquipment verifies name/equipment splitting from the combined field.
 func TestSplitExerciseNameEquipment(t *testing.T) {
 	name, equip := splitExerciseNameEquipment("Hack Squats · Machine")

@@ -44,6 +44,14 @@ func TestDetectAlphaExerciseHeader(t *testing.T) {
 	}
 }
 
+// TestDetectAlphaTabDelimited verifies detection of tab-delimited Alpha exports.
+func TestDetectAlphaTabDelimited(t *testing.T) {
+	input := []byte("\"Full Body\"\t\"2026-01-08 8:21 h\"\t\"1:39 hr\"\n#\tKG\tREPS\tRIR\n1\t42,5\t8\t0,5\n")
+	if got := DetectFormat(input); got != FormatAlpha {
+		t.Errorf("DetectFormat(tab-delimited) = %q, want %q", got, FormatAlpha)
+	}
+}
+
 // TestDetectEmpty verifies that empty input returns FormatUnknown.
 func TestDetectEmpty(t *testing.T) {
 	if got := DetectFormat(nil); got != FormatUnknown {

@@ -32,6 +32,7 @@ var (
 )
 
 // Parse reads an Alpha Progression CSV export and returns parsed sessions.
+// Supports both semicolon-delimited and tab-delimited variants.
 func Parse(r io.Reader) ([]models.AlphaSession, error) {
 	scanner := bufio.NewScanner(r)
 	var sessions []models.AlphaSession
@@ -39,7 +40,8 @@ func Parse(r io.Reader) ([]models.AlphaSession, error) {
 	var currentExercise *models.AlphaExercise
 
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		// Normalize tab-delimited exports to semicolons so all regexes work.
+		line := strings.ReplaceAll(strings.TrimSpace(scanner.Text()), "\t", ";")
 
 		// Blank line = session boundary
 		if line == "" {
