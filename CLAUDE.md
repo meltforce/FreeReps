@@ -2,8 +2,31 @@
 
 **FREE Records, Evaluation & Processing Server**
 
-- **Repo**: `FreeReps`
-- **Binary**: `freereps`
+- **Repo**: `FreeReps` (monorepo: `server/` + `app/`)
+- **Server binary**: `freereps` (in `server/`)
+- **iOS app**: `FreeReps.xcodeproj` (in `app/`)
+
+## Monorepo Layout
+
+```
+FreeReps/
+├── server/          # Go backend + React frontend + Docker
+│   ├── cmd/         # CLI entry points (freereps, freereps-upload)
+│   ├── internal/    # Go packages
+│   ├── web/         # React frontend (Vite + Tailwind)
+│   ├── migrations/  # SQL migrations
+│   ├── specs/       # Feature specs
+│   ├── Makefile     # Build commands
+│   ├── Dockerfile
+│   └── go.mod
+├── app/             # iOS app (Swift, Xcode project)
+│   ├── FreeReps.xcodeproj
+│   ├── Sources/FreeReps/
+│   └── Sources/FreeRepsWidgets/
+├── CLAUDE.md
+├── README.md
+└── Makefile         # Delegates to server/Makefile
+```
 
 ## Project Vision
 
@@ -228,15 +251,28 @@ Model Context Protocol server — makes FreeReps data queryable for Claude (and 
 
 ## Rules
 
-Read specs/ before implementing. Specs are the source of truth.
+Read `server/specs/` before implementing. Specs are the source of truth.
 Search before writing. Don't assume something is missing — ripgrep the codebase first.
 One thing at a time. Implement, test, lint, commit. Then move on.
-Lint before committing. Run `go vet ./...` and `golangci-lint run ./...` (or `make lint`) before every commit. Fix all issues first.
+Lint before committing. Run `cd server && go vet ./...` and `golangci-lint run ./...` (or `make lint`) before every commit. Fix all issues first.
 No placeholders. Full implementations only. No TODO stubs.
 Tests are mandatory. Every new function gets a test. Test doc comments must explain WHY the test exists.
 Update fix_plan.md after completing a task or discovering a bug.
 Update this file when you learn something about building/running the project.
 Commit after each unit of work with a descriptive message.
+
+### Server Development
+
+- Build: `cd server && make build` (or `make build` from root)
+- Test: `cd server && go test ./...`
+- Frontend stub for Go build: `mkdir -p server/web/dist && touch server/web/dist/.gitkeep`
+- Frontend build: `cd server/web && npm ci && npm run build`
+
+### iOS App
+
+- Open `app/FreeReps.xcodeproj` in Xcode
+- Requires physical device (HealthKit unavailable in Simulator)
+- Bundle ID: `com.meltforce.freereps`
 
 ## Development Roadmap
 

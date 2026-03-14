@@ -1,15 +1,16 @@
-# Binaries (root only, not cmd/ source dirs)
-/freereps
-/freereps-upload
-/freereps-import
+# Server binaries
+server/freereps
+server/freereps-upload
+server/freereps-import
+server/freereps-*
 *.exe
 
 # Go
 vendor/
 
 # Frontend
-web/node_modules/
-web/dist/
+server/web/node_modules/
+server/web/dist/
 
 # IDE
 .idea/
@@ -22,14 +23,16 @@ web/dist/
 Thumbs.db
 
 # Docker volumes
-pgdata/
+server/pgdata/
 
 # Config (may contain secrets)
 config.yaml
 config.mcp.yaml
+server/config.yaml
+server/config.mcp.yaml
 
 # Tailscale state
-tsnet-*/
+server/tsnet-*/
 
 # Input data (user health exports — not committed)
 input/
@@ -53,10 +56,17 @@ docs/mcp-coaching-tools-test-cases.md
 *.db
 
 # Test coverage
-coverage.out
-coverage.html
-web/tsconfig.tsbuildinfo
+server/coverage.out
+server/coverage.html
+server/web/tsconfig.tsbuildinfo
 
-# Binary variants
-/freereps-*
-/use
+# iOS / Xcode
+*.xcuserstate
+xcuserdata/
+app/LICENSE.md
+DerivedData/
+.build/
+Pods/
+*.ipa
+*.dSYM.zip
+*.dSYM

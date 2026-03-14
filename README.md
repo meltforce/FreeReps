@@ -6,6 +6,8 @@
 
 A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
 
+**Monorepo:** `server/` contains the Go backend + React frontend. `app/` contains the iOS companion app (FreeReps for iOS) that syncs HealthKit data directly to the server.
+
 ## Screenshots
 
 | Dashboard | Sleep |
@@ -71,7 +73,7 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 
 ```bash
 git clone https://github.com/meltforce/FreeReps.git
-cd FreeReps
+cd FreeReps/server
 cp config.example.yaml config.yaml
 # Edit config.yaml — set database password, enable Tailscale
 docker compose up -d
@@ -84,7 +86,7 @@ docker compose up -d
 **Install:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/scripts/install-upload.sh | bash
+curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scripts/install-upload.sh | bash
 ```
 
 **Usage:**
@@ -117,10 +119,10 @@ freereps-upload \
 
 ```bash
 # Update to latest version
-curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/scripts/install-upload.sh | bash -s -- --update
+curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scripts/install-upload.sh | bash -s -- --update
 
 # Uninstall
-curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/scripts/install-upload.sh | bash -s -- --uninstall
+curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scripts/install-upload.sh | bash -s -- --uninstall
 ```
 
 **State tracking:** Upload progress is tracked in `~/.freereps-upload/state.db` (SQLite). Files are identified by path + size + SHA-256 hash, so changed files are re-uploaded and the tool is fully resumable.

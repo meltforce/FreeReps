@@ -8,6 +8,9 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.10.1
+          working-directory: server
 
   frontend:
     runs-on: ubuntu-latest
@@ -38,16 +42,16 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: server/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        working-directory: web
+        working-directory: server/web
 
       - name: Type check
         run: npx tsc --noEmit
-        working-directory: web
+        working-directory: server/web
 
       - name: Build
         run: npm run build
-        working-directory: web
+        working-directory: server/web

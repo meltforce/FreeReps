@@ -24,7 +24,7 @@ jobs:
 
       - uses: docker/build-push-action@v5
         with:
-          context: .
+          context: server
           push: true
           tags: |
             meltforce/freereps:latest
@@ -48,13 +48,14 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: server/go.mod
 
       - name: Build freereps-upload
         env:
           CGO_ENABLED: "0"
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+        working-directory: server
         run: |
           go build \
             -ldflags "-X main.Version=${GITHUB_REF_NAME}" \
@@ -64,7 +65,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: server/freereps-upload-${{ matrix.goos }}-${{ matrix.goarch }}
 
   release:
     needs: [docker, binaries]
@@ -92,14 +93,15 @@ jobs:
             ```bash
             git clone https://github.com/meltforce/FreeReps.git
             cd FreeReps
-            cp config.example.yaml config.yaml
+            cp server/config.example.yaml server/config.yaml
             # Edit config.yaml — set database password, enable Tailscale
-            docker compose up -d
+            cd server && docker compose up -d
             ```
 
             **Upgrade existing server:**
 
             ```bash
+            cd server
             docker compose pull
             docker compose up -d
             ```
@@ -109,7 +111,7 @@ jobs:
             **One-liner install:**
 
             ```bash
-            curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/scripts/install-upload.sh | bash
+            curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scripts/install-upload.sh | bash
             ```
 
             **Or download manually** from the assets below and place in `/usr/local/bin/`.
