@@ -1,4 +1,4 @@
-package hae
+package health
 
 import (
 	"context"
@@ -14,19 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// Provider processes Health Auto Export REST API payloads.
+// Provider processes health data REST API payloads.
 type Provider struct {
 	db  *storage.DB
 	log *slog.Logger
 }
 
-// NewProvider creates a new HAE ingest provider.
+// NewProvider creates a new health ingest provider.
 func NewProvider(db *storage.DB, log *slog.Logger) *Provider {
 	return &Provider{db: db, log: log}
 }
 
-// Ingest processes an HAE JSON payload and stores accepted data.
-func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload, userID int) (*ingest.Result, error) {
+// Ingest processes a health data JSON payload and stores accepted data.
+func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, userID int) (*ingest.Result, error) {
 	result := &ingest.Result{}
 
 	// Process metrics
@@ -103,7 +103,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HAEPayload, userI
 	return result, nil
 }
 
-func (p *Provider) processMetrics(ctx context.Context, metrics []models.HAEMetric, userID int, result *ingest.Result) error {
+func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, result *ingest.Result) error {
 	var healthRows []models.HealthMetricRow
 	rejectedSet := map[string]bool{}
 
@@ -167,7 +167,7 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 	shape := DetectMetricShape(name)
 	switch shape {
 	case ShapeMinAvgMax:
-		var dp models.HAEHeartRateDataPoint
+		var dp models.HeartRateDataPoint
 		if err := json.Unmarshal(raw, &dp); err != nil {
 			return nil, fmt.Errorf("parsing min/avg/max: %w", err)
 		}
@@ -190,7 +190,7 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 		}
 
 	case ShapeBloodPressure:
-		var dp models.HAEBloodPressureDataPoint
+		var dp models.BloodPressureDataPoint
 		if err := json.Unmarshal(raw, &dp); err != nil {
 			return nil, fmt.Errorf("parsing blood pressure: %w", err)
 		}
@@ -205,7 +205,7 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 		}
 
 	default: // ShapeQty
-		var dp models.HAEMetricDataPoint
+		var dp models.HealthMetricDataPoint
 		if err := json.Unmarshal(raw, &dp); err != nil {
 			return nil, fmt.Errorf("parsing qty: %w", err)
 		}
@@ -222,14 +222,14 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 	return row, nil
 }
 
-func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, userID int, result *ingest.Result) error {
+func (p *Provider) processSleep(ctx context.Context, m models.HealthMetric, userID int, result *ingest.Result) error {
 	for _, raw := range m.Data {
 		result.MetricsReceived++
 
 		format := DetectSleepFormat(raw)
 		switch format {
 		case SleepFormatAggregated:
-			var dp models.HAESleepAggregated
+			var dp models.SleepAggregated
 			if err := json.Unmarshal(raw, &dp); err != nil {
 				p.log.Warn("skipping aggregated sleep point", "error", err)
 				continue
@@ -273,7 +273,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, userID 
 			}
 
 		case SleepFormatUnaggregated:
-			var dp models.HAESleepStage
+			var dp models.SleepStage
 			if err := json.Unmarshal(raw, &dp); err != nil {
 				p.log.Warn("skipping unaggregated sleep point", "error", err)
 				continue
@@ -299,7 +299,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HAEMetric, userID 
 	return nil
 }
 
-func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWorkout, userID int, result *ingest.Result) error {
+func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HealthWorkout, userID int, result *ingest.Result) error {
 	for _, w := range workouts {
 		result.WorkoutsReceived++
 
@@ -420,7 +420,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HAEWor
 	return nil
 }
 
-func (p *Provider) processECGRecordings(ctx context.Context, recordings []models.HAEECGRecording, userID int, result *ingest.Result) error {
+func (p *Provider) processECGRecordings(ctx context.Context, recordings []models.ECGRecording, userID int, result *ingest.Result) error {
 	for _, rec := range recordings {
 		id, err := uuid.Parse(rec.ID)
 		if err != nil {
@@ -460,7 +460,7 @@ func (p *Provider) processECGRecordings(ctx context.Context, recordings []models
 	return nil
 }
 
-func (p *Provider) processAudiograms(ctx context.Context, audiograms []models.HAEAudiogram, userID int, result *ingest.Result) error {
+func (p *Provider) processAudiograms(ctx context.Context, audiograms []models.Audiogram, userID int, result *ingest.Result) error {
 	for _, ag := range audiograms {
 		id, err := uuid.Parse(ag.ID)
 		if err != nil {
@@ -497,7 +497,7 @@ func (p *Provider) processAudiograms(ctx context.Context, audiograms []models.HA
 	return nil
 }
 
-func (p *Provider) processActivitySummaries(ctx context.Context, summaries []models.HAEActivitySummary, userID int, result *ingest.Result) error {
+func (p *Provider) processActivitySummaries(ctx context.Context, summaries []models.ActivitySummary, userID int, result *ingest.Result) error {
 	var rows []models.ActivitySummaryRow
 	for _, s := range summaries {
 		date, err := time.Parse("2006-01-02", s.Date)
@@ -528,7 +528,7 @@ func (p *Provider) processActivitySummaries(ctx context.Context, summaries []mod
 	return nil
 }
 
-func (p *Provider) processMedications(ctx context.Context, medications []models.HAEMedication, userID int, result *ingest.Result) error {
+func (p *Provider) processMedications(ctx context.Context, medications []models.Medication, userID int, result *ingest.Result) error {
 	for _, med := range medications {
 		id, err := uuid.Parse(med.ID)
 		if err != nil {
@@ -562,7 +562,7 @@ func (p *Provider) processMedications(ctx context.Context, medications []models.
 	return nil
 }
 
-func (p *Provider) processVisionPrescriptions(ctx context.Context, prescriptions []models.HAEVisionPrescription, userID int, result *ingest.Result) error {
+func (p *Provider) processVisionPrescriptions(ctx context.Context, prescriptions []models.VisionPrescription, userID int, result *ingest.Result) error {
 	for _, vp := range prescriptions {
 		id, err := uuid.Parse(vp.ID)
 		if err != nil {
@@ -612,7 +612,7 @@ func (p *Provider) processVisionPrescriptions(ctx context.Context, prescriptions
 	return nil
 }
 
-func (p *Provider) processStateOfMind(ctx context.Context, records []models.HAEStateOfMind, userID int, result *ingest.Result) error {
+func (p *Provider) processStateOfMind(ctx context.Context, records []models.StateOfMind, userID int, result *ingest.Result) error {
 	var rows []models.StateOfMindRow
 	for _, som := range records {
 		id, err := uuid.Parse(som.ID)
@@ -643,7 +643,7 @@ func (p *Provider) processStateOfMind(ctx context.Context, records []models.HAES
 	return nil
 }
 
-func (p *Provider) processCategorySamples(ctx context.Context, samples []models.HAECategorySample, userID int, result *ingest.Result) error {
+func (p *Provider) processCategorySamples(ctx context.Context, samples []models.CategorySample, userID int, result *ingest.Result) error {
 	var rows []models.CategorySampleRow
 	for _, cs := range samples {
 		id, err := uuid.Parse(cs.ID)

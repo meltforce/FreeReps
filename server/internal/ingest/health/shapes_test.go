@@ -1,4 +1,4 @@
-package hae
+package health
 
 import (
 	"encoding/json"

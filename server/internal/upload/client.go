@@ -93,9 +93,9 @@ func (c *Client) SendRawJSON(data []byte) error {
 	return fmt.Errorf("after 3 attempts: %w", lastErr)
 }
 
-// SendPayload POSTs an HAEPayload to the server's ingest endpoint.
+// SendPayload POSTs an HealthPayload to the server's ingest endpoint.
 // Retries up to 3 times with exponential backoff on failure.
-func (c *Client) SendPayload(payload models.HAEPayload) error {
+func (c *Client) SendPayload(payload models.HealthPayload) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshaling payload: %w", err)

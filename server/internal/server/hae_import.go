@@ -379,11 +379,11 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 
 // ingestRawHAEResult parses a raw HAE JSON-RPC result and ingests it via the HAE provider.
 func (s *Server) ingestRawHAEResult(ctx context.Context, raw json.RawMessage, userID int) (*ingest.Result, error) {
-	var payload models.HAEPayload
+	var payload models.HealthPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("unmarshaling HAE result: %w", err)
 	}
-	return s.hae.Ingest(ctx, &payload, userID)
+	return s.health.Ingest(ctx, &payload, userID)
 }
 
 // finalizeImport updates the import_logs row with final results.

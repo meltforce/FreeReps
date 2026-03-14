@@ -232,9 +232,9 @@ func (u *Uploader) processMetricDir(dir, metricName string) error {
 		}
 		batch := allPoints[i:end]
 
-		payload := models.HAEPayload{
-			Data: models.HAEData{
-				Metrics: []models.HAEMetric{{
+		payload := models.HealthPayload{
+			Data: models.HealthData{
+				Metrics: []models.HealthMetric{{
 					Name:  metricName,
 					Units: units,
 					Data:  batch,
@@ -287,7 +287,7 @@ func (u *Uploader) processWorkouts(workoutDir, routeDir string) error {
 		return err
 	}
 
-	var batch []models.HAEWorkout
+	var batch []models.HealthWorkout
 	var batchFiles []fileInfo
 
 	for _, f := range files {
@@ -383,9 +383,9 @@ func (u *Uploader) processWorkouts(workoutDir, routeDir string) error {
 }
 
 // sendWorkoutBatch sends a batch of workouts and marks their files as uploaded.
-func (u *Uploader) sendWorkoutBatch(workouts []models.HAEWorkout, files []fileInfo) error {
-	payload := models.HAEPayload{
-		Data: models.HAEData{
+func (u *Uploader) sendWorkoutBatch(workouts []models.HealthWorkout, files []fileInfo) error {
+	payload := models.HealthPayload{
+		Data: models.HealthData{
 			Workouts: workouts,
 		},
 	}

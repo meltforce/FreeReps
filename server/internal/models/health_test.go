@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// TestParseHAETimeFullDatetime verifies parsing the standard HAE datetime format.
+// TestParseHealthTimeFullDatetime verifies parsing the standard health datetime format.
 // This is the most common format used by all metric data points.
-func TestParseHAETimeFullDatetime(t *testing.T) {
-	got, err := ParseHAETime("2024-02-06 14:30:00 -0800")
+func TestParseHealthTimeFullDatetime(t *testing.T) {
+	got, err := ParseHealthTime("2024-02-06 14:30:00 -0800")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -19,10 +19,10 @@ func TestParseHAETimeFullDatetime(t *testing.T) {
 	}
 }
 
-// TestParseHAETimeDateOnly verifies parsing the date-only format used in aggregated sleep data.
-// The "date" field in HAESleepAggregated uses "2024-02-06" without time/timezone.
-func TestParseHAETimeDateOnly(t *testing.T) {
-	got, err := ParseHAETime("2024-02-06")
+// TestParseHealthTimeDateOnly verifies parsing the date-only format used in aggregated sleep data.
+// The "date" field in SleepAggregated uses "2024-02-06" without time/timezone.
+func TestParseHealthTimeDateOnly(t *testing.T) {
+	got, err := ParseHealthTime("2024-02-06")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,19 +31,19 @@ func TestParseHAETimeDateOnly(t *testing.T) {
 	}
 }
 
-// TestParseHAETimeInvalid verifies that an invalid date string returns an error.
+// TestParseHealthTimeInvalid verifies that an invalid date string returns an error.
 // Prevents silent data corruption from malformed timestamps.
-func TestParseHAETimeInvalid(t *testing.T) {
-	_, err := ParseHAETime("not-a-date")
+func TestParseHealthTimeInvalid(t *testing.T) {
+	_, err := ParseHealthTime("not-a-date")
 	if err == nil {
 		t.Fatal("expected error for invalid date")
 	}
 }
 
-// TestHAETimeUnmarshalJSON verifies that HAETime correctly deserializes from JSON.
+// TestHealthTimeUnmarshalJSON verifies that HealthTime correctly deserializes from JSON.
 // Ensures the custom unmarshaler integrates with encoding/json.
-func TestHAETimeUnmarshalJSON(t *testing.T) {
-	var dp HAEMetricDataPoint
+func TestHealthTimeUnmarshalJSON(t *testing.T) {
+	var dp HealthMetricDataPoint
 	raw := `{"date": "2024-02-06 14:30:00 -0800", "qty": 72.5}`
 	if err := json.Unmarshal([]byte(raw), &dp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
@@ -56,9 +56,9 @@ func TestHAETimeUnmarshalJSON(t *testing.T) {
 	}
 }
 
-// TestHAEPayloadUnmarshal verifies parsing a complete HAE REST API payload.
+// TestHealthPayloadUnmarshal verifies parsing a complete health REST API payload.
 // Ensures the nested data.metrics structure is correctly deserialized.
-func TestHAEPayloadUnmarshal(t *testing.T) {
+func TestHealthPayloadUnmarshal(t *testing.T) {
 	raw := `{
 		"data": {
 			"metrics": [
@@ -73,7 +73,7 @@ func TestHAEPayloadUnmarshal(t *testing.T) {
 			"workouts": []
 		}
 	}`
-	var p HAEPayload
+	var p HealthPayload
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestHAEPayloadUnmarshal(t *testing.T) {
 	}
 
 	// Parse the raw data point as HeartRate type
-	var hr HAEHeartRateDataPoint
+	var hr HeartRateDataPoint
 	if err := json.Unmarshal(p.Data.Metrics[0].Data[0], &hr); err != nil {
 		t.Fatalf("unmarshal hr: %v", err)
 	}
@@ -97,9 +97,9 @@ func TestHAEPayloadUnmarshal(t *testing.T) {
 	}
 }
 
-// TestHAEWorkoutUnmarshal verifies parsing a Version 2 workout with nested quantity objects.
+// TestHealthWorkoutUnmarshal verifies parsing a Version 2 workout with nested quantity objects.
 // Workouts have a different structure than metrics — units are inline objects.
-func TestHAEWorkoutUnmarshal(t *testing.T) {
+func TestHealthWorkoutUnmarshal(t *testing.T) {
 	raw := `{
 		"id": "550e8400-e29b-41d4-a716-446655440000",
 		"name": "Running",
@@ -115,7 +115,7 @@ func TestHAEWorkoutUnmarshal(t *testing.T) {
 			{"latitude": 37.7749, "longitude": -122.4194, "altitude": 50.5, "timestamp": "2024-02-06 07:00:00 -0800", "speed": 7.0}
 		]
 	}`
-	var w HAEWorkout
+	var w HealthWorkout
 	if err := json.Unmarshal([]byte(raw), &w); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}

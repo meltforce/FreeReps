@@ -18,8 +18,8 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, info)
 }
 
-func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
-	var payload models.HAEPayload
+func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
+	var payload models.HealthPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
 		return
@@ -31,7 +31,7 @@ func (s *Server) handleHAEIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	result, err := s.hae.Ingest(r.Context(), &payload, uid)
+	result, err := s.health.Ingest(r.Context(), &payload, uid)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		s.log.Error("ingest error", "error", err)

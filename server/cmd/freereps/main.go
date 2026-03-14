@@ -16,7 +16,7 @@ import (
 	freereps "github.com/claude/freereps"
 	"github.com/claude/freereps/internal/config"
 	"github.com/claude/freereps/internal/ingest/alpha"
-	"github.com/claude/freereps/internal/ingest/hae"
+	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
 	"github.com/claude/freereps/internal/server"
 	"github.com/claude/freereps/internal/storage"
@@ -94,11 +94,11 @@ func main() {
 	}
 
 	// Create providers
-	haeProvider := hae.NewProvider(db, log)
+	healthProvider := health.NewProvider(db, log)
 	alphaProvider := alpha.NewProvider(db, log)
 
 	// Create server
-	srv := server.New(db, haeProvider, alphaProvider, log)
+	srv := server.New(db, healthProvider, alphaProvider, log)
 
 	// Mount MCP SSE server
 	mcpSrv := freerepsmcp.New(db, Version, log)

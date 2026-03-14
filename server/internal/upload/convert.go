@@ -18,14 +18,14 @@ type hrDataPoint struct {
 	Source string
 }
 
-// convertMetric converts an HAEFileMetric to REST API HAEMetric format.
+// convertMetric converts an HAEFileMetric to REST API HealthMetric format.
 // Returns the converted metric and any heart rate data points extracted (for HR correlation).
-func convertMetric(file models.HAEFileMetric, metricName string) (models.HAEMetric, []hrDataPoint, error) {
+func convertMetric(file models.HAEFileMetric, metricName string) (models.HealthMetric, []hrDataPoint, error) {
 	isHeartRate := metricName == "heart_rate"
 	isActiveEnergy := metricName == "active_energy"
 	isSleep := metricName == "sleep_analysis"
 
-	metric := models.HAEMetric{
+	metric := models.HealthMetric{
 		Name: metricName,
 	}
 
@@ -56,7 +56,7 @@ func convertMetric(file models.HAEFileMetric, metricName string) (models.HAEMetr
 			max := safeFloat(dp.Max)
 
 			point := map[string]any{
-				"date": formatHAETime(t),
+				"date": formatHealthTime(t),
 				"Min":  min,
 				"Avg":  avg,
 				"Max":  max,
@@ -78,7 +78,7 @@ func convertMetric(file models.HAEFileMetric, metricName string) (models.HAEMetr
 			})
 		} else {
 			point := map[string]any{
-				"date": formatHAETime(t),
+				"date": formatHealthTime(t),
 				"qty":  safeFloat(dp.Qty),
 			}
 			raw, err := json.Marshal(point)
@@ -106,9 +106,9 @@ func convertSleepStages(dataPoints []models.HAEFileDataPoint) ([]json.RawMessage
 			continue
 		}
 
-		stage := models.HAESleepStage{
-			StartDate: models.HAETime{Time: models.AppleTimestampToTime(dp.Start)},
-			EndDate:   models.HAETime{Time: models.AppleTimestampToTime(dp.End)},
+		stage := models.SleepStage{
+			StartDate: models.HealthTime{Time: models.AppleTimestampToTime(dp.Start)},
+			EndDate:   models.HealthTime{Time: models.AppleTimestampToTime(dp.End)},
 			Qty:       dp.SleepStageDuration(),
 			Value:     stageType,
 		}
@@ -122,37 +122,37 @@ func convertSleepStages(dataPoints []models.HAEFileDataPoint) ([]json.RawMessage
 	return data, nil
 }
 
-// convertWorkout converts an HAEFileWorkout to REST API HAEWorkout format.
+// convertWorkout converts an HAEFileWorkout to REST API HealthWorkout format.
 // Route data is embedded from a separate route file (if found).
 // Heart rate data is correlated from in-memory hrPoints collected during metric processing.
-func convertWorkout(file models.HAEFileWorkout, route *models.HAEFileRoute, hrPoints []hrDataPoint) models.HAEWorkout {
+func convertWorkout(file models.HAEFileWorkout, route *models.HAEFileRoute, hrPoints []hrDataPoint) models.HealthWorkout {
 	start := models.AppleTimestampToTime(file.Start)
 	end := models.AppleTimestampToTime(file.End)
 
-	w := models.HAEWorkout{
+	w := models.HealthWorkout{
 		ID:       file.ID,
 		Name:     file.Name,
-		Start:    models.HAETime{Time: start},
-		End:      models.HAETime{Time: end},
+		Start:    models.HealthTime{Time: start},
+		End:      models.HealthTime{Time: end},
 		Duration: file.Duration,
 		Location: file.Location,
 	}
 
 	if file.ActiveEnergy != nil {
-		w.ActiveEnergyBurned = &models.HAEQuantity{Qty: *file.ActiveEnergy, Units: "kcal"}
+		w.ActiveEnergyBurned = &models.Quantity{Qty: *file.ActiveEnergy, Units: "kcal"}
 	}
 	if file.TotalDistance != nil {
-		w.Distance = &models.HAEQuantity{Qty: *file.TotalDistance, Units: "km"}
+		w.Distance = &models.Quantity{Qty: *file.TotalDistance, Units: "km"}
 	}
 	if file.ElevationUp != nil {
-		w.ElevationUp = &models.HAEQuantity{Qty: *file.ElevationUp, Units: "m"}
+		w.ElevationUp = &models.Quantity{Qty: *file.ElevationUp, Units: "m"}
 	}
 
 	// Embed route data from separate .hae file
 	if route != nil && len(route.Locations) > 0 {
-		routePoints := make([]models.HAERoutePoint, len(route.Locations))
+		routePoints := make([]models.RoutePoint, len(route.Locations))
 		for i, loc := range route.Locations {
-			routePoints[i] = models.HAERoutePoint{
+			routePoints[i] = models.RoutePoint{
 				Latitude:           loc.Latitude,
 				Longitude:          loc.Longitude,
 				Altitude:           loc.Elevation,
@@ -160,7 +160,7 @@ func convertWorkout(file models.HAEFileWorkout, route *models.HAEFileRoute, hrPo
 				Course:             loc.Course,
 				HorizontalAccuracy: loc.HAcc,
 				VerticalAccuracy:   loc.VAcc,
-				Timestamp:          models.HAETime{Time: models.AppleTimestampToTime(loc.Time)},
+				Timestamp:          models.HealthTime{Time: models.AppleTimestampToTime(loc.Time)},
 			}
 		}
 		w.Route = routePoints
@@ -185,10 +185,10 @@ func convertWorkout(file models.HAEFileWorkout, route *models.HAEFileRoute, hrPo
 				}
 			}
 			avgHR := sumHR / float64(len(correlatedHR))
-			w.HeartRate = &models.HAEHeartRateSummary{
-				Min: models.HAEQuantity{Qty: minHR, Units: "bpm"},
-				Avg: models.HAEQuantity{Qty: avgHR, Units: "bpm"},
-				Max: models.HAEQuantity{Qty: maxHR, Units: "bpm"},
+			w.HeartRate = &models.HeartRateSummary{
+				Min: models.Quantity{Qty: minHR, Units: "bpm"},
+				Avg: models.Quantity{Qty: avgHR, Units: "bpm"},
+				Max: models.Quantity{Qty: maxHR, Units: "bpm"},
 			}
 		}
 	}
@@ -198,19 +198,19 @@ func convertWorkout(file models.HAEFileWorkout, route *models.HAEFileRoute, hrPo
 
 // correlateWorkoutHR finds heart rate data points within the workout's time range
 // using binary search on the sorted hrPoints slice.
-func correlateWorkoutHR(hrPoints []hrDataPoint, start, end time.Time) []models.HAEWorkoutHRPoint {
+func correlateWorkoutHR(hrPoints []hrDataPoint, start, end time.Time) []models.WorkoutHRPoint {
 	// Binary search for the first point >= start
 	lo := sort.Search(len(hrPoints), func(i int) bool {
 		return !hrPoints[i].Time.Before(start)
 	})
 
-	var result []models.HAEWorkoutHRPoint
+	var result []models.WorkoutHRPoint
 	for i := lo; i < len(hrPoints); i++ {
 		if hrPoints[i].Time.After(end) {
 			break
 		}
-		result = append(result, models.HAEWorkoutHRPoint{
-			Date:   models.HAETime{Time: hrPoints[i].Time},
+		result = append(result, models.WorkoutHRPoint{
+			Date:   models.HealthTime{Time: hrPoints[i].Time},
 			Min:    hrPoints[i].Min,
 			Avg:    hrPoints[i].Avg,
 			Max:    hrPoints[i].Max,
@@ -221,9 +221,9 @@ func correlateWorkoutHR(hrPoints []hrDataPoint, start, end time.Time) []models.H
 	return result
 }
 
-// formatHAETime formats a time.Time as an HAE time string.
-func formatHAETime(t time.Time) string {
-	return t.Format(models.HAETimeLayout)
+// formatHealthTime formats a time.Time as an HAE time string.
+func formatHealthTime(t time.Time) string {
+	return t.Format(models.HealthTimeLayout)
 }
 
 // safeFloat dereferences a float pointer, returning 0 if nil.

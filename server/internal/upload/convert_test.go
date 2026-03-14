@@ -167,7 +167,7 @@ func TestConvertSleepStages(t *testing.T) {
 	}
 
 	// Verify the first stage
-	var stage models.HAESleepStage
+	var stage models.SleepStage
 	if err := json.Unmarshal(data[0], &stage); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestConvertSleepStagesSkipsEmpty(t *testing.T) {
 }
 
 // TestConvertWorkout verifies that .hae workout fields are correctly converted
-// to REST API format with HAEQuantity wrappers and embedded route/HR data.
+// to REST API format with Quantity wrappers and embedded route/HR data.
 func TestConvertWorkout(t *testing.T) {
 	energy := 350.0
 	distance := 5.2
@@ -243,7 +243,7 @@ func TestConvertWorkout(t *testing.T) {
 		t.Errorf("Location = %q", workout.Location)
 	}
 
-	// Verify HAEQuantity wrappers
+	// Verify Quantity wrappers
 	if workout.ActiveEnergyBurned == nil || workout.ActiveEnergyBurned.Qty != 350.0 || workout.ActiveEnergyBurned.Units != "kcal" {
 		t.Errorf("ActiveEnergyBurned = %+v", workout.ActiveEnergyBurned)
 	}
@@ -407,12 +407,12 @@ func TestSafeFloat(t *testing.T) {
 	}
 }
 
-// TestFormatHAETime verifies the time format matches the REST API expectation.
-func TestFormatHAETime(t *testing.T) {
+// TestFormatHealthTime verifies the time format matches the REST API expectation.
+func TestFormatHealthTime(t *testing.T) {
 	ts := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
-	got := formatHAETime(ts)
+	got := formatHealthTime(ts)
 	want := "2024-06-15 10:30:00 +0000"
 	if got != want {
-		t.Errorf("formatHAETime = %q, want %q", got, want)
+		t.Errorf("formatHealthTime = %q, want %q", got, want)
 	}
 }

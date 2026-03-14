@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/claude/freereps/internal/ingest/alpha"
-	"github.com/claude/freereps/internal/ingest/hae"
+	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/go-chi/chi/v5"
@@ -20,7 +20,7 @@ import (
 // Server holds dependencies for HTTP handlers.
 type Server struct {
 	db     *storage.DB
-	hae    *hae.Provider
+	health *health.Provider
 	alpha  *alpha.Provider
 	log    *slog.Logger
 	lc     *local.Client
@@ -32,10 +32,10 @@ type Server struct {
 }
 
 // New creates a new Server with all routes configured.
-func New(db *storage.DB, haeProvider *hae.Provider, alphaProvider *alpha.Provider, log *slog.Logger) *Server {
+func New(db *storage.DB, healthProvider *health.Provider, alphaProvider *alpha.Provider, log *slog.Logger) *Server {
 	s := &Server{
 		db:     db,
-		hae:    haeProvider,
+		health: healthProvider,
 		alpha:  alphaProvider,
 		log:    log,
 		router: chi.NewRouter(),
@@ -97,7 +97,7 @@ func (s *Server) routes() {
 
 		// Ingest endpoints
 		r.Route("/api/v1/ingest", func(r chi.Router) {
-			r.Post("/", s.handleHAEIngest)
+			r.Post("/", s.handleIngest)
 			r.Post("/alpha", s.handleAlphaIngest)
 		})
 
