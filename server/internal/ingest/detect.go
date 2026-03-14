@@ -22,9 +22,14 @@ var detectors = []detector{
 	detectAlpha,
 }
 
+// utf8BOM is the byte order mark that some editors prepend to UTF-8 files.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
 // DetectFormat inspects the first ~2KB of data and returns the detected format.
 func DetectFormat(data []byte) Format {
 	head := data
+	// Strip UTF-8 BOM if present
+	head = bytes.TrimPrefix(head, utf8BOM)
 	if len(head) > 2048 {
 		head = head[:2048]
 	}
@@ -38,13 +43,24 @@ func DetectFormat(data []byte) Format {
 
 var (
 	// Alpha Progression session header: "Name";"2026-02-19 4:54 h";"1:02 hr"
-	alphaSessionRe = regexp.MustCompile(`"[^"]+";"\d{4}-\d{2}-\d{2}\s+\d+:\d+\s+h";"[^"]+"`)
+	alphaSessionRe = regexp.MustCompile(`"[^"]+"\s*;\s*"\d{4}-\d{2}-\d{2}\s+\d+:\d+\s*h"\s*;\s*"[^"]+"`)
 	// Alpha Progression column header
 	alphaColumnRe = regexp.MustCompile(`#;KG;REPS;RIR`)
+	// Alpha Progression exercise header: "1. Exercise Name · Equipment · 8 reps"
+	alphaExerciseRe = regexp.MustCompile(`"\d+\.\s+.+\s+·\s+\d+\s+reps`)
 )
 
 func detectAlpha(head []byte) Format {
-	if alphaSessionRe.Match(head) || alphaColumnRe.Match(bytes.ToUpper(head)) {
+	if alphaSessionRe.Match(head) {
+		return FormatAlpha
+	}
+	upper := bytes.ToUpper(head)
+	if alphaColumnRe.Match(upper) {
+		return FormatAlpha
+	}
+	// Fall back to exercise header pattern (catches files where session header
+	// is outside the first 2KB or uses an unexpected date format)
+	if alphaExerciseRe.Match(head) {
 		return FormatAlpha
 	}
 	return FormatUnknown
