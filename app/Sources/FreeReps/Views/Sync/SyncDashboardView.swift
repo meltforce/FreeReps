@@ -139,11 +139,6 @@ struct SyncDashboardView: View {
                     }
                 }
                 Spacer()
-                Image("HeartRate")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 40, height: 40)
-                    .foregroundStyle(Color(red: 0.93, green: 0.18, blue: 0.28))
             }
             if vm.isAnySyncRunning, !vm.currentOperation.isEmpty {
                 Text(vm.currentOperation)
