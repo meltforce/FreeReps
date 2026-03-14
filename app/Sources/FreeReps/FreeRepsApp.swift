@@ -22,12 +22,10 @@ struct FreeRepsApp: App {
     }
 
     private func handleIncomingFile(_ url: URL) {
-        guard url.startAccessingSecurityScopedResource() else {
-            importState.status = .error("Cannot access file")
-            importState.showResult = true
-            return
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
+        // startAccessingSecurityScopedResource returns false for non-scoped URLs
+        // (e.g. inbox copies from share sheet) — proceed with read regardless.
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
         guard let data = try? Data(contentsOf: url) else {
             importState.status = .error("Failed to read file")
