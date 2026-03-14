@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     let syncViewModel: SyncViewModel
     @StateObject private var vm = SettingsViewModel()
-    @ObservedObject private var iCloud = iCloudSyncService.shared
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
     @AppStorage("backgroundSyncEnabled") private var backgroundSyncEnabled = true
     @State private var showResetSyncConfirmation = false
@@ -76,21 +75,6 @@ struct SettingsView: View {
                     }
 
                     NavigationLink {
-                        iCloudSyncSettingsView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            iconBox("icloud.fill", color: .cyan)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("iCloud Sync")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(iCloud.iCloudSyncEnabled ? "Enabled" : "Disabled")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    NavigationLink {
                         DataValidationView(syncViewModel: syncViewModel)
                     } label: {
                         HStack(spacing: 12) {
@@ -122,23 +106,6 @@ struct SettingsView: View {
                     .disabled(syncViewModel.isAnySyncRunning)
                 }
 
-                Section("Backup") {
-                    NavigationLink {
-                        BackupSettingsView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            iconBox("externaldrive.fill", color: iCloud.isCurrentDeviceActiveForAutoSync ? .green : .secondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Backup & Recovery")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(backupSubtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
                     LabeledContent("Backend", value: "FreeReps HTTP API")
@@ -158,21 +125,6 @@ struct SettingsView: View {
                 Text("This will clear all sync progress and cursors. The next sync will re-send all health data to FreeReps. Server-side data is not affected.")
             }
         }
-    }
-
-    private var backupSubtitle: String {
-        if !iCloud.isCurrentDeviceActiveForAutoSync {
-            let device = iCloud.activeDeviceName ?? "another device"
-            return "Auto backup via \(device)"
-        }
-        let backups = BackupManager.shared.listBackups()
-        let config = BackupConfig.load()
-        if backups.isEmpty {
-            return config.autoBackupEnabled ? "Auto enabled, no backups yet" : "No backups"
-        }
-        let count = backups.count
-        let autoLabel = config.autoBackupEnabled ? "Auto" : "Manual"
-        return "\(autoLabel) · \(count) backup\(count == 1 ? "" : "s")"
     }
 
     private var appVersion: String {

@@ -8,7 +8,7 @@ struct FreeRepsConfig: Codable, Equatable {
     var backfillYears: Int? = 2
 
     static let `default` = FreeRepsConfig(
-        host: "freereps",
+        host: "freereps.leo-royal.ts.net",
         port: 443,
         useHTTPS: true,
         backfillYears: 2
@@ -41,6 +41,5 @@ struct FreeRepsConfig: Codable, Equatable {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: FreeRepsConfig.userDefaultsKey)
         }
-        Task { @MainActor in iCloudSyncService.shared.pushFreeRepsConfig(self) }
     }
 }

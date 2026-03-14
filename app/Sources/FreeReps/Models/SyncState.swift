@@ -157,11 +157,9 @@ class SyncState: ObservableObject {
         if let data = try? JSONEncoder().encode(snap) {
             UserDefaults.standard.set(data, forKey: Self.userDefaultsKey)
         }
-        iCloudSyncService.shared.pushSyncSnapshot(snap)
     }
 
     func restore() {
-        iCloudSyncService.shared.pullSyncSnapshot()
         guard
             let data = UserDefaults.standard.data(forKey: Self.userDefaultsKey),
             let snap = try? JSONDecoder().decode(PersistedSnapshot.self, from: data)

@@ -23,9 +23,7 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 - **Data browser** — browse all synced data by category with search and filtering
 - **Location tracking** — continuous GPS logging and geofence-based check-ins with customizable place categories
 - **Data validation** — quick scan (count comparison) or deep scan (record-level comparison) with auto-repair
-- **Backup and restore** — manual or automatic backups to iCloud Drive, with selective per-category restore
-- **Multi-device iCloud sync** — settings, geofences, and place categories sync across devices; one device claims auto-sync rights to prevent conflicts
-- **No dependencies** — pure Swift using only Apple frameworks (HealthKit, Network, BackgroundTasks, CoreLocation, ActivityKit, CloudKit)
+- **No dependencies** — pure Swift using only Apple frameworks (HealthKit, BackgroundTasks, ActivityKit)
 
 ## Requirements
 
@@ -51,8 +49,6 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 4. Verify the following capabilities are present (they should already be configured):
    - HealthKit (with Background Delivery)
    - Background Modes: Background processing, Background fetch
-   - iCloud (Key-value storage)
-
 5. Verify build settings point to the right files:
    - `INFOPLIST_FILE` = `Sources/FreeReps/Resources/Info.plist`
    - `CODE_SIGN_ENTITLEMENTS` = `Sources/FreeReps/Resources/FreeReps.entitlements`
@@ -77,9 +73,6 @@ Sources/FreeReps/
     HealthKitService.swift         HealthKit queries and permissions
     SyncService.swift              Full/incremental sync orchestration
     BackgroundSyncManager.swift    HKObserverQuery registration and background delivery
-    LocationService.swift          GPS tracking and geofence monitoring
-    BackupManager.swift            Backup creation, listing, and restore
-    iCloudSyncService.swift        iCloud KV store sync and device management
   ViewModels/                      View models for each tab
   Views/
     Sync/                          Sync dashboard and category status cards
@@ -87,7 +80,7 @@ Sources/FreeReps/
     Settings/                      All settings and configuration views
   Resources/
     Info.plist                     HealthKit usage description, BG task identifiers
-    FreeReps.entitlements        HealthKit, iCloud, and location entitlements
+    FreeReps.entitlements        HealthKit entitlements
 Sources/FreeRepsWidgets/         Live Activity widget for sync progress
 ```
 
@@ -138,14 +131,6 @@ After the initial full sync, the app automatically syncs new data in the backgro
 ### Location tracking
 
 Enable location tracking in **Settings > Location & Places** to log GPS coordinates to the `location_tracks` table. You can also set up geofences around places (home, office, gym, etc.) to log check-in and check-out events.
-
-### Backups
-
-Go to **Settings > Backup & Recovery** to create manual backups or enable automatic backups. Backups are stored in iCloud Drive and include all app configuration (MySQL settings, geofences, place categories, sync state). They do not include health data itself — that lives in HealthKit and your database.
-
-### Multi-device
-
-If you use the app on multiple devices, only one device performs automatic background syncs to avoid duplicate writes. Go to **Settings > iCloud Sync** to see registered devices and change which device is active.
 
 ## Known quirks and limitations
 

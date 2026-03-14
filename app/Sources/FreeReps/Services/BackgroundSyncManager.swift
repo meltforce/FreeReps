@@ -100,7 +100,6 @@ final class BackgroundSyncManager {
     private func triggerIncrementalSync() async {
         guard UserDefaults.standard.bool(forKey: "backgroundSyncEnabled") else { return }
         guard !isSyncing, !SyncService.isSyncRunning else { return }
-        guard iCloudSyncService.shared.isCurrentDeviceActiveForAutoSync else { return }
         isSyncing = true
         defer { isSyncing = false }
 

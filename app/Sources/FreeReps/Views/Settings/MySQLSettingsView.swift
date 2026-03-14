@@ -2,28 +2,8 @@ import SwiftUI
 
 struct FreeRepsSettingsView: View {
     @ObservedObject var vm: SettingsViewModel
-    @ObservedObject private var iCloud = iCloudSyncService.shared
-
     var body: some View {
         Form {
-            if !iCloud.isCurrentDeviceActiveForAutoSync {
-                Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: "arrow.triangle.2.circlepath.circle")
-                            .foregroundStyle(.orange)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Auto Sync on \(iCloud.activeDeviceName ?? "Another Device")")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Background and automatic syncing only runs on the active device. You can still test the connection and run manual syncs from here.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
             Section {
                 LabeledContent("Host") {
                     TextField("freereps", text: $vm.config.host)

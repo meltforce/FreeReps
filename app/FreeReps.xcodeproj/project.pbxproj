@@ -36,13 +36,7 @@
 		AABB00000000000000020024 /* SyncActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010024 /* SyncActivityAttributes.swift */; };
 		AABB00000000000000020026 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010025 /* Assets.xcassets */; };
 		AABB00000000000000020027 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010026 /* Assets.xcassets */; };
-		AABB00000000000000020031 /* BackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010030 /* BackupManager.swift */; };
-		AABB00000000000000020032 /* BackupConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010031 /* BackupConfig.swift */; };
-		AABB00000000000000020033 /* BackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010032 /* BackupSettingsView.swift */; };
-		AABB00000000000000020034 /* BackupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010033 /* BackupViewModel.swift */; };
 		AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010035 /* BackgroundSyncManager.swift */; };
-		AABB00000000000000020037 /* iCloudSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010036 /* iCloudSyncService.swift */; };
-		AABB00000000000000020038 /* iCloudSyncSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010037 /* iCloudSyncSettingsView.swift */; };
 		AABB0000000000000002003B /* DataValidationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003A /* DataValidationViewModel.swift */; };
 		AABB0000000000000002003C /* DataValidationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003B /* DataValidationView.swift */; };
 		AABB0000000000000002003D /* BrandFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003C /* BrandFooter.swift */; };
@@ -105,13 +99,7 @@
 		AABB00000000000000010024 /* SyncActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncActivityAttributes.swift; sourceTree = "<group>"; };
 		AABB00000000000000010025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB00000000000000010026 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AABB00000000000000010030 /* BackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupManager.swift; sourceTree = "<group>"; };
-		AABB00000000000000010031 /* BackupConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupConfig.swift; sourceTree = "<group>"; };
-		AABB00000000000000010032 /* BackupSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSettingsView.swift; sourceTree = "<group>"; };
-		AABB00000000000000010033 /* BackupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupViewModel.swift; sourceTree = "<group>"; };
 		AABB00000000000000010035 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
-		AABB00000000000000010036 /* iCloudSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudSyncService.swift; sourceTree = "<group>"; };
-		AABB00000000000000010037 /* iCloudSyncSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudSyncSettingsView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003A /* DataValidationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataValidationViewModel.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003B /* DataValidationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataValidationView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003C /* BrandFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandFooter.swift; sourceTree = "<group>"; };
@@ -174,7 +162,6 @@
 				AABB00000000000000010005 /* HealthDataType.swift */,
 				AABB00000000000000010006 /* HealthRecord.swift */,
 				AABB00000000000000010024 /* SyncActivityAttributes.swift */,
-				AABB00000000000000010031 /* BackupConfig.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -185,9 +172,7 @@
 				AABB00000000000000010041 /* FreeRepsService.swift */,
 				AABB00000000000000010009 /* HealthKitService.swift */,
 				AABB0000000000000001000A /* SyncService.swift */,
-				AABB00000000000000010030 /* BackupManager.swift */,
 				AABB00000000000000010035 /* BackgroundSyncManager.swift */,
-				AABB00000000000000010036 /* iCloudSyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -197,7 +182,6 @@
 			children = (
 				AABB0000000000000001000B /* SyncViewModel.swift */,
 				AABB0000000000000001000C /* SettingsViewModel.swift */,
-				AABB00000000000000010033 /* BackupViewModel.swift */,
 				AABB0000000000000001003A /* DataValidationViewModel.swift */,
 			);
 			path = ViewModels;
@@ -228,8 +212,6 @@
 				AABB00000000000000010015 /* SettingsView.swift */,
 				AABB00000000000000010016 /* MySQLSettingsView.swift */,
 				AABB00000000000000010017 /* HealthPermissionsView.swift */,
-				AABB00000000000000010032 /* BackupSettingsView.swift */,
-				AABB00000000000000010037 /* iCloudSyncSettingsView.swift */,
 				AABB0000000000000001003B /* DataValidationView.swift */,
 			);
 			path = Settings;
@@ -399,13 +381,7 @@
 				AABB00000000000000020016 /* MySQLSettingsView.swift in Sources */,
 				AABB00000000000000020017 /* HealthPermissionsView.swift in Sources */,
 				AABB00000000000000020024 /* SyncActivityAttributes.swift in Sources */,
-				AABB00000000000000020031 /* BackupManager.swift in Sources */,
-				AABB00000000000000020032 /* BackupConfig.swift in Sources */,
-				AABB00000000000000020033 /* BackupSettingsView.swift in Sources */,
-				AABB00000000000000020034 /* BackupViewModel.swift in Sources */,
 				AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */,
-				AABB00000000000000020037 /* iCloudSyncService.swift in Sources */,
-				AABB00000000000000020038 /* iCloudSyncSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

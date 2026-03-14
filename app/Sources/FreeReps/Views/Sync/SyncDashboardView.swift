@@ -3,7 +3,6 @@ import UIKit
 
 struct SyncDashboardView: View {
     @ObservedObject var vm: SyncViewModel
-    @ObservedObject private var iCloud = iCloudSyncService.shared
     @State private var navigateToHealthPermissions = false
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
 
@@ -20,18 +19,6 @@ struct SyncDashboardView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                }
-
-                // Non-active device banner
-                if !iCloud.isCurrentDeviceActiveForAutoSync {
-                    Section {
-                        noticeBanner(
-                            icon: "icloud.slash.fill",
-                            color: .orange,
-                            title: "Background Sync on \(iCloud.activeDeviceName ?? "Another Device")",
-                            message: "Automatic and background syncing only runs on the active device. Manual syncs are available on all devices."
-                        )
-                    }
                 }
 
                 // No-full-sync warning banner

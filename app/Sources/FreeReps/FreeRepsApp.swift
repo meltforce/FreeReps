@@ -23,7 +23,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UserDefaults.standard.register(defaults: ["backgroundSyncEnabled": true])
-        Task { @MainActor in iCloudSyncService.shared.start() }
         registerBackgroundTasks()
         // Request notification permission for sync failure alerts
         BackgroundSyncManager.requestNotificationPermission()
@@ -34,30 +33,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             BackgroundSyncManager.shared.startObserving()
         }
 
-        // Check for due auto backup on launch (applicationWillEnterForeground is not called on initial launch)
-        Task { @MainActor in BackupManager.shared.runAutoBackupIfNeeded() }
-
         return true
-    }
-
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        Task { @MainActor in BackupManager.shared.runAutoBackupIfNeeded() }
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
         scheduleNextBackgroundSync()
-
-        // Wrap auto-backup in a background task so iOS doesn't suspend us mid-write
-        var bgTaskID = UIBackgroundTaskIdentifier.invalid
-        bgTaskID = application.beginBackgroundTask {
-            application.endBackgroundTask(bgTaskID)
-            bgTaskID = .invalid
-        }
-        Task { @MainActor in
-            BackupManager.shared.runAutoBackupIfNeeded()
-            application.endBackgroundTask(bgTaskID)
-            bgTaskID = .invalid
-        }
     }
 
     private func registerBackgroundTasks() {
@@ -72,14 +52,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     private func handleBackgroundSync(task: BGProcessingTask) {
         scheduleNextBackgroundSync()
 
-        // Auto backup runs independently of sync — check it before the sync guards
-        Task { @MainActor in BackupManager.shared.runAutoBackupIfNeeded() }
-
         guard UserDefaults.standard.bool(forKey: "backgroundSyncEnabled") else {
-            task.setTaskCompleted(success: true)
-            return
-        }
-        guard iCloudSyncService.shared.isCurrentDeviceActiveForAutoSync else {
             task.setTaskCompleted(success: true)
             return
         }

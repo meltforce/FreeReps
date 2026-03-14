@@ -18,20 +18,11 @@ final class SettingsViewModel: ObservableObject {
     @Published var deniedTypes: [HKObjectType] = []
     @Published var grantedTypes: [HKObjectType] = []
     @Published var errorMessage: String?
+    @Published var isRequestingPermissions = false
 
     private let healthKit = HealthKitService.shared
 
-    init() {
-        NotificationCenter.default.addObserver(
-            forName: .iCloudSettingsDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.config = .load()
-            }
-        }
-    }
+    init() { }
 
     func saveConfig() {
         config.save()
@@ -73,6 +64,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func requestAllPermissions() {
+        guard !isRequestingPermissions else { return }
+        isRequestingPermissions = true
         Task {
             do {
                 try await healthKit.requestAllPermissions()
@@ -82,11 +75,13 @@ final class SettingsViewModel: ObservableObject {
             UserDefaults.standard.set(true, forKey: "hk_permissions_requested")
             permissionsRequested = true
             refreshPermissionsState()
+            isRequestingPermissions = false
         }
     }
 
     func requestMissingPermissions() {
-        guard !deniedTypes.isEmpty else { return }
+        guard !deniedTypes.isEmpty, !isRequestingPermissions else { return }
+        isRequestingPermissions = true
         let types = Set(deniedTypes)
         Task {
             do {
@@ -95,6 +90,7 @@ final class SettingsViewModel: ObservableObject {
                 errorMessage = "HealthKit authorization failed: \(error.localizedDescription)"
             }
             refreshPermissionsState()
+            isRequestingPermissions = false
         }
     }
 
