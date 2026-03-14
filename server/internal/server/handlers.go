@@ -1,10 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
+	"github.com/claude/freereps/internal/ingest"
 	"github.com/claude/freereps/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -69,6 +72,44 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 
 	go s.logImport(uid, "alpha", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleUnifiedImport(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
+		return
+	}
+
+	format := ingest.DetectFormat(data)
+	start := time.Now()
+
+	switch format {
+	case ingest.FormatAlpha:
+		result, err := s.alpha.Ingest(r.Context(), bytes.NewReader(data), uid)
+		durationMs := int(time.Since(start).Milliseconds())
+		if err != nil {
+			s.log.Error("unified import (alpha) error", "error", err)
+			if result != nil {
+				go s.logImport(uid, "import_auto", result, err, durationMs)
+			}
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		go s.logImport(uid, "import_auto", result, nil, durationMs)
+		writeJSON(w, http.StatusOK, result)
+
+	default:
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error":     "unrecognized file format",
+			"supported": []string{"alpha_progression_csv"},
+		})
+	}
 }
 
 // cumulativeMetrics are metrics that should show daily totals instead of latest value.

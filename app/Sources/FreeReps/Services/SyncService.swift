@@ -103,6 +103,7 @@ final class SyncService: ObservableObject {
             ("cat_medications", "Medications", "pills.fill"),
             ("cat_vision", "Vision Prescriptions", "eye.fill"),
             ("cat_state_of_mind", "State of Mind", "brain.head.profile"),
+            ("cat_strength", "Weight Training", "figure.strengthtraining.traditional"),
         ]
         for (id, name, icon) in specials {
             cats.append(CategorySyncState(

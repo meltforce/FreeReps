@@ -45,6 +45,13 @@ struct IngestResult: Codable {
     }
 }
 
+/// Result from the unified import endpoint (CSV uploads).
+struct ImportResult: Codable {
+    var sets_received: Int
+    var sets_inserted: Int64
+    var message: String?
+}
+
 /// Lightweight HTTP client for FreeReps ingest API.
 /// Replaces the 748-line MySQLService with ~50 lines of URLSession.
 actor FreeRepsService {
@@ -81,6 +88,31 @@ actor FreeRepsService {
 
         do {
             return try JSONDecoder().decode(IngestResult.self, from: data)
+        } catch {
+            throw FreeRepsError.decodingError(error.localizedDescription)
+        }
+    }
+
+    /// Upload a CSV file to the unified import endpoint.
+    func uploadCSV(data: Data) async throws -> ImportResult {
+        let url = baseURL.appendingPathComponent("api/v1/import")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("text/csv", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+
+        let (responseData, response) = try await performRequest(request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw FreeRepsError.connectionFailed("Invalid response")
+        }
+        guard http.statusCode == 200 else {
+            let body = String(data: responseData, encoding: .utf8) ?? ""
+            throw FreeRepsError.httpError(statusCode: http.statusCode, body: body)
+        }
+
+        do {
+            return try JSONDecoder().decode(ImportResult.self, from: responseData)
         } catch {
             throw FreeRepsError.decodingError(error.localizedDescription)
         }

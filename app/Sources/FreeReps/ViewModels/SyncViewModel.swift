@@ -163,6 +163,8 @@ final class SyncViewModel: ObservableObject {
                 return await HealthKitService.shared.latestSampleDate(for: HKObjectType.stateOfMindType())
             }
             return nil
+        case "cat_strength":
+            return nil
         default:
             return nil
         }

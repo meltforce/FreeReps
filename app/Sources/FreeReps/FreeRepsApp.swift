@@ -6,10 +6,50 @@ import UserNotifications
 struct FreeRepsApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var importState = ImportState()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(importState)
+                .onOpenURL { url in
+                    handleIncomingFile(url)
+                }
+                .sheet(isPresented: $importState.showResult) {
+                    ImportResultView(state: importState)
+                }
+        }
+    }
+
+    private func handleIncomingFile(_ url: URL) {
+        guard url.startAccessingSecurityScopedResource() else {
+            importState.status = .error("Cannot access file")
+            importState.showResult = true
+            return
+        }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        guard let data = try? Data(contentsOf: url) else {
+            importState.status = .error("Failed to read file")
+            importState.showResult = true
+            return
+        }
+        performImport(data: data)
+    }
+
+    func performImport(data: Data) {
+        importState.status = .uploading
+        importState.showResult = true
+
+        Task {
+            let config = FreeRepsConfig.load()
+            let service = FreeRepsService(config: config)
+            do {
+                let result = try await service.uploadCSV(data: data)
+                importState.status = .success(setsInserted: result.sets_inserted)
+            } catch {
+                importState.status = .error(error.localizedDescription)
+            }
         }
     }
 }

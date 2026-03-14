@@ -1,9 +1,12 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct SyncDashboardView: View {
     @ObservedObject var vm: SyncViewModel
+    @EnvironmentObject var importState: ImportState
     @State private var navigateToHealthPermissions = false
+    @State private var showFilePicker = false
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
 
     var body: some View {
@@ -113,6 +116,31 @@ struct SyncDashboardView: View {
             .onDisappear {
                 UIApplication.shared.isIdleTimerDisabled = false
             }
+            .fileImporter(
+                isPresented: $showFilePicker,
+                allowedContentTypes: [.commaSeparatedText],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    guard url.startAccessingSecurityScopedResource() else {
+                        importState.status = .error("Cannot access file")
+                        importState.showResult = true
+                        return
+                    }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    guard let data = try? Data(contentsOf: url) else {
+                        importState.status = .error("Failed to read file")
+                        importState.showResult = true
+                        return
+                    }
+                    performImport(data: data)
+                case .failure(let error):
+                    importState.status = .error(error.localizedDescription)
+                    importState.showResult = true
+                }
+            }
             .alert("Sync Prerequisites", isPresented: $vm.showPrerequisiteAlert) {
                 Button("Continue Anyway") { }
                 Button("Cancel Sync", role: .cancel) {
@@ -150,14 +178,46 @@ struct SyncDashboardView: View {
     }
 
     private var syncButtons: some View {
-        HStack(spacing: 12) {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Button {
+                    vm.startFullSync()
+                } label: {
+                    Label("Full Sync", systemImage: "arrow.clockwise.icloud.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 10))
+                        .foregroundStyle(.white)
+                        .font(.subheadline.weight(.semibold))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(vm.isAnySyncRunning)
+                .opacity(vm.isAnySyncRunning ? 0.5 : 1)
+
+                if vm.isAnySyncRunning {
+                    Button {
+                        vm.cancelSync()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark.circle.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                            .foregroundStyle(.red)
+                            .font(.subheadline.weight(.semibold))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
             Button {
-                vm.startFullSync()
+                showFilePicker = true
             } label: {
-                Label("Full Sync", systemImage: "arrow.clockwise.icloud.fill")
+                Label("Import File", systemImage: "doc.badge.plus")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color.blue, in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color.green, in: RoundedRectangle(cornerRadius: 10))
                     .foregroundStyle(.white)
                     .font(.subheadline.weight(.semibold))
                     .contentShape(Rectangle())
@@ -165,21 +225,6 @@ struct SyncDashboardView: View {
             .buttonStyle(.plain)
             .disabled(vm.isAnySyncRunning)
             .opacity(vm.isAnySyncRunning ? 0.5 : 1)
-
-            if vm.isAnySyncRunning {
-                Button {
-                    vm.cancelSync()
-                } label: {
-                    Label("Cancel", systemImage: "xmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                        .foregroundStyle(.red)
-                        .font(.subheadline.weight(.semibold))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 
@@ -230,6 +275,26 @@ struct SyncDashboardView: View {
             break
         case .healthDataUnavailable:
             break
+        }
+    }
+
+    private func performImport(data: Data) {
+        importState.status = .uploading
+        importState.showResult = true
+
+        Task {
+            let config = FreeRepsConfig.load()
+            let service = FreeRepsService(config: config)
+            do {
+                let result = try await service.uploadCSV(data: data)
+                importState.status = .success(setsInserted: result.sets_inserted)
+                // Update the Weight Training category card
+                let existing = vm.syncState.categories.first(where: { $0.id == "cat_strength" })?.recordCount ?? 0
+                vm.syncState.updateCategory("cat_strength", status: .completed, recordCount: existing + Int(result.sets_inserted), lastSyncDate: Date())
+                vm.syncState.persist()
+            } catch {
+                importState.status = .error(error.localizedDescription)
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var syncViewModel = SyncViewModel()
+    @EnvironmentObject var importState: ImportState
 
     var body: some View {
         TabView {
@@ -15,5 +16,6 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gear")
                 }
         }
+        .environmentObject(syncViewModel)
     }
 }

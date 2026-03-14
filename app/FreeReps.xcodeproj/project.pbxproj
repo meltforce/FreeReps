@@ -40,6 +40,8 @@
 		AABB0000000000000002003E /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003D /* AcknowledgementsView.swift */; };
 		AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003E /* SyncAdvancedView.swift */; };
 		AABB0000000000000002003D /* BrandFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003C /* BrandFooter.swift */; };
+		AABB00000000000000020043 /* ImportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010043 /* ImportState.swift */; };
+		AABB00000000000000020044 /* ImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010044 /* ImportResultView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,6 +105,8 @@
 		AABB0000000000000001003D /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003E /* SyncAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAdvancedView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003C /* BrandFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandFooter.swift; sourceTree = "<group>"; };
+		AABB00000000000000010043 /* ImportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportState.swift; sourceTree = "<group>"; };
+		AABB00000000000000010044 /* ImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportResultView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +166,7 @@
 				AABB00000000000000010005 /* HealthDataType.swift */,
 				AABB00000000000000010006 /* HealthRecord.swift */,
 				AABB00000000000000010024 /* SyncActivityAttributes.swift */,
+				AABB00000000000000010043 /* ImportState.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -192,8 +197,17 @@
 				AABB0000000000000001003C /* BrandFooter.swift */,
 				AABB00000000000000030007 /* Sync */,
 				AABB00000000000000030009 /* Settings */,
+				AABB0000000000000003000E /* Import */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		AABB0000000000000003000E /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				AABB00000000000000010044 /* ImportResultView.swift */,
+			);
+			path = Import;
 			sourceTree = "<group>";
 		};
 		AABB00000000000000030007 /* Sync */ = {
@@ -382,6 +396,8 @@
 				AABB00000000000000020017 /* HealthPermissionsView.swift in Sources */,
 				AABB00000000000000020024 /* SyncActivityAttributes.swift in Sources */,
 				AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */,
+				AABB00000000000000020043 /* ImportState.swift in Sources */,
+				AABB00000000000000020044 /* ImportResultView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

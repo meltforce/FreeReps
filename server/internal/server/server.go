@@ -101,6 +101,9 @@ func (s *Server) routes() {
 			r.Post("/alpha", s.handleAlphaIngest)
 		})
 
+		// Unified import with auto-detection
+		r.Post("/api/v1/import", s.handleUnifiedImport)
+
 		// User identity
 		r.Get("/api/v1/me", s.handleMe)
 
