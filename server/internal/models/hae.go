@@ -86,11 +86,14 @@ type HAEMetricDataPoint struct {
 }
 
 // HAEHeartRateDataPoint has Min/Avg/Max fields (capitalized in HAE JSON).
+// Qty is a fallback: when the iOS app sends individual samples (not aggregated),
+// only qty is set. The ingest layer promotes qty → Min/Avg/Max in that case.
 type HAEHeartRateDataPoint struct {
 	Date       HAETime `json:"date"`
 	Min        float64 `json:"Min"`
 	Avg        float64 `json:"Avg"`
 	Max        float64 `json:"Max"`
+	Qty        float64 `json:"qty"`
 	SourceUUID *string `json:"source_uuid,omitempty"`
 }
 

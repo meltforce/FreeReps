@@ -83,6 +83,26 @@ func TestConvertMetricMinAvgMax(t *testing.T) {
 	}
 }
 
+// TestConvertMetricMinAvgMaxFallbackFromQty verifies that heart rate data sent as
+// individual samples (qty only, no Min/Avg/Max) gets promoted to Min=Avg=Max=qty.
+// This happens when the iOS app's aggregation fails and falls back to per-sample sync.
+func TestConvertMetricMinAvgMaxFallbackFromQty(t *testing.T) {
+	raw := json.RawMessage(`{"date":"2024-02-06 14:30:00 -0800","qty":72,"source_uuid":"abc-123"}`)
+	row, err := convertMetricDataPoint("heart_rate", "bpm", raw, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if row.MinVal == nil || *row.MinVal != 72 {
+		t.Errorf("min = %v, want 72 (promoted from qty)", row.MinVal)
+	}
+	if row.AvgVal == nil || *row.AvgVal != 72 {
+		t.Errorf("avg = %v, want 72 (promoted from qty)", row.AvgVal)
+	}
+	if row.MaxVal == nil || *row.MaxVal != 72 {
+		t.Errorf("max = %v, want 72 (promoted from qty)", row.MaxVal)
+	}
+}
+
 // TestConvertMetricBloodPressure verifies conversion of blood pressure data.
 func TestConvertMetricBloodPressure(t *testing.T) {
 	raw := json.RawMessage(`{"date":"2024-02-06 14:30:00 -0800","systolic":120,"diastolic":80}`)

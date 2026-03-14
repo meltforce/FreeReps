@@ -172,6 +172,13 @@ func convertMetricDataPoint(name, units string, raw json.RawMessage, userID int)
 			return nil, fmt.Errorf("parsing min/avg/max: %w", err)
 		}
 		row.Time = dp.Date.Time
+		// When the iOS app falls back to individual samples, only qty is set.
+		// Promote qty → Min/Avg/Max so the data isn't stored as zeros.
+		if dp.Min == 0 && dp.Avg == 0 && dp.Max == 0 && dp.Qty != 0 {
+			dp.Min = dp.Qty
+			dp.Avg = dp.Qty
+			dp.Max = dp.Qty
+		}
 		row.MinVal = &dp.Min
 		row.AvgVal = &dp.Avg
 		row.MaxVal = &dp.Max
