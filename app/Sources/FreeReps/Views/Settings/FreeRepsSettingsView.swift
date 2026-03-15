@@ -24,7 +24,7 @@ struct FreeRepsSettingsView: View {
             } header: {
                 Text("Connection")
             } footer: {
-                Text("Authentication is handled automatically via Tailscale. No credentials needed.")
+                Text("Your device must be on the same Tailnet as the server for authentication. For local development, use your machine's IP with HTTPS disabled.")
             }
 
             Section {

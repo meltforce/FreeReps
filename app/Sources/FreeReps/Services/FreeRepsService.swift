@@ -53,7 +53,6 @@ struct ImportResult: Codable {
 }
 
 /// Lightweight HTTP client for FreeReps ingest API.
-/// Replaces the 748-line MySQLService with ~50 lines of URLSession.
 actor FreeRepsService {
 
     private let session: URLSession

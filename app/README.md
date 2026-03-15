@@ -1,6 +1,6 @@
-# FreeReps
+# FreeReps iOS App
 
-FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL database. It connects directly to MySQL over TCP using a built-in wire protocol implementation — no backend server, no cloud service, no dependencies. Your health data goes straight from your phone to your database.
+FreeReps is an iOS companion app that syncs Apple HealthKit data to a FreeReps server via HTTP. Your health data flows from HealthKit on your phone to your self-hosted server — no cloud services, no third parties.
 
 ## What it syncs
 
@@ -22,14 +22,22 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 - **Live Activity** — sync progress on the lock screen and Dynamic Island
 - **Data browser** — browse all synced data by category with search and filtering
 - **Location tracking** — continuous GPS logging and geofence-based check-ins with customizable place categories
-- **Data validation** — quick scan (count comparison) or deep scan (record-level comparison) with auto-repair
+- **Re-sync and repair** — per-category re-sync to repair or backfill data that may have been missed
 - **No dependencies** — pure Swift using only Apple frameworks (HealthKit, BackgroundTasks, ActivityKit)
+
+## Architecture
+
+```
+HealthKit (iPhone) → HTTP JSON → FreeReps Server → PostgreSQL + TimescaleDB
+```
+
+The app uses `FreeRepsService` (a lightweight `URLSession` HTTP wrapper) to POST health data as JSON to the FreeReps server's REST API (`/api/v1/ingest/` and `/api/v1/import`). There is no direct database connection — the server handles all storage.
 
 ## Requirements
 
 - iOS 16.2+
 - Physical device (HealthKit is not available in the Simulator)
-- MySQL 5.7+ or 8.0+ server accessible from the device's network
+- A running FreeReps server (see the [server README](../server/README.md))
 - Apple Developer account (for HealthKit entitlement and code signing)
 
 ## Developer setup
@@ -41,7 +49,7 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 
 2. Open the Xcode project:
    ```
-   open "FreeReps.xcodeproj"
+   open app/FreeReps.xcodeproj
    ```
 
 3. In **Signing & Capabilities**, select your development team and set a unique bundle identifier.
@@ -49,6 +57,7 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 4. Verify the following capabilities are present (they should already be configured):
    - HealthKit (with Background Delivery)
    - Background Modes: Background processing, Background fetch
+
 5. Verify build settings point to the right files:
    - `INFOPLIST_FILE` = `Sources/FreeReps/Resources/Info.plist`
    - `CODE_SIGN_ENTITLEMENTS` = `Sources/FreeReps/Resources/FreeReps.entitlements`
@@ -60,65 +69,52 @@ FreeReps is an iOS app that continuously syncs Apple HealthKit data to a MySQL d
 ```
 Sources/FreeReps/
   FreeRepsApp.swift              App entry point and background task registration
-  ContentView.swift                Root TabView (Sync, Browse, Settings)
+  ContentView.swift              Root TabView (Sync, Browse, Settings)
   Models/
-    MySQLConfig.swift              Connection config (saved to UserDefaults)
-    SyncState.swift                Observable sync state
-    HealthDataType.swift           All HealthKit type descriptors
-    HealthRecord.swift             Record models for the data browser
+    FreeRepsConfig.swift         Connection config (host, port, HTTPS toggle)
+    SyncState.swift              Observable sync state
+    HealthDataType.swift         All HealthKit type descriptors
+    HealthRecord.swift           Record models for the data browser
     ...
   Services/
-    MySQLService.swift             TCP MySQL wire protocol (async/await actor)
-    SchemaService.swift            CREATE TABLE DDL and schema initialization
-    HealthKitService.swift         HealthKit queries and permissions
-    SyncService.swift              Full/incremental sync orchestration
-    BackgroundSyncManager.swift    HKObserverQuery registration and background delivery
-  ViewModels/                      View models for each tab
+    FreeRepsService.swift        HTTP client for the FreeReps API (URLSession)
+    HealthKitService.swift       HealthKit queries and permissions
+    SyncService.swift            Full/incremental sync orchestration
+    BackgroundSyncManager.swift  HKObserverQuery registration and background delivery
+  ViewModels/                    View models for each tab
   Views/
-    Sync/                          Sync dashboard and category status cards
-    DataBrowser/                   Data browsing views per type
-    Settings/                      All settings and configuration views
+    Sync/                        Sync dashboard and category status cards
+    DataBrowser/                 Data browsing views per type
+    Settings/                    All settings and configuration views
   Resources/
-    Info.plist                     HealthKit usage description, BG task identifiers
+    Info.plist                   HealthKit usage description, BG task identifiers
     FreeReps.entitlements        HealthKit entitlements
 Sources/FreeRepsWidgets/         Live Activity widget for sync progress
 ```
 
-### MySQL wire protocol
+## Connection modes
 
-The app implements the MySQL client wire protocol directly using `Network.framework`. This means no MySQL client library or SPM dependency is needed. It supports:
+### Tailscale (production)
 
-- Protocol v4.1 handshake
-- `mysql_native_password` (SHA1) and `caching_sha2_password` (SHA256 + RSA full auth)
-- Batch `INSERT IGNORE` in chunks of 500 for UUID-based deduplication
-- Async/await with continuation-based receive buffering
+The recommended setup. Both your iPhone and FreeReps server join the same Tailnet. Authentication is handled by Tailscale — no credentials or API keys needed. The server uses `tsnet` for zero-config TLS.
+
+In the app, set **Host** to your server's Tailscale hostname (e.g., `freereps.your-tailnet.ts.net`), **Port** to `443`, and enable **HTTPS**.
+
+### Plain HTTP (local development)
+
+For local development, point the app at your dev machine's IP address with HTTPS disabled.
+
+Set **Host** to your machine's local IP (e.g., `192.168.1.100`), **Port** to `8080`, and disable **HTTPS**.
 
 ## User guide
 
 ### Initial setup
 
 1. Install the app on your iPhone.
-2. Go to **Settings > MySQL Connection** and enter your MySQL server's host, port, database name, username, and password.
+2. Go to **Settings > FreeReps Connection** and configure your server's host and port.
 3. Tap **Test Connection** to verify connectivity.
-4. Go to **Settings > HealthKit Permissions** and grant access to the health data types you want to sync.
-5. Return to the **Sync** tab and tap **Full Sync** to backfill your historical data. **Keep the screen on until the full sync completes** — Apple HealthKit is not accessible when the device is locked, and the sync will stall. The app enables "Keep Screen On" by default during full sync (configurable in Settings).
-
-### Database setup
-
-Create a database on your MySQL server. The app will automatically create all required tables on first sync.
-
-```sql
-CREATE DATABASE freereps CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'freereps'@'%' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON freereps.* TO 'freereps'@'%';
-FLUSH PRIVILEGES;
-```
-
-If you're using MySQL 8.0+ and get authentication errors, switch to the legacy auth plugin:
-
-```sql
-ALTER USER 'freereps'@'%' IDENTIFIED WITH mysql_native_password BY 'your_password';
-```
+4. Go to **Settings > Apple Health Permissions** and grant access to the health data types you want to sync.
+5. Return to the **Sync** tab and tap **Full Sync** to backfill your historical data. **Keep the screen on until the full sync completes** — HealthKit is not accessible when the device is locked. The app enables "Keep Screen On" by default during full sync (configurable in Settings).
 
 ### Ongoing sync
 
@@ -130,57 +126,46 @@ After the initial full sync, the app automatically syncs new data in the backgro
 
 ### Location tracking
 
-Enable location tracking in **Settings > Location & Places** to log GPS coordinates to the `location_tracks` table. You can also set up geofences around places (home, office, gym, etc.) to log check-in and check-out events.
+Enable location tracking in **Settings > Location & Places** to log GPS coordinates. You can also set up geofences around places (home, office, gym, etc.) to log check-in and check-out events.
+
+## App Store review: temporary test server
+
+Since FreeReps requires a server to function, App Store reviewers need a reachable server during review. To set one up temporarily:
+
+1. Deploy a FreeReps server on a VPS (any cloud provider works).
+2. Set `tailscale.enabled: false` in `config.yaml` so the server listens on plain HTTP.
+3. Set up HTTPS via a reverse proxy (e.g., Caddy, nginx + Let's Encrypt) or a cloud load balancer.
+4. In App Store Connect review notes, provide the server URL and any necessary instructions.
+5. Tear down the server after review approval.
+
+No code changes are needed — the app already supports arbitrary host/port/HTTPS configuration.
 
 ## Known quirks and limitations
 
 ### HealthKit background access
 
-HealthKit restricts data access when the device is locked. This affects background sync in important ways:
+HealthKit restricts data access when the device is locked:
 
 - **Screen on / app in foreground**: Full HealthKit access. All syncs work normally.
-- **Screen off but recently unlocked**: HealthKit data remains accessible for a short window. Observer-based background syncs triggered by new health data (e.g., a workout ending) typically succeed because iOS delivers the notification while the device is still in this window.
-- **Screen off for a long time / device locked**: HealthKit queries return authorization errors. The `BGProcessingTask` scheduled sync may wake the app, but if the device has been locked too long, HealthKit will deny access. The app handles this gracefully — it skips the sync and tries again next time.
-- **Full sync requires screen on**: A full historical backfill takes a long time and needs continuous HealthKit access. The app has a "Keep Screen On" toggle in settings for this reason. If the screen locks mid-sync, the sync pauses and resumes when access is restored.
+- **Screen off but recently unlocked**: HealthKit data remains accessible briefly. Observer-based background syncs triggered by new health data typically succeed.
+- **Device locked for a long time**: HealthKit queries return authorization errors. Background syncs skip and retry next time.
+- **Full sync requires screen on**: A full historical backfill needs continuous HealthKit access. Use the "Keep Screen On" toggle.
 
-In practice, incremental syncs work well because they're triggered by HealthKit observer queries right when new data is recorded (device typically just used), and the data volume per sync is small.
+In practice, incremental syncs work well because they're triggered right when new data is recorded and the data volume per sync is small.
 
 ### VPN and Tailscale
 
-If your MySQL server is only reachable via VPN or Tailscale, be aware that iOS aggressively manages VPN connections:
+If your server is only reachable via Tailscale, be aware that iOS aggressively manages VPN connections:
 
-- iOS may disconnect VPN tunnels in the background to save battery, especially on cellular.
-- The "Connect On Demand" VPN setting helps but is not guaranteed — iOS can still tear down the tunnel when it decides the app doesn't need network access.
-- Tailscale's iOS app uses the NEPacketTunnelProvider API, which is subject to the same iOS restrictions. The tunnel may go down during background sync windows.
-- When the VPN is down, MySQL connections will fail with a timeout. The app will retry on the next sync cycle.
-
-**Workaround**: If reliable background sync is important, expose your MySQL server on a network the phone can always reach (e.g., port-forwarded with TLS, or a cloud-hosted database). Alternatively, accept that some background syncs will be missed and rely on the next foreground sync to catch up.
+- iOS may disconnect VPN tunnels in the background to save battery.
+- Tailscale's iOS app uses NEPacketTunnelProvider, which is subject to the same iOS restrictions.
+- When the tunnel is down, connections will time out. The app retries on the next sync cycle.
 
 ### iOS background execution limits
 
-- `BGProcessingTask` runs at iOS's discretion — typically when the device is charging and on Wi-Fi. The 15-minute interval is a request, not a guarantee.
-- iOS may defer background tasks indefinitely if the device is low on battery or the app hasn't been used recently.
-- After a force-quit by the user (swipe up in app switcher), background tasks and observer queries stop until the app is launched again.
-
-## Database schema
-
-The app creates these tables automatically:
-
-| Table | Contents |
-|-------|----------|
-| `health_quantity_samples` | All quantity type measurements (steps, heart rate, etc.) |
-| `health_category_samples` | Category type events (sleep, symptoms, etc.) |
-| `health_workouts` | Workout sessions |
-| `health_blood_pressure` | Blood pressure correlation pairs |
-| `health_ecg` | ECG recordings with voltage data |
-| `health_audiograms` | Hearing sensitivity measurements |
-| `health_activity_summaries` | Daily activity ring data |
-| `health_workout_routes` | GPS coordinates from workout routes |
-| `health_medications` | Medication records |
-| `location_tracks` | GPS location history |
-| `location_geofence_events` | Geofence entry/exit events |
-
-All tables use UUID-based primary keys for deduplication and `DATETIME(3)` for millisecond precision timestamps in UTC.
+- `BGProcessingTask` runs at iOS's discretion — typically when charging and on Wi-Fi.
+- iOS may defer background tasks if the device is low on battery or the app hasn't been used recently.
+- After a force-quit, background tasks stop until the app is launched again.
 
 ## License
 

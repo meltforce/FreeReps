@@ -97,7 +97,7 @@ struct CategoryStatusCard: View {
                 onReset?()
             }
         } message: {
-            Text("This permanently deletes all \(state.displayName) records from MySQL. This cannot be undone.")
+            Text("This permanently deletes all \(state.displayName) records from the server. This cannot be undone.")
         }
     }
 

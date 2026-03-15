@@ -22,7 +22,7 @@
 		AABB0000000000000002000E /* CategoryStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001000E /* CategoryStatusCard.swift */; };
 		AABB0000000000000002000F /* SyncDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001000F /* SyncDashboardView.swift */; };
 		AABB00000000000000020015 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010015 /* SettingsView.swift */; };
-		AABB00000000000000020016 /* MySQLSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010016 /* MySQLSettingsView.swift */; };
+		AABB00000000000000020016 /* FreeRepsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010016 /* FreeRepsSettingsView.swift */; };
 		AABB00000000000000020017 /* HealthPermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010017 /* HealthPermissionsView.swift */; };
 		AABB0000000000000002001A /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001A /* HealthKit.framework */; };
 		AABB0000000000000002001B /* BackgroundTasks.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001B /* BackgroundTasks.framework */; };
@@ -84,7 +84,7 @@
 		AABB0000000000000001000E /* CategoryStatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryStatusCard.swift; sourceTree = "<group>"; };
 		AABB0000000000000001000F /* SyncDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDashboardView.swift; sourceTree = "<group>"; };
 		AABB00000000000000010015 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		AABB00000000000000010016 /* MySQLSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MySQLSettingsView.swift; sourceTree = "<group>"; };
+		AABB00000000000000010016 /* FreeRepsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsSettingsView.swift; sourceTree = "<group>"; };
 		AABB00000000000000010017 /* HealthPermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthPermissionsView.swift; sourceTree = "<group>"; };
 		AABB00000000000000010018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AABB00000000000000010019 /* FreeReps.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeReps.entitlements; sourceTree = "<group>"; };
@@ -223,7 +223,7 @@
 			isa = PBXGroup;
 			children = (
 				AABB00000000000000010015 /* SettingsView.swift */,
-				AABB00000000000000010016 /* MySQLSettingsView.swift */,
+				AABB00000000000000010016 /* FreeRepsSettingsView.swift */,
 				AABB00000000000000010017 /* HealthPermissionsView.swift */,
 				AABB0000000000000001003D /* AcknowledgementsView.swift */,
 				AABB0000000000000001003E /* SyncAdvancedView.swift */,
@@ -392,7 +392,7 @@
 				AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */,
 				AABB0000000000000002003D /* BrandFooter.swift in Sources */,
 				AABB00000000000000020015 /* SettingsView.swift in Sources */,
-				AABB00000000000000020016 /* MySQLSettingsView.swift in Sources */,
+				AABB00000000000000020016 /* FreeRepsSettingsView.swift in Sources */,
 				AABB00000000000000020017 /* HealthPermissionsView.swift in Sources */,
 				AABB00000000000000020024 /* SyncActivityAttributes.swift in Sources */,
 				AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */,
