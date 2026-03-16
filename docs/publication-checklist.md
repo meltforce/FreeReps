@@ -26,9 +26,9 @@ Manual tasks remaining for App Store + open-source release.
 - [x] Spin up a temporary public-facing test server (no Tailscale) with demo data — `https://freereps-test.meltforce.net/`
 - [x] Document the test server host + "enable Test Mode" instructions in review notes
 - [x] Disable "Sign-in required" in App Review Information
-- [ ] Select build in App Store Connect
-- [ ] Click "Add for Review"
-- [ ] Submit for review
+- [x] Select build in App Store Connect
+- [x] Click "Add for Review"
+- [x] Submit for review
 
 ## Homepage
 
