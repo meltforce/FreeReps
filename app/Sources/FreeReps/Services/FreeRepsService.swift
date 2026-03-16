@@ -61,7 +61,7 @@ actor FreeRepsService {
     init(config: FreeRepsConfig) {
         self.baseURL = config.baseURL
         let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.timeoutIntervalForRequest = 30
+        sessionConfig.timeoutIntervalForRequest = 120
         sessionConfig.timeoutIntervalForResource = 300
         // Trust Tailscale certificates
         self.session = URLSession(configuration: sessionConfig)
