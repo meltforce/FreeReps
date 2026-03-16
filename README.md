@@ -112,6 +112,8 @@ cp config.example.yaml config.yaml
 docker compose up -d
 ```
 
+To use the pre-built image from Docker Hub instead of building locally, replace the `app` service's `build: .` with `image: meltforce/freereps:latest` in `docker-compose.yml`.
+
 ### Test Server (Demo Mode)
 
 Run a FreeReps server with demo data (e.g., for App Store review or sync testing):
