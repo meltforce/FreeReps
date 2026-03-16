@@ -1356,6 +1356,31 @@ final class SyncService: ObservableObject {
                     let elevDown = (w.metadata?[HKMetadataKeyElevationDescended] as? HKQuantity)
                         .map { FreeRepsQuantity(qty: $0.doubleValue(for: .meter()), units: "m") }
 
+                    // Fetch GPS route for outdoor workouts
+                    var routePoints: [FreeRepsRoutePoint]?
+                    if isIndoor != true {
+                        let routes = try await self.healthKit.fetchWorkoutRoutes(for: w)
+                        if let firstRoute = routes.first {
+                            let locations = try await self.healthKit.fetchRouteLocations(for: firstRoute)
+                            if !locations.isEmpty {
+                                routePoints = locations.map { loc in
+                                    FreeRepsRoutePoint(
+                                        latitude: loc.coordinate.latitude,
+                                        longitude: loc.coordinate.longitude,
+                                        altitude: loc.altitude,
+                                        course: loc.course,
+                                        courseAccuracy: loc.courseAccuracy,
+                                        horizontalAccuracy: loc.horizontalAccuracy,
+                                        verticalAccuracy: loc.verticalAccuracy,
+                                        timestamp: haeDate(loc.timestamp),
+                                        speed: loc.speed,
+                                        speedAccuracy: loc.speedAccuracy
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // HR summary from per-minute buckets
                     var hrSummary: FreeRepsHRSummary?
                     if let hrs = hrData, !hrs.isEmpty {
@@ -1383,7 +1408,8 @@ final class SyncService: ObservableObject {
                         elevationUp: elevUp,
                         elevationDown: elevDown,
                         heartRate: hrSummary,
-                        heartRateData: hrData
+                        heartRateData: hrData,
+                        route: routePoints
                     ))
                 }
                 let payload = FreeRepsPayload(data: FreeRepsData(workouts: hbWorkouts))

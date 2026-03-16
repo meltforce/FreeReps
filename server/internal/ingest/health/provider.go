@@ -366,13 +366,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 			result.WorkoutsInserted++
 		}
 
-		// Only insert HR and route data if the workout was newly inserted
-		// (avoid re-inserting on duplicate)
-		if !inserted {
-			continue
-		}
-
-		// Insert HR time-series
+		// Insert HR time-series (ON CONFLICT DO NOTHING — safe for backfill)
 		if len(w.HeartRateData) > 0 {
 			hrRows := make([]models.WorkoutHRRow, len(w.HeartRateData))
 			for i, hr := range w.HeartRateData {
