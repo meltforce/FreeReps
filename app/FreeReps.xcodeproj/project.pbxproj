@@ -7,11 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		15A72D692F6873AD0027D27A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 15A72D682F6873AD0027D27A /* PrivacyInfo.xcprivacy */; };
 		AABB00000000000000020001 /* FreeRepsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010001 /* FreeRepsApp.swift */; };
 		AABB00000000000000020002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010002 /* ContentView.swift */; };
-		AABB00000000000000020040 /* FreeRepsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010040 /* FreeRepsConfig.swift */; };
-		AABB00000000000000020041 /* FreeRepsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010041 /* FreeRepsService.swift */; };
-		AABB00000000000000020042 /* FreeRepsPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010042 /* FreeRepsPayload.swift */; };
 		AABB00000000000000020004 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010004 /* SyncState.swift */; };
 		AABB00000000000000020005 /* HealthDataType.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010005 /* HealthDataType.swift */; };
 		AABB00000000000000020006 /* HealthRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010006 /* HealthRecord.swift */; };
@@ -37,9 +35,12 @@
 		AABB00000000000000020026 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010025 /* Assets.xcassets */; };
 		AABB00000000000000020027 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010026 /* Assets.xcassets */; };
 		AABB00000000000000020036 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010035 /* BackgroundSyncManager.swift */; };
+		AABB0000000000000002003D /* BrandFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003C /* BrandFooter.swift */; };
 		AABB0000000000000002003E /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003D /* AcknowledgementsView.swift */; };
 		AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003E /* SyncAdvancedView.swift */; };
-		AABB0000000000000002003D /* BrandFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003C /* BrandFooter.swift */; };
+		AABB00000000000000020040 /* FreeRepsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010040 /* FreeRepsConfig.swift */; };
+		AABB00000000000000020041 /* FreeRepsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010041 /* FreeRepsService.swift */; };
+		AABB00000000000000020042 /* FreeRepsPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010042 /* FreeRepsPayload.swift */; };
 		AABB00000000000000020043 /* ImportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010043 /* ImportState.swift */; };
 		AABB00000000000000020044 /* ImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010044 /* ImportResultView.swift */; };
 /* End PBXBuildFile section */
@@ -69,11 +70,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		15A72D682F6873AD0027D27A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Sources/FreeReps/Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AABB00000000000000010001 /* FreeRepsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsApp.swift; sourceTree = "<group>"; };
 		AABB00000000000000010002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		AABB00000000000000010040 /* FreeRepsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsConfig.swift; sourceTree = "<group>"; };
-		AABB00000000000000010041 /* FreeRepsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsService.swift; sourceTree = "<group>"; };
-		AABB00000000000000010042 /* FreeRepsPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsPayload.swift; sourceTree = "<group>"; };
 		AABB00000000000000010004 /* SyncState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncState.swift; sourceTree = "<group>"; };
 		AABB00000000000000010005 /* HealthDataType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataType.swift; sourceTree = "<group>"; };
 		AABB00000000000000010006 /* HealthRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthRecord.swift; sourceTree = "<group>"; };
@@ -90,10 +89,10 @@
 		AABB00000000000000010019 /* FreeReps.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeReps.entitlements; sourceTree = "<group>"; };
 		AABB0000000000000001001A /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		AABB0000000000000001001B /* BackgroundTasks.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = BackgroundTasks.framework; path = System/Library/Frameworks/BackgroundTasks.framework; sourceTree = SDKROOT; };
-		AABB0000000000000001001C /* FreeReps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FreeReps.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABB0000000000000001001C /* FreeReps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FreeReps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AABB0000000000000001001D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		AABB0000000000000001001E /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
-		AABB0000000000000001001F /* FreeRepsWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "FreeRepsWidgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABB0000000000000001001F /* FreeRepsWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FreeRepsWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AABB00000000000000010020 /* FreeRepsWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsWidgetsBundle.swift; sourceTree = "<group>"; };
 		AABB00000000000000010021 /* SyncLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLiveActivity.swift; sourceTree = "<group>"; };
 		AABB00000000000000010022 /* WidgetInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = WidgetInfo.plist; sourceTree = "<group>"; };
@@ -102,9 +101,12 @@
 		AABB00000000000000010025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB00000000000000010026 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AABB00000000000000010035 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
+		AABB0000000000000001003C /* BrandFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandFooter.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003D /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
 		AABB0000000000000001003E /* SyncAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAdvancedView.swift; sourceTree = "<group>"; };
-		AABB0000000000000001003C /* BrandFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandFooter.swift; sourceTree = "<group>"; };
+		AABB00000000000000010040 /* FreeRepsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsConfig.swift; sourceTree = "<group>"; };
+		AABB00000000000000010041 /* FreeRepsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsService.swift; sourceTree = "<group>"; };
+		AABB00000000000000010042 /* FreeRepsPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsPayload.swift; sourceTree = "<group>"; };
 		AABB00000000000000010043 /* ImportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportState.swift; sourceTree = "<group>"; };
 		AABB00000000000000010044 /* ImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportResultView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -135,6 +137,7 @@
 		AABB00000000000000030001 = {
 			isa = PBXGroup;
 			children = (
+				15A72D682F6873AD0027D27A /* PrivacyInfo.xcprivacy */,
 				AABB00000000000000030002 /* FreeReps */,
 				AABB0000000000000003000D /* FreeRepsWidgets */,
 				AABB0000000000000003000B /* Frameworks */,
@@ -202,14 +205,6 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		AABB0000000000000003000E /* Import */ = {
-			isa = PBXGroup;
-			children = (
-				AABB00000000000000010044 /* ImportResultView.swift */,
-			);
-			path = Import;
-			sourceTree = "<group>";
-		};
 		AABB00000000000000030007 /* Sync */ = {
 			isa = PBXGroup;
 			children = (
@@ -274,6 +269,14 @@
 			path = Sources/FreeRepsWidgets;
 			sourceTree = "<group>";
 		};
+		AABB0000000000000003000E /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				AABB00000000000000010044 /* ImportResultView.swift */,
+			);
+			path = Import;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -291,7 +294,7 @@
 			dependencies = (
 				AABB00000000000000070002 /* PBXTargetDependency */,
 			);
-			name = "FreeReps";
+			name = FreeReps;
 			productName = FreeReps;
 			productReference = AABB0000000000000001001C /* FreeReps.app */;
 			productType = "com.apple.product-type.application";
@@ -308,7 +311,7 @@
 			);
 			dependencies = (
 			);
-			name = "FreeRepsWidgets";
+			name = FreeRepsWidgets;
 			productName = FreeRepsWidgets;
 			productReference = AABB0000000000000001001F /* FreeRepsWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -355,6 +358,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				15A72D692F6873AD0027D27A /* PrivacyInfo.xcprivacy in Resources */,
 				AABB00000000000000020026 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -551,7 +555,7 @@
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeReps/Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "FreeReps";
+				INFOPLIST_KEY_CFBundleDisplayName = FreeReps;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -563,7 +567,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -577,7 +581,7 @@
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeReps/Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "FreeReps";
+				INFOPLIST_KEY_CFBundleDisplayName = FreeReps;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -589,7 +593,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -613,7 +617,7 @@
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -637,7 +641,7 @@
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

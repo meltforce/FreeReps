@@ -4,7 +4,7 @@ Manual tasks remaining for App Store + open-source release.
 
 ## Xcode Project
 
-- [ ] Add `PrivacyInfo.xcprivacy` to the Xcode target's "Copy Bundle Resources" build phase
+- [x] Add `PrivacyInfo.xcprivacy` to the Xcode target's "Copy Bundle Resources" build phase
 - [x] Build iOS app in Xcode — verify settings UI, test mode toggle, version links
 - [x] Add `ITSAppUsesNonExemptEncryption = NO` to Info.plist
 
