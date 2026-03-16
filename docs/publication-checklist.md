@@ -23,10 +23,10 @@ Manual tasks remaining for App Store + open-source release.
 
 ## Homepage
 
-- [ ] Copy app icon to `docs/assets/app-icon.png`
+- [x] Copy app icon to `docs/assets/app-icon.png`
 - [ ] Add iOS screenshots to `docs/screenshots/` (optional, for homepage)
-- [ ] Enable GitHub Pages from `docs/` on `main` branch in repo settings
-- [ ] Configure DNS CNAME for `freereps.meltforce.org`
+- [x] Enable GitHub Pages from `docs/` on `main` branch in repo settings
+- [x] Configure DNS CNAME for `freereps.meltforce.org`
 
 ## Releases
 

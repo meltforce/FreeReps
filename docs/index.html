@@ -56,6 +56,12 @@ a:hover { text-decoration: underline; }
   width: 100%; border-radius: 12px;
   border: 1px solid var(--card-border);
 }
+.screenshots-ios {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 200px));
+  justify-content: center;
+}
+.screenshots-ios img { border-radius: 24px; }
+.ios-section:has(.screenshots-ios:empty) { display: none; }
 
 /* Features */
 .features {
@@ -109,13 +115,20 @@ footer nav { display: flex; gap: 1.5rem; justify-content: center; margin-bottom:
   </div>
 </section>
 
-<h2 class="section-heading">Dashboard</h2>
+<h2 class="section-heading">Web Dashboard</h2>
 <p class="section-sub">Your health data, beautifully visualized.</p>
 <div class="screenshots">
   <img src="screenshots/dashboard.png" alt="Dashboard showing daily health metrics" loading="lazy">
   <img src="screenshots/sleep.png" alt="Sleep analysis with stage breakdown" loading="lazy">
   <img src="screenshots/metrics.png" alt="Metric explorer with time series charts" loading="lazy">
   <img src="screenshots/trends.png" alt="Long-term trend analysis" loading="lazy">
+</div>
+
+<div class="ios-section">
+<h2 class="section-heading">iOS Companion App</h2>
+<p class="section-sub">Sync HealthKit data directly to your server.</p>
+<div class="screenshots screenshots-ios">
+</div>
 </div>
 
 <h2 class="section-heading">Features</h2>

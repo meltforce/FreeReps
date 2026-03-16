@@ -40,13 +40,13 @@ code {
 <p>On your own server, in a PostgreSQL database with TimescaleDB. FreeReps never sends data to any third party.</p>
 
 <h2>What do I need to run FreeReps?</h2>
-<p>A server (Linux or macOS) with Docker, and an iPhone running the FreeReps app. A Tailscale account is recommended for secure, zero-config access.</p>
+<p>A server (Linux or macOS) with Docker, an iPhone running the FreeReps app, and a <a href="https://tailscale.com">Tailscale</a> account. Tailscale provides encrypted access and identity-based authentication &mdash; it's how FreeReps handles auth.</p>
 
 <h2>How do I install the server?</h2>
 <p>Run <code>docker compose up -d</code> with the provided <code>docker-compose.yml</code>. See the <a href="https://github.com/meltforce/freereps">GitHub README</a> for full setup instructions.</p>
 
 <h2>Does it work without Tailscale?</h2>
-<p>Yes. Set <code>tailscale.enabled: false</code> in your config and the server listens on plain HTTP. Tailscale is recommended for production use as it provides encrypted access and identity-based authentication.</p>
+<p>No. Tailscale is required &mdash; FreeReps uses it for authentication and encrypted access. There is no built-in username/password login. You can disable Tailscale for local development (<code>tailscale.enabled: false</code>), but this removes all authentication and should never be used in production.</p>
 
 <h2>What health data types are supported?</h2>
 <p>FreeReps supports 100+ HealthKit data types including heart rate, blood pressure, blood glucose, sleep, workouts with GPS routes, ECG recordings, audiograms, medications, and more.</p>
