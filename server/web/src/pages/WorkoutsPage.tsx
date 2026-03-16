@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { fetchWorkouts } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import WorkoutList from "../components/workouts/WorkoutList";
+import { getWorkoutFilterKey } from "../components/workouts/workoutNames";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 const STORAGE_KEY = "workouts-filters";
@@ -72,7 +73,7 @@ export default function WorkoutsPage() {
   });
 
   const filtered =
-    typeFilter && data ? data.filter((w) => w.Name === typeFilter) : (data ?? []);
+    typeFilter && data ? data.filter((w) => getWorkoutFilterKey(w) === typeFilter) : (data ?? []);
 
   if (isLoading) {
     return (

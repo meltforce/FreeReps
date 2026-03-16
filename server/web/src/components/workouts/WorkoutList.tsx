@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Workout } from "../../api";
+import { getWorkoutDisplayName, getWorkoutFilterKey } from "./workoutNames";
 
 const PAGE_SIZE = 10;
 
@@ -25,7 +26,7 @@ export default function WorkoutList({
   }, [typeFilter, workouts.length]);
 
   // Collect unique workout types from the full dataset so pills remain visible when filtered
-  const types = [...new Set(allWorkouts.map((w) => w.Name))].sort();
+  const types = [...new Set(allWorkouts.map((w) => getWorkoutFilterKey(w)))].sort();
 
   const totalPages = Math.ceil(workouts.length / PAGE_SIZE);
   const pageStart = page * PAGE_SIZE;
@@ -139,7 +140,7 @@ function WorkoutListView({ workouts }: { workouts: Workout[] }) {
                 })}
               </span>
               <span className="text-zinc-100 font-medium min-w-0 truncate flex-1">
-                {w.Name}
+                {getWorkoutDisplayName(w)}
               </span>
               <span className="text-zinc-400 tabular-nums shrink-0">
                 {formatDuration(w.DurationSec)}
