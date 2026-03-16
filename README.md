@@ -124,7 +124,7 @@ cp config.example.yaml config.yaml
 # Set tailscale.enabled: false in config.yaml for local dev
 
 docker compose up -d db
-docker compose run --rm -e FREEREPS_DEMO=true freereps
+docker compose run --rm -e FREEREPS_DEMO=true app
 ```
 
 #### From source
