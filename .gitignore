@@ -66,6 +66,8 @@ xcuserdata/
 app/LICENSE.md
 DerivedData/
 .build/
+.swiftpm/
+app/.swiftpm/
 Pods/
 *.ipa
 *.dSYM.zip

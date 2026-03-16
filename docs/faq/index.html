@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ - FreeReps</title>
+<style>
+:root {
+  --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #e5e5e5; --accent: #0071e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111; --fg: #e5e5e5; --muted: #999; --border: #333; --accent: #5ac8fa; }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: var(--bg); color: var(--fg); line-height: 1.6;
+  max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem;
+}
+h1 { font-size: 2rem; font-weight: 700; margin-bottom: 2rem; }
+h2 { font-size: 1.125rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.25rem; }
+p { margin-bottom: 1rem; color: var(--muted); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: 'SF Mono', Menlo, monospace; font-size: 0.875em;
+  background: var(--border); padding: 0.15em 0.4em; border-radius: 4px;
+}
+.back { display: inline-block; margin-bottom: 2rem; font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a href="/" class="back">&larr; Back to FreeReps</a>
+<h1>FAQ</h1>
+
+<h2>What is FreeReps?</h2>
+<p>FreeReps is a self-hosted server that stores and visualizes your Apple Health data. It includes a web dashboard, a correlation explorer, and an MCP interface for AI assistants.</p>
+
+<h2>Where is my data stored?</h2>
+<p>On your own server, in a PostgreSQL database with TimescaleDB. FreeReps never sends data to any third party.</p>
+
+<h2>What do I need to run FreeReps?</h2>
+<p>A server (Linux or macOS) with Docker, and an iPhone running the FreeReps app. A Tailscale account is recommended for secure, zero-config access.</p>
+
+<h2>How do I install the server?</h2>
+<p>Run <code>docker compose up -d</code> with the provided <code>docker-compose.yml</code>. See the <a href="https://github.com/meltforce/freereps">GitHub README</a> for full setup instructions.</p>
+
+<h2>Does it work without Tailscale?</h2>
+<p>Yes. Set <code>tailscale.enabled: false</code> in your config and the server listens on plain HTTP. Tailscale is recommended for production use as it provides encrypted access and identity-based authentication.</p>
+
+<h2>What health data types are supported?</h2>
+<p>FreeReps supports 100+ HealthKit data types including heart rate, blood pressure, blood glucose, sleep, workouts with GPS routes, ECG recordings, audiograms, medications, and more.</p>
+
+<h2>What is MCP?</h2>
+<p>Model Context Protocol (MCP) lets AI assistants like Claude query your health data directly. FreeReps exposes your data as MCP tools and resources over both stdio and SSE transports.</p>
+
+<h2>Is it open source?</h2>
+<p>Yes. FreeReps is open source under the MIT license. Contributions are welcome on <a href="https://github.com/meltforce/freereps">GitHub</a>.</p>
+
+<h2>I found a bug / have a feature request</h2>
+<p>Please open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
+</body>
+</html>

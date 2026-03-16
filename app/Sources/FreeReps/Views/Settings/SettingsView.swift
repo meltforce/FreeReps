@@ -18,7 +18,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("FreeReps Connection")
                                     .font(.subheadline.weight(.semibold))
-                                Text(verbatim: "\(vm.config.host):\(vm.config.port)")
+                                Text(verbatim: vm.config.host)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
@@ -90,7 +90,28 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
-                    LabeledContent("Version", value: appVersion)
+                    Link(destination: URL(string: "https://github.com/meltforce/FreeReps/releases/tag/\(appVersion)")!) {
+                        LabeledContent("App Version") {
+                            HStack(spacing: 4) {
+                                Text(appVersion)
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let serverVersion = vm.serverVersion {
+                        Link(destination: URL(string: "https://github.com/meltforce/FreeReps/releases/tag/\(serverVersion)")!) {
+                            LabeledContent("Server Version") {
+                                HStack(spacing: 4) {
+                                    Text(serverVersion)
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     LabeledContent("HealthKit Types", value: "\(HealthDataTypes.allQuantityTypes.count + HealthDataTypes.allCategoryTypes.count)")
                     NavigationLink {
                         AcknowledgementsView()
@@ -106,6 +127,19 @@ struct SettingsView: View {
                 BrandFooter()
             }
             .navigationTitle("Settings")
+            .safeAreaInset(edge: .top) {
+                if vm.config.testMode {
+                    HStack {
+                        Image(systemName: "wrench.and.screwdriver")
+                        Text("Test Mode — \(vm.config.testHost)")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.orange.opacity(0.2))
+                    .foregroundStyle(.orange)
+                }
+            }
             .onAppear { vm.refreshPermissionsState() }
             .onChange(of: vm.config) { vm.saveConfig() }
         }

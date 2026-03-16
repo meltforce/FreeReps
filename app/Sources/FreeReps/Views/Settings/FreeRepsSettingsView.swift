@@ -15,14 +15,7 @@ struct FreeRepsSettingsView: View {
             } header: {
                 Text("Connection")
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Your device must be on the same Tailnet as the server for authentication.")
-                    if let warning = vm.tailnetWarning {
-                        Label(warning, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                }
+                Text("Your device must be on the same Tailnet as the server for authentication.")
             }
 
             Section {
@@ -77,8 +70,6 @@ struct FreeRepsSettingsView: View {
             }
         }
         .navigationTitle("FreeReps Settings")
-        .onAppear { vm.validateTailnet() }
-        .onChange(of: vm.config.host) { vm.validateTailnet() }
         .onChange(of: vm.config) { vm.saveConfig() }
     }
 

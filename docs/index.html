@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeReps - Self-Hosted Apple Health Data Server</title>
+<meta name="description" content="Self-hosted server for Apple Health data with web dashboard, correlation explorer, and MCP interface for AI assistants.">
+<style>
+:root {
+  --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #e5e5e5;
+  --accent: #0071e3; --card-bg: #fff; --card-border: #e5e5e5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0a0a; --fg: #e5e5e5; --muted: #999; --border: #222;
+    --accent: #5ac8fa; --card-bg: #161616; --card-border: #2a2a2a;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: var(--bg); color: var(--fg); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Hero */
+.hero {
+  text-align: center; padding: 5rem 1.5rem 3rem;
+  max-width: 720px; margin: 0 auto;
+}
+.hero-icon {
+  width: 96px; height: 96px; border-radius: 22px;
+  margin-bottom: 1.5rem;
+}
+.hero h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+.hero .tagline { font-size: 1.25rem; color: var(--muted); max-width: 480px; margin: 0 auto 2rem; }
+.badges { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+  background: var(--accent); color: #fff; transition: opacity 0.15s;
+}
+.badge:hover { opacity: 0.85; text-decoration: none; }
+.badge-gh { background: var(--card-bg); color: var(--fg); border: 1px solid var(--card-border); }
+.badge-gh:hover { background: var(--border); }
+.badge svg { width: 20px; height: 20px; }
+
+/* Screenshots */
+.screenshots {
+  max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;
+}
+.screenshots img {
+  width: 100%; border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+
+/* Features */
+.features {
+  max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;
+}
+.feature {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 12px; padding: 1.5rem;
+}
+.feature-icon { font-size: 1.75rem; margin-bottom: 0.5rem; }
+.feature h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+.feature p { font-size: 0.875rem; color: var(--muted); }
+
+/* Section headings */
+.section-heading {
+  text-align: center; font-size: 1.75rem; font-weight: 700;
+  margin-bottom: 0.5rem; padding-top: 2rem;
+}
+.section-sub {
+  text-align: center; color: var(--muted); margin-bottom: 2rem; font-size: 1rem;
+}
+
+/* Footer */
+footer {
+  text-align: center; padding: 3rem 1.5rem; color: var(--muted);
+  font-size: 0.8rem; border-top: 1px solid var(--border);
+}
+footer a { color: var(--muted); }
+footer a:hover { color: var(--fg); }
+footer nav { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 0.75rem; }
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 1.75rem; }
+  .hero .tagline { font-size: 1rem; }
+  .hero { padding: 3rem 1rem 2rem; }
+}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <img src="assets/app-icon.png" alt="FreeReps icon" class="hero-icon" onerror="this.style.display='none'">
+  <h1>FreeReps</h1>
+  <p class="tagline">Self-hosted Apple Health data server with web dashboard, correlations, and MCP for AI.</p>
+  <div class="badges">
+    <a href="https://github.com/meltforce/freereps" class="badge badge-gh">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</section>
+
+<h2 class="section-heading">Dashboard</h2>
+<p class="section-sub">Your health data, beautifully visualized.</p>
+<div class="screenshots">
+  <img src="screenshots/dashboard.png" alt="Dashboard showing daily health metrics" loading="lazy">
+  <img src="screenshots/sleep.png" alt="Sleep analysis with stage breakdown" loading="lazy">
+  <img src="screenshots/metrics.png" alt="Metric explorer with time series charts" loading="lazy">
+  <img src="screenshots/trends.png" alt="Long-term trend analysis" loading="lazy">
+</div>
+
+<h2 class="section-heading">Features</h2>
+<p class="section-sub">Everything you need, nothing you don't.</p>
+<div class="features">
+  <div class="feature">
+    <div class="feature-icon">&#x1f3e0;</div>
+    <h3>Self-Hosted</h3>
+    <p>Run on your own hardware. Docker Compose gets you running in minutes. Your data never leaves your network.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">&#x2764;&#xfe0f;</div>
+    <h3>HealthKit Sync</h3>
+    <p>The iOS companion app syncs 100+ data types from Apple Health &mdash; heart rate, sleep, workouts with GPS, ECG, and more.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">&#x1f4ca;</div>
+    <h3>Correlation Explorer</h3>
+    <p>Discover relationships between any two health metrics. See Pearson correlations with interactive scatter plots.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">&#x1f916;</div>
+    <h3>MCP for AI</h3>
+    <p>Query your health data from Claude or any MCP-compatible assistant. 11 tools and 3 resources over stdio and SSE.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">&#x1f512;</div>
+    <h3>Tailscale Auth</h3>
+    <p>Zero-config TLS and identity-based access via Tailscale. No passwords, no exposed ports.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">&#x1f4bb;</div>
+    <h3>Open Source</h3>
+    <p>MIT licensed. Go backend, React frontend, Swift iOS app. Single binary with embedded web UI.</p>
+  </div>
+</div>
+
+<footer>
+  <nav>
+    <a href="/privacy/">Privacy Policy</a>
+    <a href="/faq/">FAQ</a>
+    <a href="https://github.com/meltforce/freereps">GitHub</a>
+    <a href="https://github.com/meltforce/freereps/issues">Support</a>
+  </nav>
+  <p>Meltforce</p>
+</footer>
+
+</body>
+</html>

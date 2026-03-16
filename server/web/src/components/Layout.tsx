@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { fetchMe, type UserInfo } from "../api";
+import { fetchMe, fetchVersion, type UserInfo } from "../api";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
@@ -13,9 +13,11 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMe().then(setUser).catch(() => {});
+    fetchVersion().then((v) => setVersion(v.version)).catch(() => {});
   }, []);
 
   return (
@@ -26,7 +28,16 @@ export default function Layout({ children }: { children: ReactNode }) {
             <h1 className="text-xl font-bold text-zinc-100 tracking-tight">
               FreeReps
             </h1>
-            <span className="text-xs text-zinc-500 font-mono">v0.2</span>
+            {version && version !== "dev" && !version.startsWith("edge-") && (
+              <a
+                href={`https://github.com/meltforce/FreeReps/releases/tag/${version}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-zinc-500 font-mono hover:text-zinc-300 transition-colors"
+              >
+                v{version}
+              </a>
+            )}
           </NavLink>
 
           <nav className="ml-6 flex gap-1 overflow-x-auto scrollbar-none">

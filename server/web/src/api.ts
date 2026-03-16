@@ -1,5 +1,17 @@
 const BASE = "/api/v1";
 
+// --- Version ---
+
+export interface VersionInfo {
+  version: string;
+}
+
+export async function fetchVersion(): Promise<VersionInfo> {
+  const res = await fetch(`${BASE}/version`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
 // --- User Identity ---
 
 export interface UserInfo {
