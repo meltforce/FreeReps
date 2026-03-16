@@ -64,27 +64,40 @@ func (db *DB) InsertWorkoutRoutes(ctx context.Context, rows []models.WorkoutRout
 		return 0, nil
 	}
 
-	query := `INSERT INTO workout_routes (time, workout_id, user_id, latitude, longitude, altitude, speed, course, horizontal_accuracy, vertical_accuracy) VALUES `
-	args := make([]any, 0, len(rows)*10)
-	valueStrings := make([]string, 0, len(rows))
+	// 10 params per row; PostgreSQL extended protocol limited to 65535 params.
+	const batchSize = 6000
+	var total int64
 
-	for i, r := range rows {
-		base := i * 10
-		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
-		))
-		args = append(args, r.Time, r.WorkoutID, r.UserID, r.Latitude, r.Longitude,
-			r.Altitude, r.Speed, r.Course, r.HorizontalAccuracy, r.VerticalAccuracy)
+	for start := 0; start < len(rows); start += batchSize {
+		end := start + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		batch := rows[start:end]
+
+		query := `INSERT INTO workout_routes (time, workout_id, user_id, latitude, longitude, altitude, speed, course, horizontal_accuracy, vertical_accuracy) VALUES `
+		args := make([]any, 0, len(batch)*10)
+		valueStrings := make([]string, 0, len(batch))
+
+		for i, r := range batch {
+			base := i * 10
+			valueStrings = append(valueStrings, fmt.Sprintf(
+				"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+				base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
+			))
+			args = append(args, r.Time, r.WorkoutID, r.UserID, r.Latitude, r.Longitude,
+				r.Altitude, r.Speed, r.Course, r.HorizontalAccuracy, r.VerticalAccuracy)
+		}
+
+		query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"
+
+		tag, err := db.Pool.Exec(ctx, query, args...)
+		if err != nil {
+			return total, fmt.Errorf("inserting workout routes: %w", err)
+		}
+		total += tag.RowsAffected()
 	}
-
-	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"
-
-	tag, err := db.Pool.Exec(ctx, query, args...)
-	if err != nil {
-		return 0, fmt.Errorf("inserting workout routes: %w", err)
-	}
-	return tag.RowsAffected(), nil
+	return total, nil
 }
 
 // WorkoutDetail is a workout with its HR and route data.
