@@ -80,8 +80,8 @@ func main() {
 		log.Warn("sleep session backfill failed", "error", err)
 	}
 
-	// Seed demo data if requested
-	if *demoMode {
+	// Seed demo data if requested (via -demo flag or FREEREPS_DEMO=true env var)
+	if *demoMode || os.Getenv("FREEREPS_DEMO") == "true" {
 		if err := demo.Seed(ctx, db, log); err != nil {
 			log.Error("demo seed failed", "error", err)
 			os.Exit(1)

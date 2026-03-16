@@ -116,20 +116,30 @@ docker compose up -d
 
 Run a FreeReps server with demo data (e.g., for App Store review or sync testing):
 
+#### Using Docker (recommended)
+
 ```bash
 cd FreeReps/server
 cp config.example.yaml config.yaml
 # Set tailscale.enabled: false in config.yaml for local dev
 
-# Start the database
 docker compose up -d db
+docker compose run --rm -e FREEREPS_DEMO=true freereps
+```
 
-# Build and run with demo data
+#### From source
+
+```bash
+cd FreeReps/server
+cp config.example.yaml config.yaml
+# Set tailscale.enabled: false in config.yaml for local dev
+
+docker compose up -d db
 cd web && npm ci && npm run build && cd ..
 go run ./cmd/freereps -config config.yaml -demo
 ```
 
-This seeds the database with 90 days of realistic health data including heart rate, sleep, workouts, and activity rings. The data is deterministic and idempotent — restarting with `-demo` won't create duplicates.
+This seeds the database with 90 days of realistic health data including heart rate, sleep, workouts, and activity rings. The data is deterministic and idempotent — restarting with `-demo` or `FREEREPS_DEMO=true` won't create duplicates.
 
 The server will be available at `http://localhost:8080`. To tear down:
 
