@@ -5,26 +5,36 @@ Manual tasks remaining for App Store + open-source release.
 ## Xcode Project
 
 - [ ] Add `PrivacyInfo.xcprivacy` to the Xcode target's "Copy Bundle Resources" build phase
-- [ ] Build iOS app in Xcode — verify settings UI, test mode toggle, version links
+- [x] Build iOS app in Xcode — verify settings UI, test mode toggle, version links
+- [x] Add `ITSAppUsesNonExemptEncryption = NO` to Info.plist
 
 ## App Store Submission
 
-- [ ] Take screenshots on device (iPhone 6.7" and 6.1" required)
-- [ ] Write app description and keywords in App Store Connect
-- [ ] Set category to Health & Fitness
-- [ ] Set Support URL to `https://github.com/meltforce/freereps/issues`
-- [ ] Set Privacy Policy URL to `https://freereps.meltforce.org/privacy/`
-- [ ] Archive + upload via Xcode
+- [x] Take screenshots on device (iPhone 6.5" framed, resized to 1284×2778)
+- [x] Write app description and keywords in App Store Connect
+- [x] Set category to Health & Fitness
+- [x] Set subtitle to "HealthKit Sync to Your Server"
+- [x] Set Support URL to `https://github.com/meltforce/freereps/issues`
+- [x] Set Marketing URL to `https://freereps.meltforce.org`
+- [x] Set Privacy Policy URL to `https://freereps.meltforce.org/privacy/`
+- [x] Set age rating (4+, all None)
+- [x] Set App Privacy (Data Not Collected)
+- [x] Archive + upload via Xcode
 
 ## App Store Review
 
-- [ ] Spin up a temporary public-facing test server (no Tailscale) with demo data
-- [ ] Document the test server host + "enable Test Mode" instructions in review notes
+- [x] Spin up a temporary public-facing test server (no Tailscale) with demo data — `https://freereps-test.meltforce.net/`
+- [x] Document the test server host + "enable Test Mode" instructions in review notes
+- [x] Disable "Sign-in required" in App Review Information
+- [ ] Select build in App Store Connect
+- [ ] Click "Add for Review"
+- [ ] Submit for review
 
 ## Homepage
 
 - [x] Copy app icon to `docs/assets/app-icon.png`
-- [ ] Add iOS screenshots to `docs/screenshots/` (optional, for homepage)
+- [x] Add iOS screenshots to `docs/screenshots/` (optional, for homepage)
+- [x] Add lightbox to homepage for zoomable screenshots
 - [x] Enable GitHub Pages from `docs/` on `main` branch in repo settings
 - [x] Configure DNS CNAME for `freereps.meltforce.org`
 
