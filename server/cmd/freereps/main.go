@@ -15,6 +15,7 @@ import (
 
 	freereps "github.com/claude/freereps"
 	"github.com/claude/freereps/internal/config"
+	"github.com/claude/freereps/internal/demo"
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
@@ -31,6 +32,7 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	migrateOnly := flag.Bool("migrate-only", false, "run migrations and exit")
 	mcpMode := flag.Bool("mcp", false, "run as MCP server over stdio (for Claude Code integration)")
+	demoMode := flag.Bool("demo", false, "seed database with demo data for testing")
 	flag.Parse()
 
 	// In MCP stdio mode, logs go to stderr to keep stdout clean for JSON-RPC.
@@ -78,6 +80,14 @@ func main() {
 		log.Warn("sleep session backfill failed", "error", err)
 	}
 
+	// Seed demo data if requested
+	if *demoMode {
+		if err := demo.Seed(ctx, db, log); err != nil {
+			log.Error("demo seed failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	// MCP stdio mode: serve MCP protocol over stdin/stdout, then exit
 	if *mcpMode {
 		log.Info("starting MCP stdio server")
@@ -98,6 +108,7 @@ func main() {
 	alphaProvider := alpha.NewProvider(db, log)
 
 	// Create server
+	server.Version = Version
 	srv := server.New(db, healthProvider, alphaProvider, log)
 
 	// Mount MCP SSE server

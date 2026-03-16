@@ -9,13 +9,13 @@ struct SyncAdvancedView: View {
         List {
             Section {
                 Picker(selection: Binding(
-                    get: { vm.config.backfillYears ?? 0 },
-                    set: { vm.config.backfillYears = $0 == 0 ? nil : $0 }
+                    get: { vm.config.backfillMonths ?? 0 },
+                    set: { vm.config.backfillMonths = $0 == 0 ? nil : $0 }
                 )) {
-                    Text("1 Year").tag(1)
-                    Text("2 Years").tag(2)
-                    Text("5 Years").tag(5)
-                    Text("10 Years").tag(10)
+                    Text("1 Month").tag(1)
+                    Text("6 Months").tag(6)
+                    Text("1 Year").tag(12)
+                    Text("2 Years").tag(24)
                     Text("All Data").tag(0)
                 } label: {
                     Text("Initial Backfill")

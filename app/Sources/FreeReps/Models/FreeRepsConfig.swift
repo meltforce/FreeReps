@@ -4,27 +4,82 @@ struct FreeRepsConfig: Codable, Equatable {
     var host: String
     var port: UInt16
     var useHTTPS: Bool = true
-    /// Max years of HealthKit history to backfill. nil = all data (back to 2000).
-    var backfillYears: Int? = 2
+    var testMode: Bool = false
+    /// Max months of HealthKit history to backfill. nil = all data (back to 2000).
+    /// Legacy: `backfillYears` is decoded and converted to months for backward compatibility.
+    var backfillMonths: Int? = 24
+
+    /// Backward-compatible computed property. Setting this updates backfillMonths.
+    var backfillYears: Int? {
+        get { backfillMonths.map { $0 / 12 } }
+        set { backfillMonths = newValue.map { $0 * 12 } }
+    }
+
+    init(host: String, port: UInt16, useHTTPS: Bool = true, testMode: Bool = false, backfillMonths: Int? = 24) {
+        self.host = host
+        self.port = port
+        self.useHTTPS = useHTTPS
+        self.testMode = testMode
+        self.backfillMonths = backfillMonths
+    }
 
     static let `default` = FreeRepsConfig(
-        host: "freereps.leo-royal.ts.net",
+        host: "freereps.your-tailnet.ts.net",
         port: 443,
         useHTTPS: true,
-        backfillYears: 2
+        testMode: false,
+        backfillMonths: 24
     )
 
     var baseURL: URL {
-        let scheme = useHTTPS ? "https" : "http"
-        return URL(string: "\(scheme)://\(host):\(port)")!
+        let scheme: String
+        let effectivePort: UInt16
+        if testMode {
+            scheme = "http"
+            effectivePort = 8080
+        } else {
+            scheme = useHTTPS ? "https" : "http"
+            effectivePort = port
+        }
+        return URL(string: "\(scheme)://\(host):\(effectivePort)")!
     }
 
-    /// Earliest date to backfill from, based on `backfillYears`.
+    /// Earliest date to backfill from, based on `backfillMonths`.
     var backfillStartDate: Date {
-        if let years = backfillYears {
-            return Calendar.current.date(byAdding: .year, value: -years, to: Date()) ?? Date()
+        if let months = backfillMonths {
+            return Calendar.current.date(byAdding: .month, value: -months, to: Date()) ?? Date()
         }
         return Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case host, port, useHTTPS, testMode, backfillMonths, backfillYears
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        host = try c.decode(String.self, forKey: .host)
+        port = try c.decode(UInt16.self, forKey: .port)
+        useHTTPS = try c.decodeIfPresent(Bool.self, forKey: .useHTTPS) ?? true
+        testMode = try c.decodeIfPresent(Bool.self, forKey: .testMode) ?? false
+
+        // Migrate: prefer backfillMonths, fall back to backfillYears * 12
+        if let months = try c.decodeIfPresent(Int.self, forKey: .backfillMonths) {
+            backfillMonths = months
+        } else if let years = try c.decodeIfPresent(Int.self, forKey: .backfillYears) {
+            backfillMonths = years * 12
+        } else {
+            backfillMonths = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(host, forKey: .host)
+        try c.encode(port, forKey: .port)
+        try c.encode(useHTTPS, forKey: .useHTTPS)
+        try c.encode(testMode, forKey: .testMode)
+        try c.encode(backfillMonths, forKey: .backfillMonths)
     }
 
     private static let userDefaultsKey = "freerepsConfig_v1"
