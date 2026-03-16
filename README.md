@@ -114,19 +114,28 @@ docker compose up -d
 
 ### Test Server (Demo Mode)
 
-To run a FreeReps server with demo data (e.g., for App Store review or testing):
+Run a FreeReps server with demo data (e.g., for App Store review or sync testing):
 
 ```bash
-freereps --demo -config config.yaml
+cd FreeReps/server
+cp config.example.yaml config.yaml
+# Set tailscale.enabled: false in config.yaml for local dev
+
+# Start the database
+docker compose up -d db
+
+# Build and run with demo data
+cd web && npm ci && npm run build && cd ..
+go run ./cmd/freereps -config config.yaml -demo
 ```
 
-Or with Docker Compose, add `--demo` to the command in `docker-compose.yml`:
+This seeds the database with 90 days of realistic health data including heart rate, sleep, workouts, and activity rings. The data is deterministic and idempotent — restarting with `-demo` won't create duplicates.
+
+The server will be available at `http://localhost:8080`. To tear down:
 
 ```bash
-docker run -p 8080:8080 meltforce/freereps --demo
+docker compose down -v
 ```
-
-This seeds the database with 90 days of realistic health data including heart rate, sleep, workouts, and activity rings. The data is deterministic and idempotent — restarting with `--demo` won't create duplicates.
 
 ### iOS App
 
