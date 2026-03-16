@@ -13,6 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"version": Version})
+}
+
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	info := userInfoFromContext(r)
 	writeJSON(w, http.StatusOK, info)

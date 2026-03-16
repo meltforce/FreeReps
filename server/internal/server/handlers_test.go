@@ -8,6 +8,32 @@ import (
 	"testing"
 )
 
+// TestHandleVersion verifies the /api/v1/version endpoint returns the
+// server version as a public (no-auth) JSON response.
+func TestHandleVersion(t *testing.T) {
+	origVersion := Version
+	Version = "1.2.3"
+	defer func() { Version = origVersion }()
+
+	s := &Server{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	rec := httptest.NewRecorder()
+
+	s.handleVersion(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp["version"] != "1.2.3" {
+		t.Errorf("version = %q, want %q", resp["version"], "1.2.3")
+	}
+}
+
 // TestHandleMeDefault verifies the /api/v1/me endpoint returns the dev user
 // identity when no Tailscale middleware is active.
 func TestHandleMeDefault(t *testing.T) {

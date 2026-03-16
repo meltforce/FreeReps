@@ -31,6 +31,9 @@ type Server struct {
 	activeImport *haeImportState
 }
 
+// Version is set by main to make it available to handlers.
+var Version = "dev"
+
 // New creates a new Server with all routes configured.
 func New(db *storage.DB, healthProvider *health.Provider, alphaProvider *alpha.Provider, log *slog.Logger) *Server {
 	s := &Server{
@@ -90,6 +93,9 @@ func (s *Server) identityMiddleware() func(http.Handler) http.Handler {
 func (s *Server) routes() {
 	s.router.Use(RequestLogging(s.log))
 	s.router.Use(CORS)
+
+	// Public endpoint — no auth required.
+	s.router.Get("/api/v1/version", s.handleVersion)
 
 	// All routes require identity (Tailscale or dev fallback).
 	s.router.Group(func(r chi.Router) {
