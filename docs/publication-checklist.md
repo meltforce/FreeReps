@@ -40,9 +40,9 @@ Manual tasks remaining for App Store + open-source release.
 
 ## Releases
 
-- [ ] Tag server release: `git tag v1.0.0 && git push origin v1.0.0`
-- [ ] Tag app release: `git tag app/v1.0.0 && git push origin app/v1.0.0`
-- [ ] Verify `release.yml` builds Docker image `meltforce/freereps:1.0.0` + `latest`
+- [x] Tag server release: `git tag v1.0.0 && git push origin v1.0.0`
+- [x] Tag app release: `git tag app/v1.0.0 && git push origin app/v1.0.0`
+- [x] Verify `release.yml` builds Docker image `meltforce/freereps:1.0.0` + `latest`
 
 ## Post-Review
 
