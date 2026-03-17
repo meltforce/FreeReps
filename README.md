@@ -20,6 +20,10 @@ The FreeReps iOS companion app is based on [HealthBeat](https://github.com/kempu
 |:-:|:-:|
 | ![Metrics](docs/screenshots/metrics.png) | ![Trends](docs/screenshots/trends.png) |
 
+| MCP |
+|:-:|
+| ![Claude MCP](docs/screenshots/claude-mcp.png) |
+
 ## Why FreeReps?
 
 Apple Health collects extensive data but offers no way to relate metrics to each other, no API for external analysis, and no export into a queryable system you own.
@@ -233,6 +237,7 @@ Upload via the dashboard, the iOS companion app (share sheet / file picker), or 
 ## MCP Server
 
 FreeReps exposes health data to Claude (and other LLMs) via the Model Context Protocol.
+
 
 **Tools:** `get_health_metrics`, `get_workouts`, `get_sleep_data`, `get_metric_stats`, `get_correlation`, `compare_periods`, `list_available_metrics`, `get_workout_sets`
 
