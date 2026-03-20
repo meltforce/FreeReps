@@ -4,6 +4,8 @@
 
 A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
 
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
+
 **Monorepo:** `server/` contains the Go backend + React frontend. `app/` contains the iOS companion app that syncs HealthKit data directly to the server.
 
 ## Acknowledgements
@@ -23,6 +25,10 @@ The FreeReps iOS companion app is based on [HealthBeat](https://github.com/kempu
 | MCP |
 |:-:|
 | ![Claude MCP](docs/screenshots/claude-mcp.png) |
+
+| iOS App | | | |
+|:-:|:-:|:-:|:-:|
+| ![Main](docs/screenshots/ios/framed-main.png) | ![Sync](docs/screenshots/ios/framed-sync.png) | ![Settings](docs/screenshots/ios/framed-settings.png) | ![Permissions](docs/screenshots/ios/framed-permissions.png) |
 
 ## Why FreeReps?
 
@@ -69,8 +75,6 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 | Deployment | Docker Compose |
 
 ## iOS Companion App
-
-[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
 
 The FreeReps companion app syncs Apple HealthKit data directly to the server over HTTP. No intermediate cloud services, no third-party dependencies — just HealthKit to your server.
 
