@@ -70,6 +70,8 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 
 ## iOS Companion App
 
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
+
 The FreeReps companion app syncs Apple HealthKit data directly to the server over HTTP. No intermediate cloud services, no third-party dependencies — just HealthKit to your server.
 
 ### What it syncs
