@@ -2,11 +2,9 @@
 
 **F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
 
-A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs.
+A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs. The iOS companion app syncs HealthKit data directly to your server.
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
-
-**Monorepo:** `server/` contains the Go backend + React frontend. `app/` contains the iOS companion app that syncs HealthKit data directly to the server.
 
 ## Acknowledgements
 
