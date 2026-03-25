@@ -113,19 +113,17 @@ func main() {
 	server.Version = Version
 	srv := server.New(db, healthProvider, alphaProvider, log)
 
-	// Start Oura sync if enabled
-	if cfg.Oura.Enabled {
-		ouraClient := oura.NewClient()
-		tokenMgr := oura.NewTokenManager(cfg.Oura.ClientID, cfg.Oura.ClientSecret, db)
-		syncer := oura.NewSyncer(ouraClient, tokenMgr, db, cfg.Oura, log)
+	// Start Oura sync (always runs; no-ops if no users have Oura tokens)
+	ouraClient := oura.NewClient()
+	tokenMgr := oura.NewTokenManager(db)
+	ouraSyncer := oura.NewSyncer(ouraClient, tokenMgr, db, cfg.Oura, log)
 
-		syncCtx, syncCancel := context.WithCancel(ctx)
-		defer syncCancel()
-		go syncer.Run(syncCtx)
+	syncCtx, syncCancel := context.WithCancel(ctx)
+	defer syncCancel()
+	go ouraSyncer.Run(syncCtx)
 
-		srv.SetOura(tokenMgr, syncer)
-		log.Info("oura sync started", "interval", cfg.Oura.SyncInterval)
-	}
+	srv.SetOura(tokenMgr, ouraSyncer)
+	log.Info("oura sync started", "interval", cfg.Oura.SyncInterval)
 
 	// Mount MCP SSE server
 	mcpSrv := freerepsmcp.New(db, Version, log)

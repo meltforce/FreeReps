@@ -212,14 +212,11 @@ func TestLoadMissingFile(t *testing.T) {
 }
 
 // TestOuraDefaults verifies that Oura config gets sensible defaults when not
-// specified in YAML, so the feature is disabled but ready to configure.
+// specified in YAML (sync_interval and backfill_days are server-wide settings).
 func TestOuraDefaults(t *testing.T) {
 	cfg, err := Load(writeTemp(t, validYAML))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.Oura.Enabled {
-		t.Error("oura.enabled should default to false")
 	}
 	if cfg.Oura.SyncInterval != 30*60*1e9 { // 30 minutes
 		t.Errorf("oura.sync_interval = %v, want 30m", cfg.Oura.SyncInterval)
@@ -247,10 +244,8 @@ func TestSourcePriorityDefault(t *testing.T) {
 	}
 }
 
-// TestOuraValidationRequiresCredentials verifies that enabling Oura without
-// providing client_id and client_secret fails validation, preventing a misconfigured
-// server from starting.
-func TestOuraValidationRequiresCredentials(t *testing.T) {
+// TestOuraCustomSyncInterval verifies that a custom sync_interval is parsed correctly.
+func TestOuraCustomSyncInterval(t *testing.T) {
 	yaml := `
 server:
   port: 8080
@@ -262,32 +257,17 @@ database:
 tailscale:
   enabled: false
 oura:
-  enabled: true
+  sync_interval: "15m"
+  backfill_days: 30
 `
-	_, err := Load(writeTemp(t, yaml))
-	if err == nil {
-		t.Fatal("expected validation error for missing oura credentials")
-	}
-}
-
-// TestOuraEnvOverride verifies that FREEREPS_OURA_CLIENT_ID env var takes
-// precedence over the YAML value, allowing secrets to be injected at runtime.
-func TestOuraEnvOverride(t *testing.T) {
-	t.Setenv("FREEREPS_OURA_CLIENT_ID", "env-client-id")
-	t.Setenv("FREEREPS_OURA_CLIENT_SECRET", "env-secret")
-	t.Setenv("FREEREPS_OURA_ENABLED", "true")
-
-	cfg, err := Load(writeTemp(t, validYAML))
+	cfg, err := Load(writeTemp(t, yaml))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Oura.ClientID != "env-client-id" {
-		t.Errorf("oura.client_id = %q, want %q", cfg.Oura.ClientID, "env-client-id")
+	if cfg.Oura.SyncInterval != 15*60*1e9 {
+		t.Errorf("oura.sync_interval = %v, want 15m", cfg.Oura.SyncInterval)
 	}
-	if cfg.Oura.ClientSecret != "env-secret" {
-		t.Errorf("oura.client_secret = %q, want %q", cfg.Oura.ClientSecret, "env-secret")
-	}
-	if !cfg.Oura.Enabled {
-		t.Error("oura.enabled should be true after env override")
+	if cfg.Oura.BackfillDays != 30 {
+		t.Errorf("oura.backfill_days = %d, want 30", cfg.Oura.BackfillDays)
 	}
 }

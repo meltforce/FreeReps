@@ -153,6 +153,7 @@ func (s *Server) routes() {
 		// Oura integration
 		r.Route("/api/v1/oura", func(r chi.Router) {
 			r.Get("/status", s.handleOuraStatus)
+			r.Put("/credentials", s.handleOuraCredentials)
 			r.Post("/authorize", s.handleOuraAuthorize)
 			r.Post("/sync", s.handleOuraSync)
 			r.Delete("/disconnect", s.handleOuraDisconnect)

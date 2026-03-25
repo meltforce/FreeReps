@@ -330,8 +330,9 @@ export async function uploadAlphaCSV(
 // --- Oura Integration ---
 
 export interface OuraStatus {
-  enabled: boolean;
+  configured: boolean;
   connected: boolean;
+  client_id?: string;
   expires_at?: string;
   sync_states?: Record<string, string>;
 }
@@ -340,6 +341,18 @@ export async function fetchOuraStatus(): Promise<OuraStatus> {
   const res = await fetch(`${BASE}/oura/status`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
+}
+
+export async function saveOuraCredentials(clientId: string, clientSecret: string): Promise<void> {
+  const res = await fetch(`${BASE}/oura/credentials`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
 }
 
 export async function authorizeOura(): Promise<{ authorize_url: string }> {

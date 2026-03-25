@@ -9,9 +9,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// OuraToken represents an OAuth2 token for the Oura API.
+// OuraToken holds per-user Oura OAuth2 credentials and tokens.
+// ClientID/ClientSecret are the user's Oura developer app credentials.
+// AccessToken/RefreshToken are populated after OAuth2 authorization.
 type OuraToken struct {
 	UserID       int
+	ClientID     string
+	ClientSecret string
 	AccessToken  string
 	RefreshToken string
 	TokenType    string
@@ -27,17 +31,34 @@ type OuraSyncState struct {
 	UpdatedAt time.Time
 }
 
-// UpsertOuraToken stores or updates an OAuth2 token for a user.
+// UpsertOuraCredentials stores or updates a user's Oura developer app credentials
+// (before OAuth2 authorization). Does not overwrite existing tokens.
+func (db *DB) UpsertOuraCredentials(ctx context.Context, userID int, clientID, clientSecret string) error {
+	_, err := db.Pool.Exec(ctx,
+		`INSERT INTO oura_tokens (user_id, client_id, client_secret, updated_at)
+		 VALUES ($1, $2, $3, NOW())
+		 ON CONFLICT (user_id) DO UPDATE SET
+		   client_id = EXCLUDED.client_id,
+		   client_secret = EXCLUDED.client_secret,
+		   updated_at = NOW()`,
+		userID, clientID, clientSecret)
+	if err != nil {
+		return fmt.Errorf("upserting oura credentials: %w", err)
+	}
+	return nil
+}
+
+// UpsertOuraToken stores or updates OAuth2 tokens for a user.
+// Preserves existing client_id/client_secret.
 func (db *DB) UpsertOuraToken(ctx context.Context, tok OuraToken) error {
 	_, err := db.Pool.Exec(ctx,
-		`INSERT INTO oura_tokens (user_id, access_token, refresh_token, token_type, expires_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, NOW())
-		 ON CONFLICT (user_id) DO UPDATE SET
-		   access_token = EXCLUDED.access_token,
-		   refresh_token = EXCLUDED.refresh_token,
-		   token_type = EXCLUDED.token_type,
-		   expires_at = EXCLUDED.expires_at,
-		   updated_at = NOW()`,
+		`UPDATE oura_tokens SET
+		   access_token = $2,
+		   refresh_token = $3,
+		   token_type = $4,
+		   expires_at = $5,
+		   updated_at = NOW()
+		 WHERE user_id = $1`,
 		tok.UserID, tok.AccessToken, tok.RefreshToken, tok.TokenType, tok.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("upserting oura token: %w", err)
@@ -45,13 +66,13 @@ func (db *DB) UpsertOuraToken(ctx context.Context, tok OuraToken) error {
 	return nil
 }
 
-// GetOuraToken retrieves the OAuth2 token for a user. Returns nil if not found.
+// GetOuraToken retrieves the Oura credentials and tokens for a user. Returns nil if not found.
 func (db *DB) GetOuraToken(ctx context.Context, userID int) (*OuraToken, error) {
 	var tok OuraToken
 	err := db.Pool.QueryRow(ctx,
-		`SELECT user_id, access_token, refresh_token, token_type, expires_at, updated_at
+		`SELECT user_id, client_id, client_secret, access_token, refresh_token, token_type, expires_at, updated_at
 		 FROM oura_tokens WHERE user_id = $1`, userID).
-		Scan(&tok.UserID, &tok.AccessToken, &tok.RefreshToken, &tok.TokenType, &tok.ExpiresAt, &tok.UpdatedAt)
+		Scan(&tok.UserID, &tok.ClientID, &tok.ClientSecret, &tok.AccessToken, &tok.RefreshToken, &tok.TokenType, &tok.ExpiresAt, &tok.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

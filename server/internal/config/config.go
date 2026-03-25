@@ -38,10 +38,9 @@ type TailscaleConfig struct {
 	StateDir string `yaml:"state_dir"`
 }
 
+// OuraConfig holds server-wide Oura sync settings. Per-user credentials
+// (client_id, client_secret) are stored in the database, not here.
 type OuraConfig struct {
-	Enabled      bool          `yaml:"enabled"`
-	ClientID     string        `yaml:"client_id"`
-	ClientSecret string        `yaml:"client_secret"`
 	SyncInterval time.Duration `yaml:"-"`
 	BackfillDays int           `yaml:"backfill_days"`
 
@@ -144,15 +143,6 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("FREEREPS_TS_STATE_DIR"); v != "" {
 		cfg.Tailscale.StateDir = v
 	}
-	if v := os.Getenv("FREEREPS_OURA_ENABLED"); v != "" {
-		cfg.Oura.Enabled = strings.EqualFold(v, "true") || v == "1"
-	}
-	if v := os.Getenv("FREEREPS_OURA_CLIENT_ID"); v != "" {
-		cfg.Oura.ClientID = v
-	}
-	if v := os.Getenv("FREEREPS_OURA_CLIENT_SECRET"); v != "" {
-		cfg.Oura.ClientSecret = v
-	}
 }
 
 func (c *Config) validate() error {
@@ -170,14 +160,6 @@ func (c *Config) validate() error {
 	}
 	if c.Database.User == "" {
 		return fmt.Errorf("database.user is required")
-	}
-	if c.Oura.Enabled {
-		if c.Oura.ClientID == "" {
-			return fmt.Errorf("oura.client_id is required when oura is enabled")
-		}
-		if c.Oura.ClientSecret == "" {
-			return fmt.Errorf("oura.client_secret is required when oura is enabled")
-		}
 	}
 	return nil
 }

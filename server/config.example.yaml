@@ -16,11 +16,8 @@ tailscale:
   state_dir: "tsnet-state"
 
 oura:
-  enabled: false
-  client_id: ""
-  client_secret: ""
-  sync_interval: "30m"
-  backfill_days: 90
+  sync_interval: "30m"   # how often to poll Oura API (per-user creds configured in Settings UI)
+  backfill_days: 90      # days of history to fetch on first sync
 
 source_priority:
   - "Oura"

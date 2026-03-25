@@ -1,12 +1,16 @@
 -- Oura Ring integration: token storage, sync state, and metric allowlist entries.
 
--- OAuth2 token storage for Oura API (one token per user).
+-- Per-user Oura OAuth2 credentials and tokens.
+-- client_id/client_secret are the user's Oura developer app credentials.
+-- access_token/refresh_token are populated after OAuth2 authorization.
 CREATE TABLE oura_tokens (
     user_id       INTEGER     NOT NULL PRIMARY KEY,
-    access_token  TEXT        NOT NULL,
-    refresh_token TEXT        NOT NULL,
+    client_id     TEXT        NOT NULL,
+    client_secret TEXT        NOT NULL,
+    access_token  TEXT        NOT NULL DEFAULT '',
+    refresh_token TEXT        NOT NULL DEFAULT '',
     token_type    TEXT        NOT NULL DEFAULT 'Bearer',
-    expires_at    TIMESTAMPTZ NOT NULL,
+    expires_at    TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

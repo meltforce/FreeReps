@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -14,11 +15,6 @@ const (
 
 // handleOuraStatus returns the Oura connection status for the current user.
 func (s *Server) handleOuraStatus(w http.ResponseWriter, r *http.Request) {
-	if s.ouraTokenMgr == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
-		return
-	}
-
 	uid, ok := mustUserID(w, r)
 	if !ok {
 		return
@@ -32,36 +28,70 @@ func (s *Server) handleOuraStatus(w http.ResponseWriter, r *http.Request) {
 
 	if token == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"enabled":   true,
-			"connected": false,
+			"configured": false,
+			"connected":  false,
 		})
 		return
 	}
 
-	// Get sync states.
-	states, err := s.db.ListOuraSyncStates(r.Context(), uid)
-	if err != nil {
+	connected := token.AccessToken != ""
+
+	result := map[string]any{
+		"configured": true,
+		"connected":  connected,
+		"client_id":  token.ClientID,
+	}
+
+	if connected {
+		result["expires_at"] = token.ExpiresAt.Format(time.RFC3339)
+
+		states, err := s.db.ListOuraSyncStates(r.Context(), uid)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		syncMap := make(map[string]string, len(states))
+		for _, st := range states {
+			syncMap[st.DataType] = st.LastSync.Format("2006-01-02")
+		}
+		result["sync_states"] = syncMap
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+// handleOuraCredentials saves the user's Oura developer app credentials.
+func (s *Server) handleOuraCredentials(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	if body.ClientID == "" || body.ClientSecret == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "client_id and client_secret are required"})
+		return
+	}
+
+	if err := s.db.UpsertOuraCredentials(r.Context(), uid, body.ClientID, body.ClientSecret); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
-	syncMap := make(map[string]string, len(states))
-	for _, st := range states {
-		syncMap[st.DataType] = st.LastSync.Format("2006-01-02")
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":     true,
-		"connected":   true,
-		"expires_at":  token.ExpiresAt.Format(time.RFC3339),
-		"sync_states": syncMap,
-	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 
 // handleOuraAuthorize returns the OAuth2 authorization URL for the user to visit.
 func (s *Server) handleOuraAuthorize(w http.ResponseWriter, r *http.Request) {
-	if s.ouraTokenMgr == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "oura integration not configured"})
+	uid, ok := mustUserID(w, r)
+	if !ok {
 		return
 	}
 
@@ -83,17 +113,16 @@ func (s *Server) handleOuraAuthorize(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	url := s.ouraTokenMgr.AuthorizeURL(ouraRedirectURI, state)
+	url, err := s.ouraTokenMgr.AuthorizeURL(r.Context(), uid, ouraRedirectURI, state)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"authorize_url": url})
 }
 
 // handleOuraCallback handles the OAuth2 redirect from Oura after user authorization.
 func (s *Server) handleOuraCallback(w http.ResponseWriter, r *http.Request) {
-	if s.ouraTokenMgr == nil {
-		http.Error(w, "oura integration not configured", http.StatusNotFound)
-		return
-	}
-
 	uid, ok := mustUserID(w, r)
 	if !ok {
 		return
@@ -142,11 +171,6 @@ func (s *Server) handleOuraCallback(w http.ResponseWriter, r *http.Request) {
 
 // handleOuraSync triggers an immediate sync for the current user.
 func (s *Server) handleOuraSync(w http.ResponseWriter, r *http.Request) {
-	if s.ouraSyncer == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "oura integration not configured"})
-		return
-	}
-
 	uid, ok := mustUserID(w, r)
 	if !ok {
 		return
@@ -163,11 +187,6 @@ func (s *Server) handleOuraSync(w http.ResponseWriter, r *http.Request) {
 
 // handleOuraDisconnect removes Oura tokens and sync state for the current user.
 func (s *Server) handleOuraDisconnect(w http.ResponseWriter, r *http.Request) {
-	if s.ouraTokenMgr == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "oura integration not configured"})
-		return
-	}
-
 	uid, ok := mustUserID(w, r)
 	if !ok {
 		return
