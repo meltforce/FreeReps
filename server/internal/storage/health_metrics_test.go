@@ -38,8 +38,7 @@ func TestSourcePriorityCaseSQL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db := &DB{SourcePriority: tt.priorities}
-			got := db.sourcePriorityCaseSQL()
+			got := sourcePriorityCaseSQL(tt.priorities)
 			if got != tt.wantSQL {
 				t.Errorf("sourcePriorityCaseSQL() =\n  %q\nwant:\n  %q", got, tt.wantSQL)
 			}
@@ -50,8 +49,7 @@ func TestSourcePriorityCaseSQL(t *testing.T) {
 // TestDedupCTE verifies that the generated CTE has the correct structure:
 // a WITH clause using time_bucket, ROW_NUMBER, and the right parameter placeholders.
 func TestDedupCTE(t *testing.T) {
-	db := &DB{SourcePriority: []string{"Oura", ""}}
-	cte := db.dedupCTE("$2", "$3", "$4", "$5")
+	cte := dedupCTE([]string{"Oura", ""}, "$2", "$3", "$4", "$5")
 
 	checks := []string{
 		"WITH deduped AS",
@@ -75,8 +73,7 @@ func TestDedupCTE(t *testing.T) {
 // TestDedupCTEMultiMetric verifies the multi-metric CTE partitions by both
 // metric_name and time bucket, preventing cross-metric deduplication.
 func TestDedupCTEMultiMetric(t *testing.T) {
-	db := &DB{SourcePriority: []string{"Oura", ""}}
-	cte := db.dedupCTEMultiMetric("$1", "$2,$3")
+	cte := dedupCTEMultiMetric([]string{"Oura", ""}, "$1", "$2,$3")
 
 	checks := []string{
 		"WITH deduped AS",

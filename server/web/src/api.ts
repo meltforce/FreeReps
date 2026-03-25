@@ -327,6 +327,43 @@ export async function uploadAlphaCSV(
   return res.json();
 }
 
+// --- Source Priority ---
+
+export interface SourcePriorityRule {
+  user_id: number;
+  category: string;
+  sources: string[];
+}
+
+export interface SourcePriorityConfig {
+  rules: SourcePriorityRule[];
+  sources: string[];
+  categories: string[];
+  default: string[];
+}
+
+export async function fetchSourcePriority(): Promise<SourcePriorityConfig> {
+  const res = await fetch(`${BASE}/source-priority`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function saveSourcePriority(category: string, sources: string[]): Promise<void> {
+  const res = await fetch(`${BASE}/source-priority`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, sources }),
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
+export async function deleteSourcePriority(category: string): Promise<void> {
+  const res = await fetch(`${BASE}/source-priority/${encodeURIComponent(category)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
 // --- Oura Integration ---
 
 export interface OuraStatus {

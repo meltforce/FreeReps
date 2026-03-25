@@ -150,6 +150,13 @@ func (s *Server) routes() {
 		r.Get("/api/v1/stats", s.handleStats)
 		r.Get("/api/v1/import-logs", s.handleImportLogs)
 
+		// Source priority configuration
+		r.Route("/api/v1/source-priority", func(r chi.Router) {
+			r.Get("/", s.handleGetSourcePriorities)
+			r.Put("/", s.handleUpsertSourcePriority)
+			r.Delete("/{category}", s.handleDeleteSourcePriority)
+		})
+
 		// Oura integration
 		r.Route("/api/v1/oura", func(r chi.Router) {
 			r.Get("/status", s.handleOuraStatus)

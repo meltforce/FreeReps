@@ -46,3 +46,23 @@ func (db *DB) GetAllowedMetrics(ctx context.Context) ([]AllowedMetric, error) {
 	}
 	return result, rows.Err()
 }
+
+// GetAllowlistCategories returns all distinct categories from the metric allowlist.
+func (db *DB) GetAllowlistCategories(ctx context.Context) ([]string, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT DISTINCT category FROM metric_allowlist ORDER BY category`)
+	if err != nil {
+		return nil, fmt.Errorf("querying allowlist categories: %w", err)
+	}
+	defer rows.Close()
+
+	var result []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scanning category: %w", err)
+		}
+		result = append(result, c)
+	}
+	return result, rows.Err()
+}

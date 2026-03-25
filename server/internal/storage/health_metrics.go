@@ -16,20 +16,20 @@ import (
 // get the lowest priority. Named sources use prefix matching (e.g. "Apple Watch"
 // matches "Apple Watch Series 9"); empty string uses exact match.
 // Returns "1" if no priorities are configured (all sources equal = no-op dedup).
-func (db *DB) sourcePriorityCaseSQL() string {
-	if len(db.SourcePriority) == 0 {
+func sourcePriorityCaseSQL(priorities []string) string {
+	if len(priorities) == 0 {
 		return "1"
 	}
 	var b strings.Builder
 	b.WriteString("CASE ")
-	for i, src := range db.SourcePriority {
+	for i, src := range priorities {
 		if src == "" {
 			fmt.Fprintf(&b, "WHEN source = '' THEN %d ", i+1)
 		} else {
 			fmt.Fprintf(&b, "WHEN source LIKE '%s%%' THEN %d ", src, i+1)
 		}
 	}
-	fmt.Fprintf(&b, "ELSE %d END", len(db.SourcePriority)+1)
+	fmt.Fprintf(&b, "ELSE %d END", len(priorities)+1)
 	return b.String()
 }
 
@@ -37,8 +37,8 @@ func (db *DB) sourcePriorityCaseSQL() string {
 // 5-minute granularity using source priority. The CTE selects all columns plus
 // a row number (rn) partitioned by 5-minute time buckets. Callers should filter
 // with "WHERE rn = 1" to keep only the highest-priority source per bucket.
-func (db *DB) dedupCTE(metricParam, startParam, endParam, userIDParam string) string {
-	priorityExpr := db.sourcePriorityCaseSQL()
+func dedupCTE(priorities []string, metricParam, startParam, endParam, userIDParam string) string {
+	priorityExpr := sourcePriorityCaseSQL(priorities)
 	return fmt.Sprintf(
 		`WITH deduped AS (
 			SELECT *, ROW_NUMBER() OVER (
@@ -52,8 +52,8 @@ func (db *DB) dedupCTE(metricParam, startParam, endParam, userIDParam string) st
 
 // dedupCTEMultiMetric returns a dedup CTE for queries that span multiple metrics
 // (e.g. GetDailySums). Partitions by metric_name in addition to time bucket.
-func (db *DB) dedupCTEMultiMetric(userIDParam, inClause string) string {
-	priorityExpr := db.sourcePriorityCaseSQL()
+func dedupCTEMultiMetric(priorities []string, userIDParam, inClause string) string {
+	priorityExpr := sourcePriorityCaseSQL(priorities)
 	return fmt.Sprintf(
 		`WITH deduped AS (
 			SELECT *, ROW_NUMBER() OVER (
@@ -155,7 +155,7 @@ func (db *DB) GetTimeSeries(ctx context.Context, metricName string, start, end t
 	if cumulativeMetrics[metricName] {
 		aggFunc = "SUM"
 	}
-	cte := db.dedupCTE("$2", "$3", "$4", "$5")
+	cte := dedupCTE(db.SourcePriority, "$2", "$3", "$4", "$5")
 	query := fmt.Sprintf(
 		`%sSELECT time_bucket($1::interval, time) AS bucket,
 		        %s(COALESCE(qty, avg_val)) AS avg_val,
@@ -216,7 +216,7 @@ func (db *DB) GetDailySums(ctx context.Context, userID int, metricNames []string
 	}
 
 	inClause := strings.Join(params, ",")
-	cte := db.dedupCTEMultiMetric("$1", inClause)
+	cte := dedupCTEMultiMetric(db.SourcePriority, "$1", inClause)
 
 	query := fmt.Sprintf(
 		`%sSELECT metric_name,
@@ -257,7 +257,7 @@ type MetricStats struct {
 
 // GetMetricStats returns aggregate statistics for a metric over a time range.
 func (db *DB) GetMetricStats(ctx context.Context, metricName string, start, end time.Time, userID int) (*MetricStats, error) {
-	cte := db.dedupCTE("$1", "$2", "$3", "$4")
+	cte := dedupCTE(db.SourcePriority, "$1", "$2", "$3", "$4")
 	query := fmt.Sprintf(
 		`%sSELECT AVG(COALESCE(qty, avg_val)),
 		        MIN(COALESCE(qty, min_val)),
@@ -299,7 +299,7 @@ func (db *DB) GetCorrelation(ctx context.Context, xMetric, yMetric string, start
 	if cumulativeMetrics[yMetric] {
 		yAgg = "SUM"
 	}
-	priorityExpr := db.sourcePriorityCaseSQL()
+	priorityExpr := sourcePriorityCaseSQL(db.SourcePriority)
 	query := fmt.Sprintf(
 		`WITH x_deduped AS (
 			SELECT *, ROW_NUMBER() OVER (
