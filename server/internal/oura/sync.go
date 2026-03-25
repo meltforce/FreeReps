@@ -3,6 +3,7 @@ package oura
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -112,6 +113,13 @@ func (s *Syncer) SyncUser(ctx context.Context, userID int) {
 	var syncErr error
 	for _, dt := range dataTypes {
 		if err := s.syncDataType(ctx, userID, token, dt, stats); err != nil {
+			// 404 or 401/403 are expected for endpoints not available for
+			// the user's ring model or missing scopes — log as debug, not error.
+			var apiErr *APIError
+			if errors.As(err, &apiErr) && (apiErr.IsNotFound() || apiErr.IsUnauthorized()) {
+				s.log.Debug("oura endpoint unavailable", "data_type", dt, "status", apiErr.StatusCode)
+				continue
+			}
 			stats.errors = append(stats.errors, fmt.Sprintf("%s: %s", dt, err))
 			s.log.Error("oura sync data type failed", "user_id", userID, "data_type", dt, "error", err)
 			// Continue with other data types even if one fails.
@@ -252,14 +260,26 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 		return s.insertSleepMetrics(ctx, items, userID, stats)
 
 	case "heartrate":
-		// Heartrate uses datetime params, not date params.
-		startDT := startDate + "T00:00:00+00:00"
-		endDT := endDate + "T23:59:59+00:00"
-		items, err := s.client.GetHeartRate(ctx, token, startDT, endDT)
-		if err != nil {
-			return err
+		// Oura limits heartrate queries to 30 days max. Chunk accordingly.
+		start, _ := time.Parse("2006-01-02", startDate)
+		end, _ := time.Parse("2006-01-02", endDate)
+		for chunkStart := start; chunkStart.Before(end); {
+			chunkEnd := chunkStart.AddDate(0, 0, 30)
+			if chunkEnd.After(end) {
+				chunkEnd = end
+			}
+			startDT := chunkStart.Format("2006-01-02") + "T00:00:00+00:00"
+			endDT := chunkEnd.Format("2006-01-02") + "T23:59:59+00:00"
+			items, err := s.client.GetHeartRate(ctx, token, startDT, endDT)
+			if err != nil {
+				return err
+			}
+			if err := s.insertMetrics(ctx, MapHeartRate(items, userID), stats); err != nil {
+				return err
+			}
+			chunkStart = chunkEnd
 		}
-		return s.insertMetrics(ctx, MapHeartRate(items, userID), stats)
+		return nil
 
 	case "daily_spo2":
 		items, err := s.client.GetDailySpO2(ctx, token, startDate, endDate)

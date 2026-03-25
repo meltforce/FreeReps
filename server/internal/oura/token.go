@@ -17,8 +17,9 @@ const (
 	defaultAuthorizeURL = "https://cloud.ouraring.com/oauth/authorize"
 	defaultTokenURL     = "https://api.ouraring.com/oauth/token"
 
-	// Scopes required for FreeReps integration.
-	ouraScopes = "daily heartrate workout spo2Daily"
+	// Scopes required for FreeReps integration. Includes newer scopes
+	// (spo2, stress, heart_health) not yet in the v1.28 OpenAPI spec.
+	ouraScopes = "daily heartrate workout spo2 spo2Daily stress heart_health session personal"
 
 	// refreshBuffer is how far before expiry we refresh proactively.
 	refreshBuffer = 5 * time.Minute

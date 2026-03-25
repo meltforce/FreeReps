@@ -12,6 +12,23 @@ import (
 
 const defaultBaseURL = "https://api.ouraring.com"
 
+// APIError represents a non-200 response from the Oura API.
+type APIError struct {
+	Path       string
+	StatusCode int
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("oura API %s returned %d: %s", e.Path, e.StatusCode, e.Body)
+}
+
+// IsNotFound returns true if the error is a 404.
+func (e *APIError) IsNotFound() bool { return e.StatusCode == 404 }
+
+// IsUnauthorized returns true if the error is a 401/403.
+func (e *APIError) IsUnauthorized() bool { return e.StatusCode == 401 || e.StatusCode == 403 }
+
 // Client wraps the Oura API v2.
 type Client struct {
 	httpClient *http.Client
@@ -57,7 +74,7 @@ func (c *Client) get(ctx context.Context, path, token string, params url.Values)
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("oura API %s returned %d: %s", path, resp.StatusCode, string(body))
+		return nil, &APIError{Path: path, StatusCode: resp.StatusCode, Body: string(body)}
 	}
 	return body, nil
 }
