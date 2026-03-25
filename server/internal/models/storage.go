@@ -53,6 +53,7 @@ type WorkoutRow struct {
 	ID                 uuid.UUID
 	UserID             int
 	Name               string
+	Source             string
 	StartTime          time.Time
 	EndTime            time.Time
 	DurationSec        float64

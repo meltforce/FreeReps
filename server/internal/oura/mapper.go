@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/claude/freereps/internal/ingest"
 	"github.com/claude/freereps/internal/models"
 	"github.com/google/uuid"
 )
@@ -235,7 +236,7 @@ func MapWorkouts(items []WorkoutItem, userID int) []models.WorkoutRow {
 			continue
 		}
 
-		name := item.Activity
+		name := ingest.NormalizeWorkoutName(item.Activity)
 		if item.Label != nil && *item.Label != "" {
 			name = *item.Label
 		}
@@ -246,6 +247,7 @@ func MapWorkouts(items []WorkoutItem, userID int) []models.WorkoutRow {
 			ID:                ouraWorkoutUUID(item.ID),
 			UserID:            userID,
 			Name:              name,
+			Source:            ouraSource,
 			StartTime:         start,
 			EndTime:           end,
 			DurationSec:       end.Sub(start).Seconds(),

@@ -13,13 +13,13 @@ import (
 // InsertWorkout inserts a workout row. Returns true if inserted, false if duplicate.
 func (db *DB) InsertWorkout(ctx context.Context, row models.WorkoutRow) (bool, error) {
 	tag, err := db.Pool.Exec(ctx,
-		`INSERT INTO workouts (id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
+		`INSERT INTO workouts (id, user_id, name, source, start_time, end_time, duration_sec, location, is_indoor,
 		 active_energy_burned, active_energy_units, total_energy, total_energy_units,
 		 distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
 		 elevation_up, elevation_down, raw_json)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		 ON CONFLICT DO NOTHING`,
-		row.ID, row.UserID, row.Name, row.StartTime, row.EndTime, row.DurationSec,
+		row.ID, row.UserID, row.Name, row.Source, row.StartTime, row.EndTime, row.DurationSec,
 		row.Location, row.IsIndoor,
 		row.ActiveEnergyBurned, row.ActiveEnergyUnits, row.TotalEnergy, row.TotalEnergyUnits,
 		row.Distance, row.DistanceUnits, row.AvgHeartRate, row.MaxHeartRate, row.MinHeartRate,
@@ -108,20 +108,32 @@ type WorkoutDetail struct {
 }
 
 // QueryWorkouts retrieves workouts in a time range, optionally filtered by type name.
-// Excludes raw_json to keep the list payload small.
+// Deduplicates overlapping workouts from different sources using source priority:
+// when two workouts start within the same 5-minute window, only the highest-priority
+// source's workout is returned. Excludes raw_json to keep the list payload small.
 func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID int, nameFilter string) ([]models.WorkoutRow, error) {
-	query := `SELECT id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
-		 active_energy_burned, active_energy_units, total_energy, total_energy_units,
-		 distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
-		 elevation_up, elevation_down
-		 FROM workouts
-		 WHERE start_time >= $1 AND start_time < $2 AND user_id = $3`
+	priorityExpr := db.sourcePriorityCaseSQL()
+	where := `start_time >= $1 AND start_time < $2 AND user_id = $3`
 	args := []any{start, end, userID}
 	if nameFilter != "" {
-		query += ` AND name = $4`
+		where += ` AND name = $4`
 		args = append(args, nameFilter)
 	}
-	query += ` ORDER BY start_time DESC`
+	query := fmt.Sprintf(
+		`WITH ranked AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY date_trunc('hour', start_time) + INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM start_time) / 5)
+				ORDER BY %s
+			) AS rn
+			FROM workouts
+			WHERE %s
+		)
+		SELECT id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
+			active_energy_burned, active_energy_units, total_energy, total_energy_units,
+			distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
+			elevation_up, elevation_down
+		FROM ranked WHERE rn = 1
+		ORDER BY start_time DESC`, priorityExpr, where)
 	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying workouts: %w", err)

@@ -315,7 +315,7 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 		row := models.WorkoutRow{
 			ID:          workoutID,
 			UserID:      userID,
-			Name:        normalizeWorkoutName(w.Name),
+			Name:        ingest.NormalizeWorkoutName(w.Name),
 			StartTime:   w.Start.Time,
 			EndTime:     w.End.Time,
 			DurationSec: w.Duration,
@@ -710,32 +710,3 @@ func (p *Provider) processCategorySamples(ctx context.Context, samples []models.
 	return nil
 }
 
-// workoutNameMap normalizes German and location-prefixed workout names to English base names.
-// The is_indoor field on the workout already captures indoor/outdoor distinction.
-var workoutNameMap = map[string]string{
-	"Abkühlen":                         "Cooldown",
-	"Flexibilität":                     "Flexibility",
-	"Freiwasser Schwimmen":             "Swimming",
-	"Funktionales Krafttraining":       "Functional Strength Training",
-	"Hochintensives Intervalltraining": "High Intensity Interval Training",
-	"Innenräume Radfahren":             "Cycling",
-	"Innenräume Spaziergang":           "Walking",
-	"Kerntraining":                     "Core Training",
-	"Outdoor Ausführen":                "Running",
-	"Outdoor Radfahren":                "Cycling",
-	"Outdoor Spaziergang":              "Walking",
-	"Rudern":                           "Rowing",
-	"Schwimmbad Schwimmen":             "Swimming",
-	"Sonstige":                         "Other",
-	"Traditionelles Krafttraining":     "Traditional Strength Training",
-	"Wandern":                          "Hiking",
-	"Indoor Cycling":                   "Cycling",
-	"Outdoor Walk":                     "Walking",
-}
-
-func normalizeWorkoutName(name string) string {
-	if normalized, ok := workoutNameMap[name]; ok {
-		return normalized
-	}
-	return name
-}
