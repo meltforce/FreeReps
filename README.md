@@ -2,7 +2,7 @@
 
 **F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
 
-A self-hosted server that receives Apple Health data, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs. The iOS companion app syncs HealthKit data directly to your server.
+A self-hosted server that receives health data from Apple Watch and Oura Ring, stores it persistently, visualizes it through a web dashboard with freely configurable correlations, and exposes it as an MCP server for LLMs. The iOS companion app syncs HealthKit data directly to your server, and the built-in Oura integration pulls data via the Oura API.
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
 
@@ -42,10 +42,13 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 │ iOS App      │    HTTP POST        │                                         │
 └──────────────┘                     │  ┌──────────┐  ┌─────────────────┐     │
                                      │  │ Ingest   │→ │  Storage (DB)   │     │
-                                     │  │ API      │  │  Time Series    │     │
-                                     │  └──────────┘  └────────┬────────┘     │
-                                     │                         │              │
-                                     │              ┌──────────┴──────────┐   │
+┌──────────────┐     OAuth2 + Poll   │  │ API      │  │  Time Series    │     │
+│  Oura Ring   │ ←───────────────    │  └──────────┘  └────────┬────────┘     │
+│  (API v2)    │                     │  ┌──────────┐           │              │
+└──────────────┘                     │  │ Oura     │→──────────┘              │
+                                     │  │ Sync     │  (source-priority dedup) │
+                                     │  └──────────┘                          │
+                                     │              ┌──────────┬──────────┐   │
                                      │              ▼                     ▼   │
                                      │  ┌────────────────┐  ┌─────────────┐  │
                                      │  │ Web Dashboard  │  │ MCP Server  │  │
@@ -219,6 +222,30 @@ curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scrip
 
 The companion app syncs HealthKit data directly to the server via HTTP POST. Supports full historical backfill and real-time incremental sync.
 
+### Oura Ring
+
+FreeReps integrates directly with the Oura API v2 to pull ring data. Syncs every 30 minutes with 90-day initial backfill.
+
+**Data synced:**
+- **Oura-exclusive** — readiness score, sleep score, activity score, temperature deviation, stress, recovery, resilience, cardiovascular age
+- **Overlapping with Apple Watch** — heart rate, HRV, SpO2, respiratory rate, steps, active calories, workouts, sleep sessions/stages
+
+**Source priority dedup:** When both Oura and Apple Watch report the same metric, FreeReps deduplicates at query time using configurable source priority (Settings > Source Priority). Only the highest-priority source's data is shown — no double-counting.
+
+#### Oura Setup
+
+1. **Register an Oura API app** at [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications):
+   - Redirect URI: `https://your-freereps-host.ts.net/oura/callback`
+   - Privacy Policy URL: your FreeReps website's privacy page
+   - Terms of Service URL: your FreeReps website's terms page
+   - Enable all scopes
+
+2. **Enter credentials in FreeReps**: Go to Settings > Oura Ring, enter your Client ID and Client Secret, click "Save Credentials"
+
+3. **Authorize**: Click "Authorize with Oura", approve access on Oura's page. You'll be redirected back to FreeReps.
+
+4. **Sync starts automatically** every 30 minutes. Use "Sync Now" for immediate sync. Check Settings > Import Logs for sync status.
+
 ### Health Auto Export (iOS, legacy)
 
 The iOS app [Health Auto Export](https://healthyapps.dev) can export Apple Health data as `.hae` files to iCloud Drive, which can then be uploaded to FreeReps using the `freereps-upload` CLI tool.
@@ -296,8 +323,9 @@ No local FreeReps binary needed — `mcp-proxy` handles the transport bridging, 
 | Cardiovascular | heart_rate, resting_heart_rate, heart_rate_variability, blood_oxygen_saturation, respiratory_rate, vo2_max |
 | Sleep | sleep_analysis, apple_sleeping_wrist_temperature |
 | Body | weight_body_mass, body_fat_percentage |
-| Activity | active_energy, basal_energy_burned, apple_exercise_time |
-| Workouts | All types (with HR data + routes) |
+| Activity | active_energy, basal_energy_burned, step_count, flights_climbed, apple_exercise_time |
+| Oura | readiness_score, sleep_score, activity_score, temperature_deviation, stress, recovery, resilience, cardiovascular_age |
+| Workouts | All types (with HR data + routes, deduped across sources) |
 
 ## Design Principles
 
@@ -324,6 +352,14 @@ No local FreeReps binary needed — `mcp-proxy` handles the transport bridging, 
 | `/api/v1/workouts/{id}` | GET | Workout detail |
 | `/api/v1/workouts/{id}/sets` | GET | Alpha Progression sets |
 | `/api/v1/allowlist` | GET | Metric allowlist |
+| `/api/v1/metrics/available` | GET | Available metrics with display metadata |
+| `/api/v1/metrics/visibility` | PUT | Save per-user metric visibility |
+| `/api/v1/source-priority` | GET/PUT | Source priority configuration |
+| `/api/v1/oura/status` | GET | Oura connection status |
+| `/api/v1/oura/credentials` | PUT | Save Oura OAuth2 credentials |
+| `/api/v1/oura/authorize` | POST | Start Oura OAuth2 flow |
+| `/api/v1/oura/sync` | POST | Trigger manual Oura sync |
+| `/api/v1/oura/disconnect` | DELETE | Remove Oura connection |
 | `/api/v1/me` | GET | Current user identity |
 
 ## License
