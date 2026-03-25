@@ -113,7 +113,7 @@ export default function SourcePriorityTab() {
     fetchSourcePriority()
       .then((c) => {
         setConfig(c);
-        const defaultRule = c.rules.find((r) => r.category === "_default");
+        const defaultRule = (c.rules ?? []).find((r) => r.category === "_default");
         setDefaultSources(defaultRule?.sources ?? c.default ?? c.sources);
       })
       .catch((e) => setError(e.message));
@@ -163,7 +163,7 @@ export default function SourcePriorityTab() {
   }
 
   function getCategoryOverride(category: string): string[] | null {
-    const rule = config!.rules.find((r) => r.category === category);
+    const rule = (config!.rules ?? []).find((r) => r.category === category);
     return rule?.sources ?? null;
   }
 
