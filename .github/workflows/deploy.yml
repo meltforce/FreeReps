@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+    tags: ['*.*.*']
   workflow_dispatch:
 
 permissions:
@@ -22,14 +23,26 @@ jobs:
           username: meltforce
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Docker meta
+        id: meta
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            echo "tags=meltforce/freereps:${VERSION},meltforce/freereps:latest,meltforce/freereps:edge" >> "$GITHUB_OUTPUT"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=meltforce/freereps:edge" >> "$GITHUB_OUTPUT"
+            echo "version=edge-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: server
           push: true
-          tags: meltforce/freereps:edge
+          tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            VERSION=edge-${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
