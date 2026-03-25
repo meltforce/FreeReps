@@ -17,6 +17,7 @@ export interface MetricOption {
   category: string;
   isCumulative: boolean;
   multiplier: number;
+  visible: boolean;
 }
 
 export interface MetricGroup {
@@ -40,6 +41,7 @@ export function useAvailableMetrics() {
         category: m.category,
         isCumulative: m.is_cumulative,
         multiplier: m.display_multiplier,
+        visible: m.visible,
       })),
     [query.data],
   );
@@ -64,11 +66,32 @@ export function useAvailableMetrics() {
       }));
   }, [options]);
 
+  const visibleOptions = useMemo(() => options.filter((m) => m.visible), [options]);
+
+  const visibleGroups: MetricGroup[] = useMemo(() => {
+    const byCategory = new Map<string, MetricOption[]>();
+    for (const m of visibleOptions) {
+      const list = byCategory.get(m.category) ?? [];
+      list.push(m);
+      byCategory.set(m.category, list);
+    }
+    const order = [
+      "cardiovascular", "sleep", "body", "fitness", "activity",
+      "oura", "hearing", "respiratory", "nutrition", "lab", "other",
+    ];
+    return order
+      .filter((cat) => byCategory.has(cat))
+      .map((cat) => ({
+        label: cat.charAt(0).toUpperCase() + cat.slice(1),
+        metrics: byCategory.get(cat)!,
+      }));
+  }, [visibleOptions]);
+
   const lookup = useMemo(() => {
     const map = new Map<string, MetricOption>();
     for (const m of options) map.set(m.value, m);
     return map;
   }, [options]);
 
-  return { ...query, options, groups, lookup };
+  return { ...query, options, groups, visibleOptions, visibleGroups, lookup };
 }

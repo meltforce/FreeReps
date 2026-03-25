@@ -7,7 +7,7 @@ import { useAvailableMetrics } from "../hooks/useMetrics";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function DashboardPage() {
-  const { options, lookup, isLoading } = useAvailableMetrics();
+  const { visibleOptions: options, lookup, isLoading } = useAvailableMetrics();
   const [metric, setMetric] = useState("heart_rate");
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
   const [offset, setOffset] = useState(0);

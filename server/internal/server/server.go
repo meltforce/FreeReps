@@ -137,6 +137,7 @@ func (s *Server) routes() {
 		r.Get("/api/v1/correlation", s.handleCorrelation)
 		r.Get("/api/v1/allowlist", s.handleAllowlist)
 		r.Get("/api/v1/metrics/available", s.handleAvailableMetrics)
+		r.Put("/api/v1/metrics/visibility", s.handleSaveMetricVisibility)
 
 		// Health data endpoints
 		r.Get("/api/v1/ecg", s.handleGetECGRecordings)

@@ -401,6 +401,25 @@ func (s *Server) handleAvailableMetrics(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, metrics)
 }
 
+func (s *Server) handleSaveMetricVisibility(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var body map[string]bool
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+
+	if err := s.db.SaveMetricVisibility(r.Context(), uid, body); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
 func (s *Server) handleGetECGRecordings(w http.ResponseWriter, r *http.Request) {
 	uid, ok := mustUserID(w, r)
 	if !ok {

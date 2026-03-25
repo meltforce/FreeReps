@@ -59,7 +59,7 @@ function MetricSelect({
 }
 
 export default function CorrelationPage() {
-  const { groups, lookup } = useAvailableMetrics();
+  const { visibleGroups: groups, lookup } = useAvailableMetrics();
   const [xMetric, setXMetric] = useState("heart_rate_variability");
   const [yMetric, setYMetric] = useState("resting_heart_rate");
   const [timeRange, setTimeRange] = useState<TimeRange>("90d");

@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import IdentityTab from "../components/settings/IdentityTab";
 import ImportTab from "../components/settings/ImportTab";
+import MetricVisibilityTab from "../components/settings/MetricVisibilityTab";
 import OuraTab from "../components/settings/OuraTab";
 import SourcePriorityTab from "../components/settings/SourcePriorityTab";
 import StatsTab from "../components/settings/StatsTab";
@@ -9,6 +10,7 @@ import ImportLogsTab from "../components/settings/ImportLogsTab";
 const TABS = [
   { id: "identity", label: "Identity" },
   { id: "import", label: "Import" },
+  { id: "metrics", label: "Metrics" },
   { id: "oura", label: "Oura Ring" },
   { id: "priority", label: "Source Priority" },
   { id: "stats", label: "Stats" },
@@ -51,6 +53,7 @@ export default function SettingsPage() {
       <div>
         {tab === "identity" && <IdentityTab />}
         {tab === "import" && <ImportTab />}
+        {tab === "metrics" && <MetricVisibilityTab />}
         {tab === "oura" && <OuraTab />}
         {tab === "priority" && <SourcePriorityTab />}
         {tab === "stats" && <StatsTab />}

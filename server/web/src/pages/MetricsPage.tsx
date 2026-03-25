@@ -8,7 +8,7 @@ import { useAvailableMetrics } from "../hooks/useMetrics";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function MetricsPage() {
-  const { options, lookup, isLoading: metricsLoading } = useAvailableMetrics();
+  const { visibleOptions: options, lookup, isLoading: metricsLoading } = useAvailableMetrics();
   const [metric, setMetric] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("90d");
   const [offset, setOffset] = useState(0);

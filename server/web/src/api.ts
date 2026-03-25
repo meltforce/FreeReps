@@ -336,12 +336,22 @@ export interface MetricMeta {
   display_unit: string;
   is_cumulative: boolean;
   display_multiplier: number;
+  visible: boolean;
 }
 
 export async function fetchAvailableMetrics(): Promise<MetricMeta[]> {
   const res = await fetch(`${BASE}/metrics/available`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
+}
+
+export async function saveMetricVisibility(visibility: Record<string, boolean>): Promise<void> {
+  const res = await fetch(`${BASE}/metrics/visibility`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(visibility),
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
 }
 
 // --- Source Priority ---

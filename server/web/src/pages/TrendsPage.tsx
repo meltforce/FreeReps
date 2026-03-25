@@ -12,7 +12,7 @@ const MAX_SELECTED = 5;
 const RANGE_OPTIONS: TimeRange[] = ["30d", "90d", "1y"];
 
 export default function TrendsPage() {
-  const { groups: METRIC_GROUPS, lookup } = useAvailableMetrics();
+  const { visibleGroups: METRIC_GROUPS, lookup } = useAvailableMetrics();
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([
     "heart_rate_variability",
     "resting_heart_rate",

@@ -50,9 +50,9 @@ export default function DailyOverview() {
   const dailySums = data.daily_sums ?? [];
   const sumMap = new Map(dailySums.map((s) => [s.MetricName, s]));
 
-  // Show all metrics the user has data for, ordered by server metadata
+  // Show only visible metrics the user has data for
   const ordered = latestRows
-    .filter((m) => lookup.has(m.MetricName))
+    .filter((m) => lookup.get(m.MetricName)?.visible)
     .sort((a, b) => {
       const ma = lookup.get(a.MetricName)!;
       const mb = lookup.get(b.MetricName)!;
