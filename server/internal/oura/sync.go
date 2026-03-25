@@ -2,6 +2,7 @@ package oura
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -24,6 +25,16 @@ var dataTypes = []string{
 	"daily_cardiovascular_age",
 	"vo2_max",
 	"workout",
+}
+
+// syncStats tracks counts across a full sync cycle for import logging.
+type syncStats struct {
+	metricsReceived  int
+	metricsInserted  int64
+	workoutsReceived int
+	workoutsInserted int
+	sleepSessions    int
+	errors           []string
 }
 
 // Syncer polls the Oura API and stores data in FreeReps.
@@ -81,37 +92,82 @@ func (s *Syncer) SyncOnce(ctx context.Context) error {
 
 	s.log.Info("oura sync starting", "users", len(users))
 	for _, uid := range users {
-		if err := s.SyncUser(ctx, uid); err != nil {
-			s.log.Error("oura sync failed for user", "user_id", uid, "error", err)
-		}
+		s.SyncUser(ctx, uid)
 	}
 	s.log.Info("oura sync complete")
 	return nil
 }
 
-// SyncUser syncs all data types for a specific user.
-func (s *Syncer) SyncUser(ctx context.Context, userID int) error {
+// SyncUser syncs all data types for a specific user and writes an import log.
+func (s *Syncer) SyncUser(ctx context.Context, userID int) {
+	start := time.Now()
+	stats := &syncStats{}
+
 	token, err := s.tokenMgr.GetValidToken(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("getting token: %w", err)
+		s.logImport(ctx, userID, start, stats, fmt.Errorf("getting token: %w", err))
+		return
 	}
 
+	var syncErr error
 	for _, dt := range dataTypes {
-		if err := s.syncDataType(ctx, userID, token, dt); err != nil {
+		if err := s.syncDataType(ctx, userID, token, dt, stats); err != nil {
+			stats.errors = append(stats.errors, fmt.Sprintf("%s: %s", dt, err))
 			s.log.Error("oura sync data type failed", "user_id", userID, "data_type", dt, "error", err)
 			// Continue with other data types even if one fails.
 		}
 	}
-	return nil
+
+	if len(stats.errors) > 0 {
+		syncErr = fmt.Errorf("%d data type(s) failed", len(stats.errors))
+	}
+	s.logImport(ctx, userID, start, stats, syncErr)
 }
 
 // TriggerSync performs an immediate sync for a specific user (manual sync button).
 func (s *Syncer) TriggerSync(ctx context.Context, userID int) error {
-	return s.SyncUser(ctx, userID)
+	s.SyncUser(ctx, userID)
+	return nil
+}
+
+// logImport writes an import log entry for an Oura sync cycle.
+func (s *Syncer) logImport(ctx context.Context, userID int, start time.Time, stats *syncStats, syncErr error) {
+	durationMs := int(time.Since(start).Milliseconds())
+	status := "success"
+	var errMsg *string
+
+	if syncErr != nil {
+		status = "error"
+		msg := syncErr.Error()
+		errMsg = &msg
+	}
+
+	var metadata *json.RawMessage
+	if len(stats.errors) > 0 {
+		raw, _ := json.Marshal(map[string]any{"data_type_errors": stats.errors})
+		rm := json.RawMessage(raw)
+		metadata = &rm
+	}
+
+	if _, err := s.db.InsertImportLog(ctx, storage.ImportLog{
+		UserID:           userID,
+		Source:           "oura_sync",
+		Status:           status,
+		MetricsReceived:  stats.metricsReceived,
+		MetricsInserted:  stats.metricsInserted,
+		WorkoutsReceived: stats.workoutsReceived,
+		WorkoutsInserted: stats.workoutsInserted,
+		SleepSessions:    stats.sleepSessions,
+		DurationMs:       &durationMs,
+		ErrorMessage:     errMsg,
+		Metadata:         metadata,
+	}); err != nil {
+		s.log.Error("failed to log oura import", "error", err)
+	}
 }
 
 // syncDataType fetches and stores one data type for a user.
-func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType string) error {
+func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType string, stats *syncStats) error {
 	// Determine date range: from last sync (or backfill) to today.
 	endDate := time.Now().Format("2006-01-02")
 
@@ -127,7 +183,7 @@ func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType s
 		startDate = time.Now().AddDate(0, 0, -s.cfg.BackfillDays).Format("2006-01-02")
 	}
 
-	if err := s.fetchAndStore(ctx, userID, token, dataType, startDate, endDate); err != nil {
+	if err := s.fetchAndStore(ctx, userID, token, dataType, startDate, endDate, stats); err != nil {
 		return err
 	}
 
@@ -136,35 +192,43 @@ func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType s
 	return s.db.UpsertOuraSyncState(ctx, userID, dataType, now)
 }
 
+// insertMetrics is a helper that inserts health metrics and updates stats.
+func (s *Syncer) insertMetrics(ctx context.Context, rows []models.HealthMetricRow, stats *syncStats) error {
+	stats.metricsReceived += len(rows)
+	if len(rows) == 0 {
+		return nil
+	}
+	inserted, err := s.db.InsertHealthMetrics(ctx, rows)
+	if err != nil {
+		return err
+	}
+	stats.metricsInserted += inserted
+	return nil
+}
+
 // fetchAndStore dispatches to the appropriate fetch+map+insert logic per data type.
-func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType, startDate, endDate string) error {
+func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType, startDate, endDate string, stats *syncStats) error {
 	switch dataType {
 	case "daily_readiness":
 		items, err := s.client.GetDailyReadiness(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailyReadiness(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailyReadiness(items, userID), stats)
 
 	case "daily_sleep":
 		items, err := s.client.GetDailySleep(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailySleep(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailySleep(items, userID), stats)
 
 	case "daily_activity":
 		items, err := s.client.GetDailyActivity(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailyActivity(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailyActivity(items, userID), stats)
 
 	case "sleep":
 		items, err := s.client.GetSleep(ctx, token, startDate, endDate)
@@ -175,6 +239,8 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 		for _, session := range sessions {
 			if err := s.db.InsertSleepSession(ctx, session); err != nil {
 				s.log.Warn("inserting oura sleep session", "error", err)
+			} else {
+				stats.sleepSessions++
 			}
 		}
 		if len(stages) > 0 {
@@ -183,8 +249,7 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 			}
 		}
 		// Also insert overlapping metrics from sleep data.
-		s.insertSleepMetrics(ctx, items, userID)
-		return nil
+		return s.insertSleepMetrics(ctx, items, userID, stats)
 
 	case "heartrate":
 		// Heartrate uses datetime params, not date params.
@@ -194,54 +259,42 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 		if err != nil {
 			return err
 		}
-		rows := MapHeartRate(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapHeartRate(items, userID), stats)
 
 	case "daily_spo2":
 		items, err := s.client.GetDailySpO2(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailySpO2(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailySpO2(items, userID), stats)
 
 	case "daily_stress":
 		items, err := s.client.GetDailyStress(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailyStress(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailyStress(items, userID), stats)
 
 	case "daily_resilience":
 		items, err := s.client.GetDailyResilience(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailyResilience(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailyResilience(items, userID), stats)
 
 	case "daily_cardiovascular_age":
 		items, err := s.client.GetDailyCardiovascularAge(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapDailyCardiovascularAge(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapDailyCardiovascularAge(items, userID), stats)
 
 	case "vo2_max":
 		items, err := s.client.GetVO2Max(ctx, token, startDate, endDate)
 		if err != nil {
 			return err
 		}
-		rows := MapVO2Max(items, userID)
-		_, err = s.db.InsertHealthMetrics(ctx, rows)
-		return err
+		return s.insertMetrics(ctx, MapVO2Max(items, userID), stats)
 
 	case "workout":
 		items, err := s.client.GetWorkouts(ctx, token, startDate, endDate)
@@ -249,9 +302,12 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 			return err
 		}
 		workouts := MapWorkouts(items, userID)
+		stats.workoutsReceived += len(workouts)
 		for _, w := range workouts {
 			if _, err := s.db.InsertWorkout(ctx, w); err != nil {
 				s.log.Warn("inserting oura workout", "error", err)
+			} else {
+				stats.workoutsInserted++
 			}
 		}
 		return nil
@@ -263,7 +319,7 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 
 // insertSleepMetrics extracts overlapping health metrics from detailed sleep data
 // (resting HR, HRV, respiratory rate).
-func (s *Syncer) insertSleepMetrics(ctx context.Context, items []SleepItem, userID int) {
+func (s *Syncer) insertSleepMetrics(ctx context.Context, items []SleepItem, userID int, stats *syncStats) error {
 	var rows []models.HealthMetricRow
 	for _, item := range items {
 		if item.Type == "deleted" {
@@ -282,9 +338,5 @@ func (s *Syncer) insertSleepMetrics(ctx context.Context, items []SleepItem, user
 			rows = append(rows, metricRow(t, userID, "respiratory_rate", "breaths/min", floatPtr(bpm)))
 		}
 	}
-	if len(rows) > 0 {
-		if _, err := s.db.InsertHealthMetrics(ctx, rows); err != nil {
-			s.log.Warn("inserting oura sleep metrics", "error", err)
-		}
-	}
+	return s.insertMetrics(ctx, rows, stats)
 }
