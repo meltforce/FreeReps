@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchLatestMetrics, HealthMetricRow, DailySum } from "../api";
+import { useAvailableMetrics, type MetricOption } from "../hooks/useMetrics";
 
-function getValue(row: HealthMetricRow): string {
-  if (row.AvgVal !== null) return row.AvgVal.toFixed(0);
-  if (row.Qty !== null) return row.Qty.toFixed(1);
-  return "—";
+function getValue(row: HealthMetricRow, multiplier: number): string {
+  const raw = row.AvgVal ?? row.Qty;
+  if (raw === null) return "—";
+  const v = raw * multiplier;
+  return v >= 100 ? v.toFixed(0) : v.toFixed(1);
 }
 
 // Map raw Apple Health units to human-friendly display units
@@ -14,59 +16,23 @@ const UNIT_MAP: Record<string, Record<string, string>> = {
   respiratory_rate: { "count/min": "br/min" },
 };
 
-function displayUnit(metricName: string, rawUnit: string): string {
+function displayUnit(metricName: string, rawUnit: string, meta?: MetricOption): string {
+  if (meta?.unit) return meta.unit;
   return UNIT_MAP[metricName]?.[rawUnit] ?? rawUnit;
 }
-
-// Cumulative metrics that should show daily totals
-const CUMULATIVE_METRICS = new Set([
-  "active_energy",
-  "basal_energy_burned",
-  "apple_exercise_time",
-]);
-
-const DISPLAY_ORDER = [
-  "resting_heart_rate",
-  "heart_rate_variability",
-  "heart_rate",
-  "blood_oxygen_saturation",
-  "respiratory_rate",
-  "vo2_max",
-  "weight_body_mass",
-  "body_fat_percentage",
-  "active_energy",
-  "basal_energy_burned",
-  "apple_exercise_time",
-];
-
-const LABELS: Record<string, string> = {
-  heart_rate: "Heart Rate",
-  resting_heart_rate: "Resting HR",
-  heart_rate_variability: "HRV",
-  blood_oxygen_saturation: "SpO2",
-  respiratory_rate: "Resp. Rate",
-  vo2_max: "VO2 Max",
-  weight_body_mass: "Weight",
-  body_fat_percentage: "Body Fat",
-  active_energy: "Active Cal",
-  basal_energy_burned: "Basal Cal",
-  apple_exercise_time: "Exercise",
-};
 
 export default function DailyOverview() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["latestMetrics"],
     queryFn: fetchLatestMetrics,
   });
+  const { lookup, isLoading: metricsLoading } = useAvailableMetrics();
 
-  if (isLoading) {
+  if (isLoading || metricsLoading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-zinc-900 rounded-lg p-4 animate-pulse h-20"
-          />
+          <div key={i} className="bg-zinc-900 rounded-lg p-4 animate-pulse h-20" />
         ))}
       </div>
     );
@@ -84,10 +50,14 @@ export default function DailyOverview() {
   const dailySums = data.daily_sums ?? [];
   const sumMap = new Map(dailySums.map((s) => [s.MetricName, s]));
 
-  const metricMap = new Map(latestRows.map((m) => [m.MetricName, m]));
-  const ordered = DISPLAY_ORDER.filter((name) => metricMap.has(name)).map(
-    (name) => metricMap.get(name)!
-  );
+  // Show all metrics the user has data for, ordered by server metadata
+  const ordered = latestRows
+    .filter((m) => lookup.has(m.MetricName))
+    .sort((a, b) => {
+      const ma = lookup.get(a.MetricName)!;
+      const mb = lookup.get(b.MetricName)!;
+      return (ma.label ?? a.MetricName).localeCompare(mb.label ?? b.MetricName);
+    });
 
   if (ordered.length === 0) {
     return (
@@ -103,6 +73,7 @@ export default function DailyOverview() {
         <MetricCard
           key={m.MetricName}
           row={m}
+          meta={lookup.get(m.MetricName)}
           dailySum={sumMap.get(m.MetricName) ?? null}
         />
       ))}
@@ -112,15 +83,17 @@ export default function DailyOverview() {
 
 function MetricCard({
   row,
+  meta,
   dailySum,
 }: {
   row: HealthMetricRow;
+  meta?: MetricOption;
   dailySum: DailySum | null;
 }) {
-  const label = LABELS[row.MetricName] ?? row.MetricName;
-  const isCumulative = CUMULATIVE_METRICS.has(row.MetricName);
+  const label = meta?.label ?? row.MetricName;
+  const isCumulative = meta?.isCumulative ?? false;
+  const multiplier = meta?.multiplier ?? 1;
 
-  // For cumulative metrics, show daily total; otherwise show latest value
   let value: string;
   let unit: string;
   let subtitle: string;
@@ -128,17 +101,16 @@ function MetricCard({
   if (isCumulative && dailySum) {
     let total = dailySum.Total;
     let displayUnits = dailySum.Units;
-    // Convert kJ to kcal for display consistency
     if (row.MetricName === "basal_energy_burned" && displayUnits === "kJ") {
       total = total / 4.184;
       displayUnits = "kcal";
     }
-    value = Math.round(total).toString();
-    unit = displayUnit(row.MetricName, displayUnits);
+    value = Math.round(total * multiplier).toString();
+    unit = displayUnit(row.MetricName, displayUnits, meta);
     subtitle = "today";
   } else {
-    value = getValue(row);
-    unit = displayUnit(row.MetricName, row.Units);
+    value = getValue(row, multiplier);
+    unit = displayUnit(row.MetricName, row.Units, meta);
     subtitle = formatTimeAgo(row.Time);
   }
 

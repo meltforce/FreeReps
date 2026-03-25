@@ -12,6 +12,7 @@ interface Props {
   label: string;
   unit: string;
   agg?: string;
+  multiplier?: number;
 }
 
 export default function TimeSeriesChart({
@@ -21,6 +22,7 @@ export default function TimeSeriesChart({
   label,
   unit,
   agg = "daily",
+  multiplier = 1,
 }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["timeseries", metric, start, end, agg],
@@ -36,7 +38,10 @@ export default function TimeSeriesChart({
       Math.floor(new Date(p.time).getTime() / 1000)
     );
     const values = data.map(
-      (p: TimeSeriesPoint) => p.avg ?? p.min ?? p.max ?? null
+      (p: TimeSeriesPoint) => {
+        const v = p.avg ?? p.min ?? p.max ?? null;
+        return v != null ? v * multiplier : null;
+      }
     );
 
     const opts: uPlot.Options = {

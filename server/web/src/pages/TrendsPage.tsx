@@ -4,50 +4,15 @@ import { fetchTimeSeries, fetchMetricStats } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import TrendsChart, { type SeriesData } from "../components/trends/TrendsChart";
 import TrendSummaryCards from "../components/trends/TrendSummaryCards";
+import { useAvailableMetrics } from "../hooks/useMetrics";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 const COLORS = ["#22d3ee", "#a78bfa", "#fb923c", "#4ade80", "#f472b6"];
-
-const METRIC_GROUPS = [
-  {
-    label: "Cardiovascular",
-    metrics: [
-      { value: "heart_rate", label: "Heart Rate", unit: "bpm" },
-      { value: "resting_heart_rate", label: "Resting HR", unit: "bpm" },
-      { value: "heart_rate_variability", label: "HRV", unit: "ms" },
-      { value: "vo2_max", label: "VO2 Max", unit: "mL/kg/min" },
-    ],
-  },
-  {
-    label: "Sleep",
-    metrics: [
-      { value: "sleep_analysis", label: "Sleep Duration", unit: "hr" },
-      { value: "blood_oxygen_saturation", label: "SpO2", unit: "%" },
-      { value: "respiratory_rate", label: "Resp. Rate", unit: "brpm" },
-      { value: "apple_sleeping_wrist_temperature", label: "Wrist Temp", unit: "°C" },
-    ],
-  },
-  {
-    label: "Body",
-    metrics: [
-      { value: "weight_body_mass", label: "Weight", unit: "kg" },
-      { value: "body_fat_percentage", label: "Body Fat", unit: "%" },
-    ],
-  },
-  {
-    label: "Activity",
-    metrics: [
-      { value: "active_energy", label: "Active Energy", unit: "kcal" },
-      { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
-    ],
-  },
-];
-
-const ALL_METRICS = METRIC_GROUPS.flatMap((g) => g.metrics);
 const MAX_SELECTED = 5;
 const RANGE_OPTIONS: TimeRange[] = ["30d", "90d", "1y"];
 
 export default function TrendsPage() {
+  const { groups: METRIC_GROUPS, lookup } = useAvailableMetrics();
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([
     "heart_rate_variability",
     "resting_heart_rate",
@@ -110,11 +75,15 @@ export default function TrendsPage() {
 
   // Build per-metric data used by both chart and summary cards
   const metricData = selectedMetrics.map((metric, i) => {
-    const meta = ALL_METRICS.find((m) => m.value === metric);
+    const meta = lookup.get(metric);
     const label = meta?.label ?? metric;
     const unit = meta?.unit ?? "";
+    const multiplier = meta?.multiplier ?? 1;
     const color = COLORS[i % COLORS.length];
-    const points = tsQueries[i]?.data ?? [];
+    const rawPoints = tsQueries[i]?.data ?? [];
+    const points = multiplier !== 1
+      ? rawPoints.map((p: any) => ({ ...p, avg: p.avg != null ? p.avg * multiplier : null, min: p.min != null ? p.min * multiplier : null, max: p.max != null ? p.max * multiplier : null }))
+      : rawPoints;
     return { metric, label, unit, color, points };
   });
 

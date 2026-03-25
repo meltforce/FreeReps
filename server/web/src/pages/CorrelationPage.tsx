@@ -7,42 +7,7 @@ import OverlayChart from "../components/correlation/OverlayChart";
 import SavedViews, {
   CorrelationView,
 } from "../components/correlation/SavedViews";
-
-const METRIC_GROUPS = [
-  {
-    label: "Cardiovascular",
-    metrics: [
-      { value: "heart_rate", label: "Heart Rate" },
-      { value: "resting_heart_rate", label: "Resting HR" },
-      { value: "heart_rate_variability", label: "HRV" },
-      { value: "blood_oxygen_saturation", label: "SpO2" },
-      { value: "respiratory_rate", label: "Resp. Rate" },
-      { value: "vo2_max", label: "VO2 Max" },
-    ],
-  },
-  {
-    label: "Sleep",
-    metrics: [{ value: "sleep_analysis", label: "Sleep Duration" }],
-  },
-  {
-    label: "Body",
-    metrics: [
-      { value: "weight_body_mass", label: "Weight" },
-      { value: "body_fat_percentage", label: "Body Fat" },
-    ],
-  },
-  {
-    label: "Activity",
-    metrics: [
-      { value: "active_energy", label: "Active Energy" },
-      { value: "basal_energy_burned", label: "Basal Energy" },
-      { value: "apple_exercise_time", label: "Exercise Time" },
-    ],
-  },
-];
-
-// Flat list for lookup
-const ALL_METRICS = METRIC_GROUPS.flatMap((g) => g.metrics);
+import { useAvailableMetrics, type MetricGroup } from "../hooks/useMetrics";
 
 const PRESETS = [
   { label: "Sleep vs HRV", x: "sleep_analysis", y: "heart_rate_variability" },
@@ -59,18 +24,16 @@ import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRan
 
 type Mode = "scatter" | "overlay";
 
-function getLabel(value: string): string {
-  return ALL_METRICS.find((m) => m.value === value)?.label ?? value;
-}
-
 function MetricSelect({
   value,
   onChange,
   label,
+  groups,
 }: {
   value: string;
   onChange: (v: string) => void;
   label: string;
+  groups: MetricGroup[];
 }) {
   return (
     <div>
@@ -81,7 +44,7 @@ function MetricSelect({
         className="bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-1.5 text-sm
                    focus:outline-none focus:ring-1 focus:ring-cyan-500"
       >
-        {METRIC_GROUPS.map((group) => (
+        {groups.map((group) => (
           <optgroup key={group.label} label={group.label}>
             {group.metrics.map((m) => (
               <option key={m.value} value={m.value}>
@@ -96,6 +59,7 @@ function MetricSelect({
 }
 
 export default function CorrelationPage() {
+  const { groups, lookup } = useAvailableMetrics();
   const [xMetric, setXMetric] = useState("heart_rate_variability");
   const [yMetric, setYMetric] = useState("resting_heart_rate");
   const [timeRange, setTimeRange] = useState<TimeRange>("90d");
@@ -158,9 +122,9 @@ export default function CorrelationPage() {
 
       {/* Metric selectors */}
       <div className="flex flex-wrap items-end gap-4">
-        <MetricSelect value={xMetric} onChange={setXMetric} label="X Axis" />
+        <MetricSelect value={xMetric} onChange={setXMetric} label="X Axis" groups={groups} />
         <span className="text-zinc-500 text-sm pb-1">vs</span>
-        <MetricSelect value={yMetric} onChange={setYMetric} label="Y Axis" />
+        <MetricSelect value={yMetric} onChange={setYMetric} label="Y Axis" groups={groups} />
 
         {/* Mode toggle */}
         <div className="flex gap-1">
@@ -236,14 +200,14 @@ export default function CorrelationPage() {
               {mode === "scatter" ? (
                 <ScatterChart
                   points={data.points}
-                  xLabel={getLabel(xMetric)}
-                  yLabel={getLabel(yMetric)}
+                  xLabel={lookup.get(xMetric)?.label ?? xMetric}
+                  yLabel={lookup.get(yMetric)?.label ?? yMetric}
                 />
               ) : (
                 <OverlayChart
                   points={data.points}
-                  xLabel={getLabel(xMetric)}
-                  yLabel={getLabel(yMetric)}
+                  xLabel={lookup.get(xMetric)?.label ?? xMetric}
+                  yLabel={lookup.get(yMetric)?.label ?? yMetric}
                 />
               )}
             </>

@@ -327,6 +327,23 @@ export async function uploadAlphaCSV(
   return res.json();
 }
 
+// --- Metric Metadata ---
+
+export interface MetricMeta {
+  metric_name: string;
+  category: string;
+  display_label: string;
+  display_unit: string;
+  is_cumulative: boolean;
+  display_multiplier: number;
+}
+
+export async function fetchAvailableMetrics(): Promise<MetricMeta[]> {
+  const res = await fetch(`${BASE}/metrics/available`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
 // --- Source Priority ---
 
 export interface SourcePriorityRule {

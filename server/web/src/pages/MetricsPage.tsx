@@ -1,29 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchTimeSeries, fetchMetricStats } from "../api";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import MetricStatsBar from "../components/metrics/MetricStatsBar";
 import MetricTimeSeriesChart from "../components/metrics/MetricTimeSeriesChart";
+import { useAvailableMetrics } from "../hooks/useMetrics";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
-const METRICS = [
-  { value: "heart_rate", label: "Heart Rate", unit: "bpm" },
-  { value: "resting_heart_rate", label: "Resting HR", unit: "bpm" },
-  { value: "heart_rate_variability", label: "HRV", unit: "ms" },
-  { value: "blood_oxygen_saturation", label: "SpO2", unit: "%" },
-  { value: "respiratory_rate", label: "Resp. Rate", unit: "brpm" },
-  { value: "vo2_max", label: "VO2 Max", unit: "mL/kg/min" },
-  { value: "weight_body_mass", label: "Weight", unit: "kg" },
-  { value: "body_fat_percentage", label: "Body Fat", unit: "%" },
-  { value: "active_energy", label: "Active Energy", unit: "kcal" },
-  { value: "basal_energy_burned", label: "Basal Energy", unit: "kcal" },
-  { value: "apple_exercise_time", label: "Exercise Time", unit: "min" },
-];
-
 export default function MetricsPage() {
-  const [metric, setMetric] = useState("resting_heart_rate");
+  const { options, lookup, isLoading: metricsLoading } = useAvailableMetrics();
+  const [metric, setMetric] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("90d");
   const [offset, setOffset] = useState(0);
+
+  // Auto-select first metric when options load
+  useEffect(() => {
+    if (options.length > 0 && !metric) {
+      const rhr = options.find((m) => m.value === "resting_heart_rate");
+      setMetric(rhr?.value ?? options[0].value);
+    }
+  }, [options, metric]);
 
   const days = daysFromRange(timeRange);
   const endDate = new Date(Date.now() - offset * days * 86400000);
@@ -31,18 +27,34 @@ export default function MetricsPage() {
   const end = endDate.toISOString().split("T")[0];
   const start = startDate.toISOString().split("T")[0];
 
-  const selected = METRICS.find((m) => m.value === metric)!;
+  const selected = lookup.get(metric);
+  const multiplier = selected?.multiplier ?? 1;
 
   const agg = timeRange === "1d" ? "hourly" : "daily";
   const { data: tsData, isLoading: tsLoading } = useQuery({
     queryKey: ["timeseries", metric, start, end, agg],
     queryFn: () => fetchTimeSeries(metric, start, end, agg),
+    enabled: !!metric,
   });
 
   const { data: statsData } = useQuery({
     queryKey: ["metricStats", metric, start, end],
     queryFn: () => fetchMetricStats(metric, start, end),
+    enabled: !!metric,
   });
+
+  // Apply display multiplier to stats and time series
+  const scaledStats = statsData && multiplier !== 1
+    ? { ...statsData, avg: (statsData.avg ?? 0) * multiplier, min: (statsData.min ?? 0) * multiplier, max: (statsData.max ?? 0) * multiplier, stddev: (statsData.stddev ?? 0) * multiplier }
+    : statsData;
+
+  const scaledTs = tsData && multiplier !== 1
+    ? tsData.map((p: any) => ({ ...p, avg: p.avg != null ? p.avg * multiplier : null, min: p.min != null ? p.min * multiplier : null, max: p.max != null ? p.max * multiplier : null }))
+    : tsData;
+
+  if (metricsLoading) {
+    return <p className="text-zinc-500">Loading metrics...</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -59,10 +71,9 @@ export default function MetricsPage() {
         />
       </div>
 
-      {/* Metric selector — sidebar on desktop, horizontal scroll on mobile */}
       <div className="flex gap-6">
         <div className="hidden lg:block shrink-0 w-48 space-y-1">
-          {METRICS.map((m) => (
+          {options.map((m) => (
             <button
               key={m.value}
               onClick={() => setMetric(m.value)}
@@ -78,7 +89,6 @@ export default function MetricsPage() {
         </div>
 
         <div className="flex-1 min-w-0 space-y-4">
-          {/* Mobile metric selector */}
           <div className="lg:hidden">
             <select
               value={metric}
@@ -86,7 +96,7 @@ export default function MetricsPage() {
               className="bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-1.5 text-sm w-full
                          focus:outline-none focus:ring-1 focus:ring-cyan-500"
             >
-              {METRICS.map((m) => (
+              {options.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>
@@ -94,18 +104,16 @@ export default function MetricsPage() {
             </select>
           </div>
 
-          {/* Stats bar */}
-          {statsData && <MetricStatsBar stats={statsData} />}
+          {scaledStats && <MetricStatsBar stats={scaledStats} />}
 
-          {/* Chart */}
           {tsLoading ? (
             <div className="bg-zinc-900 rounded-lg p-6 h-[340px] animate-pulse" />
           ) : (
             <MetricTimeSeriesChart
-              data={tsData ?? []}
-              stats={statsData ?? null}
-              label={selected.label}
-              unit={selected.unit}
+              data={scaledTs ?? []}
+              stats={scaledStats ?? null}
+              label={selected?.label ?? metric}
+              unit={selected?.unit ?? ""}
             />
           )}
         </div>
