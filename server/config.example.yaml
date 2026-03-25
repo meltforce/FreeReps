@@ -14,3 +14,14 @@ tailscale:
   enabled: false       # set to true (default) for production/Docker
   hostname: "freereps"
   state_dir: "tsnet-state"
+
+oura:
+  enabled: false
+  client_id: ""
+  client_secret: ""
+  sync_interval: "30m"
+  backfill_days: 90
+
+source_priority:
+  - "Oura"
+  - ""

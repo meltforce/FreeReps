@@ -1,12 +1,14 @@
 import { useSearchParams } from "react-router-dom";
 import IdentityTab from "../components/settings/IdentityTab";
 import ImportTab from "../components/settings/ImportTab";
+import OuraTab from "../components/settings/OuraTab";
 import StatsTab from "../components/settings/StatsTab";
 import ImportLogsTab from "../components/settings/ImportLogsTab";
 
 const TABS = [
   { id: "identity", label: "Identity" },
   { id: "import", label: "Import" },
+  { id: "oura", label: "Oura Ring" },
   { id: "stats", label: "Stats" },
   { id: "logs", label: "Import Logs" },
 ] as const;
@@ -47,6 +49,7 @@ export default function SettingsPage() {
       <div>
         {tab === "identity" && <IdentityTab />}
         {tab === "import" && <ImportTab />}
+        {tab === "oura" && <OuraTab />}
         {tab === "stats" && <StatsTab />}
         {tab === "logs" && <ImportLogsTab />}
       </div>

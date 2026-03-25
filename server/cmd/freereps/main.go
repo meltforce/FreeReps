@@ -19,6 +19,7 @@ import (
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
+	"github.com/claude/freereps/internal/oura"
 	"github.com/claude/freereps/internal/server"
 	"github.com/claude/freereps/internal/storage"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -73,6 +74,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	db.SetSourcePriority(cfg.SourcePriority)
 	log.Info("database connected")
 
 	// Backfill sleep sessions from stages (idempotent — ON CONFLICT DO NOTHING)
@@ -110,6 +112,20 @@ func main() {
 	// Create server
 	server.Version = Version
 	srv := server.New(db, healthProvider, alphaProvider, log)
+
+	// Start Oura sync if enabled
+	if cfg.Oura.Enabled {
+		ouraClient := oura.NewClient()
+		tokenMgr := oura.NewTokenManager(cfg.Oura.ClientID, cfg.Oura.ClientSecret, db)
+		syncer := oura.NewSyncer(ouraClient, tokenMgr, db, cfg.Oura, log)
+
+		syncCtx, syncCancel := context.WithCancel(ctx)
+		defer syncCancel()
+		go syncer.Run(syncCtx)
+
+		srv.SetOura(tokenMgr, syncer)
+		log.Info("oura sync started", "interval", cfg.Oura.SyncInterval)
+	}
 
 	// Mount MCP SSE server
 	mcpSrv := freerepsmcp.New(db, Version, log)

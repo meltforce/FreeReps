@@ -12,7 +12,15 @@ import (
 
 // DB wraps a pgxpool.Pool and provides repository methods.
 type DB struct {
-	Pool *pgxpool.Pool
+	Pool           *pgxpool.Pool
+	SourcePriority []string
+}
+
+// SetSourcePriority configures the source priority list used for query-time
+// deduplication. Lower index = higher priority. Sources not in the list get
+// the lowest priority.
+func (db *DB) SetSourcePriority(priorities []string) {
+	db.SourcePriority = priorities
 }
 
 // New creates a new DB with a connection pool.

@@ -326,3 +326,34 @@ export async function uploadAlphaCSV(
   }
   return res.json();
 }
+
+// --- Oura Integration ---
+
+export interface OuraStatus {
+  enabled: boolean;
+  connected: boolean;
+  expires_at?: string;
+  sync_states?: Record<string, string>;
+}
+
+export async function fetchOuraStatus(): Promise<OuraStatus> {
+  const res = await fetch(`${BASE}/oura/status`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function authorizeOura(): Promise<{ authorize_url: string }> {
+  const res = await fetch(`${BASE}/oura/authorize`, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function triggerOuraSync(): Promise<void> {
+  const res = await fetch(`${BASE}/oura/sync`, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
+export async function disconnectOura(): Promise<void> {
+  const res = await fetch(`${BASE}/oura/disconnect`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}

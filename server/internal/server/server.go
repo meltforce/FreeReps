@@ -11,6 +11,7 @@ import (
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
+	"github.com/claude/freereps/internal/oura"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/go-chi/chi/v5"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -26,9 +27,20 @@ type Server struct {
 	lc     *local.Client
 	router chi.Router
 
+	// Oura integration (nil if disabled)
+	ouraTokenMgr *oura.TokenManager
+	ouraSyncer   *oura.Syncer
+
 	// HAE TCP import state (only one import at a time)
 	importMu     sync.Mutex
 	activeImport *haeImportState
+}
+
+// SetOura configures the Oura integration components.
+// Must be called before the server starts handling requests.
+func (s *Server) SetOura(tm *oura.TokenManager, syncer *oura.Syncer) {
+	s.ouraTokenMgr = tm
+	s.ouraSyncer = syncer
 }
 
 // Version is set by main to make it available to handlers.
@@ -137,6 +149,15 @@ func (s *Server) routes() {
 		// Settings / admin endpoints
 		r.Get("/api/v1/stats", s.handleStats)
 		r.Get("/api/v1/import-logs", s.handleImportLogs)
+
+		// Oura integration
+		r.Route("/api/v1/oura", func(r chi.Router) {
+			r.Get("/status", s.handleOuraStatus)
+			r.Post("/authorize", s.handleOuraAuthorize)
+			r.Post("/sync", s.handleOuraSync)
+			r.Delete("/disconnect", s.handleOuraDisconnect)
+		})
+		r.Get("/oura/callback", s.handleOuraCallback)
 
 		// HAE TCP import
 		r.Post("/api/v1/import/hae-tcp/check", s.handleCheckHAE)

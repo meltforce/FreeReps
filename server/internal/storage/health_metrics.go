@@ -11,6 +11,60 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// sourcePriorityCaseSQL generates a SQL CASE expression that maps source values
+// to priority numbers. Lower numbers = higher priority. Sources not in the list
+// get the lowest priority. Named sources use prefix matching (e.g. "Apple Watch"
+// matches "Apple Watch Series 9"); empty string uses exact match.
+// Returns "1" if no priorities are configured (all sources equal = no-op dedup).
+func (db *DB) sourcePriorityCaseSQL() string {
+	if len(db.SourcePriority) == 0 {
+		return "1"
+	}
+	var b strings.Builder
+	b.WriteString("CASE ")
+	for i, src := range db.SourcePriority {
+		if src == "" {
+			fmt.Fprintf(&b, "WHEN source = '' THEN %d ", i+1)
+		} else {
+			fmt.Fprintf(&b, "WHEN source LIKE '%s%%' THEN %d ", src, i+1)
+		}
+	}
+	fmt.Fprintf(&b, "ELSE %d END", len(db.SourcePriority)+1)
+	return b.String()
+}
+
+// dedupCTE returns a WITH clause that deduplicates health_metrics at a fixed
+// 5-minute granularity using source priority. The CTE selects all columns plus
+// a row number (rn) partitioned by 5-minute time buckets. Callers should filter
+// with "WHERE rn = 1" to keep only the highest-priority source per bucket.
+func (db *DB) dedupCTE(metricParam, startParam, endParam, userIDParam string) string {
+	priorityExpr := db.sourcePriorityCaseSQL()
+	return fmt.Sprintf(
+		`WITH deduped AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY time_bucket('5 minutes', time)
+				ORDER BY %s
+			) AS rn
+			FROM health_metrics
+			WHERE metric_name = %s AND time >= %s AND time < %s AND user_id = %s
+		) `, priorityExpr, metricParam, startParam, endParam, userIDParam)
+}
+
+// dedupCTEMultiMetric returns a dedup CTE for queries that span multiple metrics
+// (e.g. GetDailySums). Partitions by metric_name in addition to time bucket.
+func (db *DB) dedupCTEMultiMetric(userIDParam, inClause string) string {
+	priorityExpr := db.sourcePriorityCaseSQL()
+	return fmt.Sprintf(
+		`WITH deduped AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY metric_name, time_bucket('5 minutes', time)
+				ORDER BY %s
+			) AS rn
+			FROM health_metrics
+			WHERE user_id = %s AND metric_name IN (%s)
+		) `, priorityExpr, userIDParam, inClause)
+}
+
 // cumulativeMetrics are metrics that should be summed (not averaged) when aggregating.
 var cumulativeMetrics = map[string]bool{
 	"active_energy":                true,
@@ -101,16 +155,16 @@ func (db *DB) GetTimeSeries(ctx context.Context, metricName string, start, end t
 	if cumulativeMetrics[metricName] {
 		aggFunc = "SUM"
 	}
+	cte := db.dedupCTE("$2", "$3", "$4", "$5")
 	query := fmt.Sprintf(
-		`SELECT time_bucket($1::interval, time) AS bucket,
+		`%sSELECT time_bucket($1::interval, time) AS bucket,
 		        %s(COALESCE(qty, avg_val)) AS avg_val,
 		        MIN(COALESCE(qty, min_val)) AS min_val,
 		        MAX(COALESCE(qty, max_val)) AS max_val,
 		        COUNT(*) AS count
-		 FROM health_metrics
-		 WHERE metric_name = $2 AND time >= $3 AND time < $4 AND user_id = $5
+		 FROM deduped WHERE rn = 1
 		 GROUP BY bucket
-		 ORDER BY bucket ASC`, aggFunc)
+		 ORDER BY bucket ASC`, cte, aggFunc)
 	rows, err := db.Pool.Query(ctx, query,
 		bucketSize, metricName, start, end, userID)
 	if err != nil {
@@ -162,16 +216,17 @@ func (db *DB) GetDailySums(ctx context.Context, userID int, metricNames []string
 	}
 
 	inClause := strings.Join(params, ",")
+	cte := db.dedupCTEMultiMetric("$1", inClause)
 
 	query := fmt.Sprintf(
-		`SELECT metric_name,
+		`%sSELECT metric_name,
 		        COALESCE(MAX(units), '') as units,
 		        COALESCE(SUM(COALESCE(qty, avg_val, 0)), 0) as total
-		 FROM health_metrics
-		 WHERE user_id = $1 AND metric_name IN (%s)
-		   AND time >= (SELECT date_trunc('day', MAX(time)) FROM health_metrics WHERE user_id = $1 AND metric_name IN (%s))
+		 FROM deduped
+		 WHERE rn = 1
+		   AND time >= (SELECT date_trunc('day', MAX(time)) FROM deduped WHERE rn = 1)
 		 GROUP BY metric_name`,
-		inClause, inClause)
+		cte)
 
 	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
@@ -202,15 +257,15 @@ type MetricStats struct {
 
 // GetMetricStats returns aggregate statistics for a metric over a time range.
 func (db *DB) GetMetricStats(ctx context.Context, metricName string, start, end time.Time, userID int) (*MetricStats, error) {
-	row := db.Pool.QueryRow(ctx,
-		`SELECT AVG(COALESCE(qty, avg_val)),
+	cte := db.dedupCTE("$1", "$2", "$3", "$4")
+	query := fmt.Sprintf(
+		`%sSELECT AVG(COALESCE(qty, avg_val)),
 		        MIN(COALESCE(qty, min_val)),
 		        MAX(COALESCE(qty, max_val)),
 		        STDDEV_POP(COALESCE(qty, avg_val)),
 		        COUNT(*)
-		 FROM health_metrics
-		 WHERE metric_name = $1 AND time >= $2 AND time < $3 AND user_id = $4`,
-		metricName, start, end, userID)
+		 FROM deduped WHERE rn = 1`, cte)
+	row := db.Pool.QueryRow(ctx, query, metricName, start, end, userID)
 
 	stats := &MetricStats{Metric: metricName}
 	if err := row.Scan(&stats.Avg, &stats.Min, &stats.Max, &stats.StdDev, &stats.Count); err != nil {
@@ -244,23 +299,36 @@ func (db *DB) GetCorrelation(ctx context.Context, xMetric, yMetric string, start
 	if cumulativeMetrics[yMetric] {
 		yAgg = "SUM"
 	}
+	priorityExpr := db.sourcePriorityCaseSQL()
 	query := fmt.Sprintf(
-		`WITH x AS (
-			SELECT time_bucket($1::interval, time) AS bucket,
-			       %s(COALESCE(qty, avg_val)) AS val
+		`WITH x_deduped AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY time_bucket('5 minutes', time)
+				ORDER BY %s
+			) AS rn
 			FROM health_metrics
 			WHERE metric_name = $2 AND time >= $4 AND time < $5 AND user_id = $6
+		), y_deduped AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY time_bucket('5 minutes', time)
+				ORDER BY %s
+			) AS rn
+			FROM health_metrics
+			WHERE metric_name = $3 AND time >= $4 AND time < $5 AND user_id = $6
+		), x AS (
+			SELECT time_bucket($1::interval, time) AS bucket,
+			       %s(COALESCE(qty, avg_val)) AS val
+			FROM x_deduped WHERE rn = 1
 			GROUP BY bucket
 		), y AS (
 			SELECT time_bucket($1::interval, time) AS bucket,
 			       %s(COALESCE(qty, avg_val)) AS val
-			FROM health_metrics
-			WHERE metric_name = $3 AND time >= $4 AND time < $5 AND user_id = $6
+			FROM y_deduped WHERE rn = 1
 			GROUP BY bucket
 		)
 		SELECT x.bucket, x.val, y.val
 		FROM x JOIN y ON x.bucket = y.bucket
-		ORDER BY x.bucket ASC`, xAgg, yAgg)
+		ORDER BY x.bucket ASC`, priorityExpr, priorityExpr, xAgg, yAgg)
 	rows, err := db.Pool.Query(ctx, query,
 		bucket, xMetric, yMetric, start, end, userID)
 	if err != nil {

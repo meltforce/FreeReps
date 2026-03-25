@@ -210,3 +210,84 @@ func TestLoadMissingFile(t *testing.T) {
 		t.Fatal("expected error for missing file")
 	}
 }
+
+// TestOuraDefaults verifies that Oura config gets sensible defaults when not
+// specified in YAML, so the feature is disabled but ready to configure.
+func TestOuraDefaults(t *testing.T) {
+	cfg, err := Load(writeTemp(t, validYAML))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Oura.Enabled {
+		t.Error("oura.enabled should default to false")
+	}
+	if cfg.Oura.SyncInterval != 30*60*1e9 { // 30 minutes
+		t.Errorf("oura.sync_interval = %v, want 30m", cfg.Oura.SyncInterval)
+	}
+	if cfg.Oura.BackfillDays != 90 {
+		t.Errorf("oura.backfill_days = %d, want 90", cfg.Oura.BackfillDays)
+	}
+}
+
+// TestSourcePriorityDefault verifies the default source priority list ensures
+// Oura data is preferred over HealthKit when both sources overlap.
+func TestSourcePriorityDefault(t *testing.T) {
+	cfg, err := Load(writeTemp(t, validYAML))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.SourcePriority) != 2 {
+		t.Fatalf("source_priority length = %d, want 2", len(cfg.SourcePriority))
+	}
+	if cfg.SourcePriority[0] != "Oura" {
+		t.Errorf("source_priority[0] = %q, want %q", cfg.SourcePriority[0], "Oura")
+	}
+	if cfg.SourcePriority[1] != "" {
+		t.Errorf("source_priority[1] = %q, want empty string", cfg.SourcePriority[1])
+	}
+}
+
+// TestOuraValidationRequiresCredentials verifies that enabling Oura without
+// providing client_id and client_secret fails validation, preventing a misconfigured
+// server from starting.
+func TestOuraValidationRequiresCredentials(t *testing.T) {
+	yaml := `
+server:
+  port: 8080
+database:
+  host: "localhost"
+  port: 5432
+  name: "freereps"
+  user: "freereps"
+tailscale:
+  enabled: false
+oura:
+  enabled: true
+`
+	_, err := Load(writeTemp(t, yaml))
+	if err == nil {
+		t.Fatal("expected validation error for missing oura credentials")
+	}
+}
+
+// TestOuraEnvOverride verifies that FREEREPS_OURA_CLIENT_ID env var takes
+// precedence over the YAML value, allowing secrets to be injected at runtime.
+func TestOuraEnvOverride(t *testing.T) {
+	t.Setenv("FREEREPS_OURA_CLIENT_ID", "env-client-id")
+	t.Setenv("FREEREPS_OURA_CLIENT_SECRET", "env-secret")
+	t.Setenv("FREEREPS_OURA_ENABLED", "true")
+
+	cfg, err := Load(writeTemp(t, validYAML))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Oura.ClientID != "env-client-id" {
+		t.Errorf("oura.client_id = %q, want %q", cfg.Oura.ClientID, "env-client-id")
+	}
+	if cfg.Oura.ClientSecret != "env-secret" {
+		t.Errorf("oura.client_secret = %q, want %q", cfg.Oura.ClientSecret, "env-secret")
+	}
+	if !cfg.Oura.Enabled {
+		t.Error("oura.enabled should be true after env override")
+	}
+}
