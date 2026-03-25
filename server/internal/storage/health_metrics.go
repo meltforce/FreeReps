@@ -155,7 +155,8 @@ func (db *DB) GetTimeSeries(ctx context.Context, metricName string, start, end t
 	if cumulativeMetrics[metricName] {
 		aggFunc = "SUM"
 	}
-	cte := dedupCTE(db.SourcePriority, "$2", "$3", "$4", "$5")
+	priorities := db.ResolveSourcePriorityForMetric(ctx, userID, metricName)
+	cte := dedupCTE(priorities, "$2", "$3", "$4", "$5")
 	query := fmt.Sprintf(
 		`%sSELECT time_bucket($1::interval, time) AS bucket,
 		        %s(COALESCE(qty, avg_val)) AS avg_val,
@@ -216,7 +217,10 @@ func (db *DB) GetDailySums(ctx context.Context, userID int, metricNames []string
 	}
 
 	inClause := strings.Join(params, ",")
-	cte := dedupCTEMultiMetric(db.SourcePriority, "$1", inClause)
+	// DailySums spans multiple metrics (potentially different categories).
+	// Use the user's _default priority.
+	priorities := db.ResolveSourcePriority(ctx, userID, "_default")
+	cte := dedupCTEMultiMetric(priorities, "$1", inClause)
 
 	query := fmt.Sprintf(
 		`%sSELECT metric_name,
@@ -257,7 +261,8 @@ type MetricStats struct {
 
 // GetMetricStats returns aggregate statistics for a metric over a time range.
 func (db *DB) GetMetricStats(ctx context.Context, metricName string, start, end time.Time, userID int) (*MetricStats, error) {
-	cte := dedupCTE(db.SourcePriority, "$1", "$2", "$3", "$4")
+	priorities := db.ResolveSourcePriorityForMetric(ctx, userID, metricName)
+	cte := dedupCTE(priorities, "$1", "$2", "$3", "$4")
 	query := fmt.Sprintf(
 		`%sSELECT AVG(COALESCE(qty, avg_val)),
 		        MIN(COALESCE(qty, min_val)),
@@ -299,7 +304,9 @@ func (db *DB) GetCorrelation(ctx context.Context, xMetric, yMetric string, start
 	if cumulativeMetrics[yMetric] {
 		yAgg = "SUM"
 	}
-	priorityExpr := sourcePriorityCaseSQL(db.SourcePriority)
+	// For correlation, use the priority for the X metric's category.
+	priorities := db.ResolveSourcePriorityForMetric(ctx, userID, xMetric)
+	priorityExpr := sourcePriorityCaseSQL(priorities)
 	query := fmt.Sprintf(
 		`WITH x_deduped AS (
 			SELECT *, ROW_NUMBER() OVER (

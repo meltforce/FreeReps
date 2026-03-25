@@ -112,7 +112,8 @@ type WorkoutDetail struct {
 // when two workouts start within the same 5-minute window, only the highest-priority
 // source's workout is returned. Excludes raw_json to keep the list payload small.
 func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID int, nameFilter string) ([]models.WorkoutRow, error) {
-	priorityExpr := sourcePriorityCaseSQL(db.SourcePriority)
+	priorities := db.ResolveSourcePriority(ctx, userID, "activity")
+	priorityExpr := sourcePriorityCaseSQL(priorities)
 	where := `start_time >= $1 AND start_time < $2 AND user_id = $3`
 	args := []any{start, end, userID}
 	if nameFilter != "" {

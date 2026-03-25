@@ -81,14 +81,14 @@ func (db *DB) GetDistinctSources(ctx context.Context, userID int) ([]string, err
 
 // ResolveSourcePriority returns the source priority list for a given user and category.
 // Falls back to the user's "_default" rule, then to db.SourcePriority (config global).
-func (db *DB) ResolveSourcePriority(ctx context.Context, userID int, category string) ([]string, error) {
+func (db *DB) ResolveSourcePriority(ctx context.Context, userID int, category string) []string {
 	// Try category-specific rule first.
 	var sources []string
 	err := db.Pool.QueryRow(ctx,
 		`SELECT sources FROM source_priority WHERE user_id = $1 AND category = $2`,
 		userID, category).Scan(&sources)
 	if err == nil {
-		return sources, nil
+		return sources
 	}
 
 	// Fall back to _default.
@@ -96,9 +96,22 @@ func (db *DB) ResolveSourcePriority(ctx context.Context, userID int, category st
 		`SELECT sources FROM source_priority WHERE user_id = $1 AND category = '_default'`,
 		userID).Scan(&sources)
 	if err == nil {
-		return sources, nil
+		return sources
 	}
 
 	// Fall back to global config.
-	return db.SourcePriority, nil
+	return db.SourcePriority
+}
+
+// ResolveSourcePriorityForMetric looks up the category for a metric name and
+// resolves the source priority for that category.
+func (db *DB) ResolveSourcePriorityForMetric(ctx context.Context, userID int, metricName string) []string {
+	var category string
+	err := db.Pool.QueryRow(ctx,
+		`SELECT category FROM metric_allowlist WHERE metric_name = $1`,
+		metricName).Scan(&category)
+	if err != nil {
+		return db.SourcePriority
+	}
+	return db.ResolveSourcePriority(ctx, userID, category)
 }
