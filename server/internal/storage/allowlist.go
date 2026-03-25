@@ -47,10 +47,11 @@ func (db *DB) GetAllowedMetrics(ctx context.Context) ([]AllowedMetric, error) {
 	return result, rows.Err()
 }
 
-// GetAllowlistCategories returns all distinct categories from the metric allowlist.
+// GetAllowlistCategories returns distinct categories from the metric allowlist,
+// excluding source-exclusive categories (like "oura") where dedup doesn't apply.
 func (db *DB) GetAllowlistCategories(ctx context.Context) ([]string, error) {
 	rows, err := db.Pool.Query(ctx,
-		`SELECT DISTINCT category FROM metric_allowlist ORDER BY category`)
+		`SELECT DISTINCT category FROM metric_allowlist WHERE category NOT IN ('oura') ORDER BY category`)
 	if err != nil {
 		return nil, fmt.Errorf("querying allowlist categories: %w", err)
 	}
