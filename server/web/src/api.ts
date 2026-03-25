@@ -73,6 +73,20 @@ export async function fetchLatestMetrics(): Promise<LatestMetricsResponse> {
   return res.json();
 }
 
+// --- Dashboard Init (combined endpoint) ---
+
+export interface DashboardInitResponse {
+  available_metrics: MetricMeta[];
+  latest: HealthMetricRow[];
+  daily_sums: DailySum[] | null;
+}
+
+export async function fetchDashboardInit(): Promise<DashboardInitResponse> {
+  const res = await fetch(`${BASE}/dashboard/init`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
 export async function fetchTimeSeries(
   metric: string,
   start: string,

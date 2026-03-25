@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // IsMetricAllowed checks if a metric name is in the allowlist and enabled.
@@ -78,7 +79,41 @@ func (db *DB) GetAllowedMetrics(ctx context.Context) ([]AllowedMetric, error) {
 
 // GetAvailableMetrics returns allowlist entries for metrics the user actually has data for,
 // with per-user visibility resolved (override → default set → false).
+// Results are cached per user with a 5-minute TTL.
 func (db *DB) GetAvailableMetrics(ctx context.Context, userID int) ([]AllowedMetric, error) {
+	db.availMetricsMu.RLock()
+	if entry, ok := db.availMetricsCache[userID]; ok {
+		if time.Since(entry.fetchedAt) < availMetricsCacheTTL {
+			db.availMetricsMu.RUnlock()
+			return entry.metrics, nil
+		}
+	}
+	db.availMetricsMu.RUnlock()
+
+	metrics, err := db.getAvailableMetricsFromDB(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	db.availMetricsMu.Lock()
+	if db.availMetricsCache == nil {
+		db.availMetricsCache = make(map[int]*availMetricsCacheEntry)
+	}
+	// Evict all entries if cache exceeds max size to bound memory.
+	if len(db.availMetricsCache) >= availMetricsCacheMaxSize {
+		db.availMetricsCache = make(map[int]*availMetricsCacheEntry)
+	}
+	db.availMetricsCache[userID] = &availMetricsCacheEntry{
+		metrics:   metrics,
+		fetchedAt: time.Now(),
+	}
+	db.availMetricsMu.Unlock()
+
+	return metrics, nil
+}
+
+// getAvailableMetricsFromDB queries the database for available metrics (uncached).
+func (db *DB) getAvailableMetricsFromDB(ctx context.Context, userID int) ([]AllowedMetric, error) {
 	rows, err := db.Pool.Query(ctx,
 		`SELECT a.metric_name, a.category, a.enabled, a.display_label, a.display_unit, a.is_cumulative, a.display_multiplier,
 		        v.visible
@@ -110,6 +145,20 @@ func (db *DB) GetAvailableMetrics(ctx context.Context, userID int) ([]AllowedMet
 		result = append(result, m)
 	}
 	return result, rows.Err()
+}
+
+// InvalidateAvailableMetrics clears the cached available metrics for a specific user.
+func (db *DB) InvalidateAvailableMetrics(userID int) {
+	db.availMetricsMu.Lock()
+	delete(db.availMetricsCache, userID)
+	db.availMetricsMu.Unlock()
+}
+
+// InvalidateAllAvailableMetrics clears the cached available metrics for all users.
+func (db *DB) InvalidateAllAvailableMetrics() {
+	db.availMetricsMu.Lock()
+	db.availMetricsCache = nil
+	db.availMetricsMu.Unlock()
 }
 
 // SaveMetricVisibility saves per-user visibility overrides for multiple metrics.

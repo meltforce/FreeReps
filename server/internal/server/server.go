@@ -126,6 +126,7 @@ func (s *Server) routes() {
 		r.Get("/api/v1/me", s.handleMe)
 
 		// Dashboard API endpoints
+		r.Get("/api/v1/dashboard/init", s.handleDashboardInit)
 		r.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
 		r.Get("/api/v1/metrics", s.handleQueryMetrics)
 		r.Get("/api/v1/sleep", s.handleQuerySleep)

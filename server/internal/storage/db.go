@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -14,6 +16,20 @@ import (
 type DB struct {
 	Pool           *pgxpool.Pool
 	SourcePriority []string
+
+	// Available metrics cache (per user_id, bounded).
+	availMetricsMu    sync.RWMutex
+	availMetricsCache map[int]*availMetricsCacheEntry
+}
+
+const (
+	availMetricsCacheTTL     = 5 * time.Minute
+	availMetricsCacheMaxSize = 64
+)
+
+type availMetricsCacheEntry struct {
+	metrics   []AllowedMetric
+	fetchedAt time.Time
 }
 
 // SetSourcePriority configures the source priority list used for query-time
@@ -25,7 +41,14 @@ func (db *DB) SetSourcePriority(priorities []string) {
 
 // New creates a new DB with a connection pool.
 func New(ctx context.Context, dsn string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parsing pool config: %w", err)
+	}
+	cfg.MaxConns = 16
+	cfg.MinConns = 2
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating pool: %w", err)
 	}

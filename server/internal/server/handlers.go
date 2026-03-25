@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/claude/freereps/internal/ingest"
 	"github.com/claude/freereps/internal/models"
+	"github.com/claude/freereps/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -20,6 +22,56 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	info := userInfoFromContext(r)
 	writeJSON(w, http.StatusOK, info)
+}
+
+// handleDashboardInit returns available metrics, latest metrics, and daily sums
+// in a single response. The three database queries run concurrently to minimize
+// latency compared to three separate HTTP requests.
+func (s *Server) handleDashboardInit(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	ctx := r.Context()
+	var (
+		available []storage.AllowedMetric
+		latest    []models.HealthMetricRow
+		sums      []storage.DailySum
+		errAvail  error
+		errLatest error
+		errSums   error
+		wg        sync.WaitGroup
+	)
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		available, errAvail = s.db.GetAvailableMetrics(ctx, uid)
+	}()
+	go func() {
+		defer wg.Done()
+		latest, errLatest = s.db.GetLatestMetrics(ctx, uid)
+	}()
+	go func() {
+		defer wg.Done()
+		sums, errSums = s.db.GetDailySums(ctx, uid, cumulativeMetrics)
+	}()
+	wg.Wait()
+
+	for _, err := range []error{errAvail, errLatest, errSums} {
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+
+	w.Header().Set("Cache-Control", "private, max-age=30")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"available_metrics": available,
+		"latest":            latest,
+		"daily_sums":        sums,
+	})
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +104,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.db.InvalidateAllAvailableMetrics()
 	go s.logImport(uid, "hae_rest", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
@@ -74,6 +127,7 @@ func (s *Server) handleAlphaIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.db.InvalidateAllAvailableMetrics()
 	go s.logImport(uid, "alpha", result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
@@ -105,6 +159,7 @@ func (s *Server) handleUnifiedImport(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+		s.db.InvalidateAllAvailableMetrics()
 		go s.logImport(uid, "import_auto", result, nil, durationMs)
 		writeJSON(w, http.StatusOK, result)
 
@@ -146,6 +201,7 @@ func (s *Server) handleLatestMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response with daily_sums field
+	w.Header().Set("Cache-Control", "private, max-age=60")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"latest":     rows,
 		"daily_sums": sums,
@@ -398,6 +454,7 @@ func (s *Server) handleAvailableMetrics(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	w.Header().Set("Cache-Control", "private, max-age=60")
 	writeJSON(w, http.StatusOK, metrics)
 }
 
@@ -417,6 +474,7 @@ func (s *Server) handleSaveMetricVisibility(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	s.db.InvalidateAvailableMetrics(uid)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 

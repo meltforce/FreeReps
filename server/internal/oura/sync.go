@@ -129,6 +129,7 @@ func (s *Syncer) SyncUser(ctx context.Context, userID int) {
 	if len(stats.errors) > 0 {
 		syncErr = fmt.Errorf("%d data type(s) failed", len(stats.errors))
 	}
+	s.db.InvalidateAvailableMetrics(userID)
 	s.logImport(ctx, userID, start, stats, syncErr)
 }
 

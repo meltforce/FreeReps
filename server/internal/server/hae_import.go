@@ -361,6 +361,8 @@ func (s *Server) runHAEImport(ctx context.Context, state *haeImportState, userID
 		s.log.Warn("sleep session backfill after import failed", "error", err)
 	}
 
+	s.db.InvalidateAllAvailableMetrics()
+
 	// Broadcast completion
 	state.broadcast(sseEvent{
 		Event: "complete",

@@ -4,9 +4,13 @@ import MetricSelector from "../components/MetricSelector";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import { useEffect, useState } from "react";
 import { useAvailableMetrics } from "../hooks/useMetrics";
+import { useDashboardInit } from "../hooks/useDashboardInit";
 import { daysFromRange, formatDateLabel, type TimeRange } from "../utils/timeRange";
 
 export default function DashboardPage() {
+  // Single request seeds both available-metrics and latestMetrics caches.
+  useDashboardInit();
+
   const { visibleOptions: options, lookup, isLoading } = useAvailableMetrics();
   const [metric, setMetric] = useState("heart_rate");
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
