@@ -353,9 +353,9 @@ func (s *Syncer) insertSleepMetrics(ctx context.Context, items []SleepItem, user
 			rows = append(rows, metricRow(t, userID, "heart_rate_variability", "ms", intToFloat(*item.AverageHRV)))
 		}
 		if item.AverageBreath != nil {
-			// Oura reports breaths/second; convert to breaths/minute.
-			bpm := *item.AverageBreath * 60
-			rows = append(rows, metricRow(t, userID, "respiratory_rate", "breaths/min", floatPtr(bpm)))
+			// Oura average_breath is breaths/minute despite the OpenAPI spec
+			// saying breaths/second (verified from actual API data).
+			rows = append(rows, metricRow(t, userID, "respiratory_rate", "breaths/min", item.AverageBreath))
 		}
 	}
 	return s.insertMetrics(ctx, rows, stats)

@@ -169,7 +169,10 @@ func MapDailySpO2(items []DailySpO2Item, userID int) []models.HealthMetricRow {
 		if item.SpO2Percentage == nil {
 			continue
 		}
-		rows = append(rows, metricRow(parseDay(item.Day), userID, "blood_oxygen_saturation", "%", floatPtr(item.SpO2Percentage.Average)))
+		// Store as fraction (0-1) to match Apple Health convention. The
+		// display_multiplier (×100) handles conversion to percentage for display.
+		fraction := item.SpO2Percentage.Average / 100
+		rows = append(rows, metricRow(parseDay(item.Day), userID, "blood_oxygen_saturation", "%", floatPtr(fraction)))
 	}
 	return rows
 }
