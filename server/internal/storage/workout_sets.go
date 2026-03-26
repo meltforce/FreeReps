@@ -81,3 +81,34 @@ func (db *DB) QueryWorkoutSets(ctx context.Context, start, end time.Time, userID
 	}
 	return result, rows.Err()
 }
+
+// AlphaSessionInfo summarizes a distinct Alpha Progression session.
+type AlphaSessionInfo struct {
+	SessionName     string
+	SessionDate     time.Time
+	SessionDuration string
+}
+
+// QueryAlphaSessions returns one row per distinct Alpha Progression session in a time range.
+func (db *DB) QueryAlphaSessions(ctx context.Context, start, end time.Time, userID int) ([]AlphaSessionInfo, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT DISTINCT session_name, session_date, session_duration
+		 FROM workout_sets
+		 WHERE session_date >= $1 AND session_date < $2 AND user_id = $3
+		 ORDER BY session_date DESC`,
+		start, end, userID)
+	if err != nil {
+		return nil, fmt.Errorf("querying alpha sessions: %w", err)
+	}
+	defer rows.Close()
+
+	var result []AlphaSessionInfo
+	for rows.Next() {
+		var s AlphaSessionInfo
+		if err := rows.Scan(&s.SessionName, &s.SessionDate, &s.SessionDuration); err != nil {
+			return nil, fmt.Errorf("scanning alpha session: %w", err)
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}

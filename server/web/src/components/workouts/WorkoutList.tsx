@@ -130,6 +130,7 @@ function WorkoutListView({ workouts }: { workouts: Workout[] }) {
             <Link
               key={w.ID}
               to={`/workouts/${w.ID}`}
+              state={{ workout: w }}
               className="flex items-center gap-4 px-3 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors text-sm"
             >
               <span className="text-zinc-500 text-xs w-12 shrink-0">

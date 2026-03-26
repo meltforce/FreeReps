@@ -276,7 +276,7 @@ func (s *Server) handleQueryWorkouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workouts, err := s.db.QueryWorkouts(r.Context(), start, end, uid, nameFilter)
+	workouts, err := s.db.QueryWorkoutsMerged(r.Context(), start, end, uid, nameFilter)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -415,17 +415,26 @@ func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch workout to get its date range
+	// Fetch workout to get its date range. For synthetic Alpha-only workouts
+	// that don't exist in the DB, fall back to start/end query params.
+	var windowStart, windowEnd time.Time
 	workout, err := s.db.GetWorkout(r.Context(), workoutID, uid)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "workout not found"})
-		return
+		// Synthetic workout — use query params as fallback.
+		startStr := r.URL.Query().Get("start")
+		endStr := r.URL.Query().Get("end")
+		st, errS := time.Parse(time.RFC3339, startStr)
+		et, errE := time.Parse(time.RFC3339, endStr)
+		if errS != nil || errE != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "workout not found"})
+			return
+		}
+		windowStart = st.Add(-2 * time.Hour)
+		windowEnd = et.Add(2 * time.Hour)
+	} else {
+		windowStart = workout.StartTime.Add(-2 * time.Hour)
+		windowEnd = workout.EndTime.Add(2 * time.Hour)
 	}
-
-	// Query sets using workout time window (±2 hours) instead of full day
-	// to avoid leaking exercises from other workouts on the same day
-	windowStart := workout.StartTime.Add(-2 * time.Hour)
-	windowEnd := workout.EndTime.Add(2 * time.Hour)
 
 	sets, err := s.db.QueryWorkoutSets(r.Context(), windowStart, windowEnd, uid, "")
 	if err != nil {

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
-import { fetchWorkoutDetail } from "../api";
+import { useParams, Link, useLocation } from "react-router-dom";
+import { fetchWorkoutDetail, type Workout } from "../api";
 import { getWorkoutDisplayName } from "../components/workouts/workoutNames";
 import HRTimelineChart from "../components/workouts/HRTimelineChart";
 import HRZoneBars from "../components/workouts/HRZoneBars";
@@ -16,14 +16,20 @@ function formatDuration(sec: number): string {
 
 export default function WorkoutDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const routeWorkout = (location.state as { workout?: Workout } | null)?.workout;
+  const isSynthetic = routeWorkout?.Source === "Alpha Progression";
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["workout", id],
     queryFn: () => fetchWorkoutDetail(id!),
-    enabled: !!id,
+    enabled: !!id && !isSynthetic,
   });
 
-  if (isLoading) {
+  // For synthetic workouts, use the route state directly.
+  const w = isSynthetic ? routeWorkout! : data;
+
+  if (!isSynthetic && isLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-64 bg-zinc-900 rounded animate-pulse" />
@@ -32,7 +38,7 @@ export default function WorkoutDetailPage() {
     );
   }
 
-  if (error || !data) {
+  if (!w || (!isSynthetic && error)) {
     return (
       <div className="text-zinc-500 text-sm p-4 bg-zinc-900 rounded-lg">
         Workout not found.
@@ -40,9 +46,8 @@ export default function WorkoutDetailPage() {
     );
   }
 
-  const w = data;
-  const hasHR = w.HeartRateData && w.HeartRateData.length > 0;
-  const hasRoute = w.RouteData && w.RouteData.length > 0;
+  const hasHR = !isSynthetic && data?.HeartRateData && data.HeartRateData.length > 0;
+  const hasRoute = !isSynthetic && data?.RouteData && data.RouteData.length > 0;
 
   return (
     <div className="space-y-6">
@@ -111,17 +116,23 @@ export default function WorkoutDetailPage() {
       </div>
 
       {/* Workout Sets (Alpha Progression data) */}
-      <WorkoutSets workoutId={id!} workoutName={w.Name} />
+      <WorkoutSets
+        workoutId={id!}
+        workoutName={w.Name}
+        alphaSessionName={w.alpha_session_name}
+        workoutStart={isSynthetic ? w.StartTime : undefined}
+        workoutEnd={isSynthetic ? w.EndTime : undefined}
+      />
 
       {/* HR Timeline */}
-      {hasHR && <HRTimelineChart hrData={w.HeartRateData!} />}
+      {hasHR && <HRTimelineChart hrData={data!.HeartRateData!} />}
 
       {/* HR Zones */}
-      {hasHR && <HRZoneBars hrData={w.HeartRateData!} />}
+      {hasHR && <HRZoneBars hrData={data!.HeartRateData!} />}
 
       {/* Route Map — hidden for indoor or zero-distance workouts */}
       {hasRoute && !w.IsIndoor && (w.Distance ?? 0) > 0.1 && (
-        <RouteMap route={w.RouteData!} />
+        <RouteMap route={data!.RouteData!} />
       )}
     </div>
   );

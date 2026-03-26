@@ -71,6 +71,7 @@ type WorkoutRow struct {
 	ElevationUp        *float64
 	ElevationDown      *float64
 	RawJSON            []byte `json:"-"`
+	AlphaSessionName   string `json:"alpha_session_name,omitempty"`
 }
 
 // WorkoutHRRow is a row for the workout_heart_rate table.

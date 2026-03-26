@@ -15,14 +15,23 @@ const STRENGTH_TYPES = new Set([
 interface Props {
   workoutId: string;
   workoutName: string;
+  alphaSessionName?: string;
+  workoutStart?: string;
+  workoutEnd?: string;
 }
 
-export default function WorkoutSets({ workoutId, workoutName }: Props) {
-  const isStrength = STRENGTH_TYPES.has(workoutName);
+export default function WorkoutSets({
+  workoutId,
+  workoutName,
+  alphaSessionName,
+  workoutStart,
+  workoutEnd,
+}: Props) {
+  const isStrength = STRENGTH_TYPES.has(workoutName) || !!alphaSessionName;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["workoutSets", workoutId],
-    queryFn: () => fetchWorkoutSets(workoutId),
+    queryFn: () => fetchWorkoutSets(workoutId, workoutStart, workoutEnd),
     enabled: isStrength,
   });
 

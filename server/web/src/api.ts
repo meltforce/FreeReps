@@ -157,6 +157,7 @@ export interface Workout {
   ID: string;
   UserID: number;
   Name: string;
+  Source?: string;
   StartTime: string;
   EndTime: string;
   DurationSec: number;
@@ -173,6 +174,7 @@ export interface Workout {
   MinHeartRate: number | null;
   ElevationUp: number | null;
   ElevationDown: number | null;
+  alpha_session_name?: string;
 }
 
 export interface WorkoutHR {
@@ -231,8 +233,16 @@ export interface WorkoutSet {
   RIR: number;
 }
 
-export async function fetchWorkoutSets(id: string): Promise<WorkoutSet[]> {
-  const res = await fetch(`${BASE}/workouts/${id}/sets`);
+export async function fetchWorkoutSets(
+  id: string,
+  start?: string,
+  end?: string
+): Promise<WorkoutSet[]> {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  const res = await fetch(`${BASE}/workouts/${id}/sets${qs ? "?" + qs : ""}`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }

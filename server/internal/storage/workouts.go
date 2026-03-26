@@ -3,12 +3,17 @@ package storage
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/claude/freereps/internal/models"
 	"github.com/google/uuid"
 )
+
+// alphaWorkoutNamespace is the UUID namespace for deterministic synthetic Alpha workout IDs.
+var alphaWorkoutNamespace = uuid.MustParse("7ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 // InsertWorkout inserts a workout row. Returns true if inserted, false if duplicate.
 func (db *DB) InsertWorkout(ctx context.Context, row models.WorkoutRow) (bool, error) {
@@ -129,7 +134,7 @@ func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID in
 			FROM workouts
 			WHERE %s
 		)
-		SELECT id, user_id, name, start_time, end_time, duration_sec, location, is_indoor,
+		SELECT id, user_id, name, source, start_time, end_time, duration_sec, location, is_indoor,
 			active_energy_burned, active_energy_units, total_energy, total_energy_units,
 			distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
 			elevation_up, elevation_down
@@ -223,7 +228,7 @@ func scanWorkoutListRows(rows interface {
 	var result []models.WorkoutRow
 	for rows.Next() {
 		var w models.WorkoutRow
-		if err := rows.Scan(&w.ID, &w.UserID, &w.Name, &w.StartTime, &w.EndTime, &w.DurationSec,
+		if err := rows.Scan(&w.ID, &w.UserID, &w.Name, &w.Source, &w.StartTime, &w.EndTime, &w.DurationSec,
 			&w.Location, &w.IsIndoor,
 			&w.ActiveEnergyBurned, &w.ActiveEnergyUnits, &w.TotalEnergy, &w.TotalEnergyUnits,
 			&w.Distance, &w.DistanceUnits, &w.AvgHeartRate, &w.MaxHeartRate, &w.MinHeartRate,
@@ -233,4 +238,97 @@ func scanWorkoutListRows(rows interface {
 		result = append(result, w)
 	}
 	return result, rows.Err()
+}
+
+// QueryWorkoutsMerged returns workouts enriched with Alpha Progression session names.
+// Apple/Oura workouts near an Alpha session get the session name for display.
+// Alpha sessions with no nearby workout get a synthetic workout entry.
+func (db *DB) QueryWorkoutsMerged(ctx context.Context, start, end time.Time, userID int, nameFilter string) ([]models.WorkoutRow, error) {
+	workouts, err := db.QueryWorkouts(ctx, start, end, userID, nameFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch Alpha sessions with 2h padding to catch sessions just outside the range.
+	alphaSessions, err := db.QueryAlphaSessions(ctx, start.Add(-2*time.Hour), end.Add(2*time.Hour), userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(alphaSessions) == 0 {
+		return workouts, nil
+	}
+
+	// Match Alpha sessions to workouts by nearest time within ±2h.
+	matched := make(map[int]bool)    // index into workouts
+	alphaUsed := make(map[int]bool)  // index into alphaSessions
+
+	type pair struct {
+		wi, ai int
+		dist   time.Duration
+	}
+	var pairs []pair
+	for wi, w := range workouts {
+		for ai, a := range alphaSessions {
+			dist := w.StartTime.Sub(a.SessionDate)
+			if dist < 0 {
+				dist = -dist
+			}
+			if dist <= 2*time.Hour {
+				pairs = append(pairs, pair{wi, ai, dist})
+			}
+		}
+	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].dist < pairs[j].dist })
+
+	for _, p := range pairs {
+		if matched[p.wi] || alphaUsed[p.ai] {
+			continue
+		}
+		workouts[p.wi].AlphaSessionName = alphaSessions[p.ai].SessionName
+		matched[p.wi] = true
+		alphaUsed[p.ai] = true
+	}
+
+	// Create synthetic workouts for unmatched Alpha sessions.
+	for ai, a := range alphaSessions {
+		if alphaUsed[ai] {
+			continue
+		}
+		// Skip if outside the requested range.
+		if a.SessionDate.Before(start) || !a.SessionDate.Before(end) {
+			continue
+		}
+		// Skip if name filter is set and doesn't match the synthetic base name.
+		if nameFilter != "" && nameFilter != "Traditional Strength Training" {
+			continue
+		}
+		dur := parseAlphaDuration(a.SessionDuration)
+		workouts = append(workouts, models.WorkoutRow{
+			ID:               uuid.NewSHA1(alphaWorkoutNamespace, []byte("alpha:"+a.SessionDate.Format(time.RFC3339)+":"+a.SessionName)),
+			UserID:           userID,
+			Name:             "Traditional Strength Training",
+			Source:           "Alpha Progression",
+			StartTime:        a.SessionDate,
+			EndTime:          a.SessionDate.Add(dur),
+			DurationSec:      dur.Seconds(),
+			AlphaSessionName: a.SessionName,
+		})
+	}
+
+	sort.Slice(workouts, func(i, j int) bool {
+		return workouts[i].StartTime.After(workouts[j].StartTime)
+	})
+	return workouts, nil
+}
+
+// parseAlphaDuration parses Alpha Progression duration strings like "1:02 hr".
+func parseAlphaDuration(s string) time.Duration {
+	s = strings.TrimSpace(strings.TrimSuffix(s, "hr"))
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) != 2 {
+		return 0
+	}
+	hours, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+	mins, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+	return time.Duration(hours)*time.Hour + time.Duration(mins)*time.Minute
 }

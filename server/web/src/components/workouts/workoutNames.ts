@@ -17,6 +17,9 @@ const outdoorNames: Record<string, string> = {
 };
 
 export function getWorkoutDisplayName(w: Workout): string {
+  if (w.alpha_session_name) {
+    return w.alpha_session_name;
+  }
   if (w.IsIndoor === true && w.Name in indoorNames) {
     return indoorNames[w.Name];
   }
@@ -27,5 +30,7 @@ export function getWorkoutDisplayName(w: Workout): string {
 }
 
 export function getWorkoutFilterKey(w: Workout): string {
-  return getWorkoutDisplayName(w);
+  // Use base workout type for filter pills, not the Alpha session name.
+  const base = { ...w, alpha_session_name: undefined };
+  return getWorkoutDisplayName(base);
 }
