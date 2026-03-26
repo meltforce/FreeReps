@@ -31,6 +31,12 @@ export default function DashboardPage() {
 
   const selected = lookup.get(metric);
 
+  // Only cumulative metrics (steps, calories) and heart rate have meaningful
+  // sub-daily data. Everything else (sleep, weight, scores) is once-per-day
+  // and should always use daily aggregation to avoid nonsensical hourly x-axis.
+  const supportsHourly = selected?.isCumulative || metric === "heart_rate";
+  const agg = timeRange === "1d" && supportsHourly ? "hourly" : "daily";
+
   return (
     <>
       <DailyOverview />
@@ -61,7 +67,7 @@ export default function DashboardPage() {
           end={end}
           label={selected?.label ?? metric}
           unit={selected?.unit ?? ""}
-          agg={timeRange === "1d" ? "hourly" : "daily"}
+          agg={agg}
           multiplier={selected?.multiplier ?? 1}
         />
       </div>
