@@ -103,7 +103,8 @@ func MapDailyActivity(items []DailyActivityItem, userID int) []models.HealthMetr
 }
 
 // MapSleepSessions converts Oura sleep data to FreeReps sleep sessions and stages.
-// Filters out sessions with type "deleted".
+// Only "long_sleep" sessions become sleep session rows (naps/rest are excluded).
+// Sleep stages are extracted from all non-deleted session types.
 func MapSleepSessions(items []SleepItem, userID int) ([]models.SleepSessionRow, []models.SleepStageRow) {
 	var sessions []models.SleepSessionRow
 	var stages []models.SleepStageRow
@@ -113,8 +114,19 @@ func MapSleepSessions(items []SleepItem, userID int) ([]models.SleepSessionRow, 
 			continue
 		}
 
-		date, _ := time.Parse("2006-01-02", item.Day)
 		bedStart := parseLocalDatetime(item.BedtimeStart)
+
+		// Extract sleep stages from all session types (including naps).
+		if item.SleepPhase5Min != nil {
+			stages = append(stages, parseSleepPhases(*item.SleepPhase5Min, bedStart, userID)...)
+		}
+
+		// Only main overnight sleep becomes a sleep session row.
+		if item.Type != "long_sleep" {
+			continue
+		}
+
+		date, _ := time.Parse("2006-01-02", item.Day)
 		bedEnd := parseLocalDatetime(item.BedtimeEnd)
 
 		session := models.SleepSessionRow{
@@ -140,11 +152,6 @@ func MapSleepSessions(items []SleepItem, userID int) ([]models.SleepSessionRow, 
 			session.REM = float64(*item.REMSleepDuration) / 3600
 		}
 		sessions = append(sessions, session)
-
-		// Parse 5-minute sleep phases into individual stage rows.
-		if item.SleepPhase5Min != nil {
-			stages = append(stages, parseSleepPhases(*item.SleepPhase5Min, bedStart, userID)...)
-		}
 	}
 	return sessions, stages
 }

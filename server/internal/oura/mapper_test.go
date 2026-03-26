@@ -154,27 +154,35 @@ func TestMapDailyActivity(t *testing.T) {
 	}
 }
 
-// TestMapSleepSessionsFiltersDeleted verifies that sleep sessions with
-// type "deleted" are excluded from the output.
-func TestMapSleepSessionsFiltersDeleted(t *testing.T) {
-	dur := 25200 // 7 hours in seconds
+// TestMapSleepSessionsOnlyLongSleep verifies that only "long_sleep" sessions
+// produce sleep session rows — naps ("rest") and "deleted" entries are excluded,
+// preventing short naps from overwriting main sleep via DO UPDATE.
+func TestMapSleepSessionsOnlyLongSleep(t *testing.T) {
+	mainDur := 25200 // 7 hours
+	napDur := 1800   // 30 minutes
 	items := []SleepItem{
-		{Day: "2024-01-15", Type: "sleep", BedtimeStart: "2024-01-14T23:00:00", BedtimeEnd: "2024-01-15T07:00:00", TimeInBed: 28800, TotalSleepDuration: &dur},
+		{Day: "2024-01-15", Type: "long_sleep", BedtimeStart: "2024-01-14T23:00:00", BedtimeEnd: "2024-01-15T07:00:00", TimeInBed: 28800, TotalSleepDuration: &mainDur},
+		{Day: "2024-01-15", Type: "rest", BedtimeStart: "2024-01-15T13:00:00", BedtimeEnd: "2024-01-15T13:30:00", TimeInBed: 1800, TotalSleepDuration: &napDur, SleepPhase5Min: strPtr("222222")},
 		{Day: "2024-01-15", Type: "deleted", BedtimeStart: "2024-01-14T23:00:00", BedtimeEnd: "2024-01-15T07:00:00", TimeInBed: 28800},
 	}
 
-	sessions, _ := MapSleepSessions(items, 1)
+	sessions, stages := MapSleepSessions(items, 1)
 	if len(sessions) != 1 {
-		t.Fatalf("got %d sessions, want 1 (deleted should be filtered)", len(sessions))
+		t.Fatalf("got %d sessions, want 1 (only long_sleep)", len(sessions))
 	}
-	// 7 hours = 25200 seconds / 3600
 	if sessions[0].TotalSleep != 7.0 {
 		t.Errorf("TotalSleep = %f, want 7.0", sessions[0].TotalSleep)
 	}
 	if sessions[0].InBed != 8.0 {
 		t.Errorf("InBed = %f, want 8.0", sessions[0].InBed)
 	}
+	// Stages should still include the nap's phases (rest is not deleted).
+	if len(stages) == 0 {
+		t.Error("expected sleep stages from nap, got none")
+	}
 }
+
+func strPtr(s string) *string { return &s }
 
 // TestMapDailyResilience verifies the string-to-numeric level encoding.
 func TestMapDailyResilience(t *testing.T) {
