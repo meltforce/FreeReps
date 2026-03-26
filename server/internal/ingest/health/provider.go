@@ -258,10 +258,12 @@ func (p *Provider) processSleep(ctx context.Context, m models.HealthMetric, user
 			}
 			result.SleepSessionsInserted++
 
-			// Also write sleep_analysis to health_metrics for correlation queries
+			// Also write sleep_analysis to health_metrics for correlation queries.
+			// Use noon UTC of the date for a stable timestamp so dedup works
+			// across sources (HAE, backfill) that may have different sleepEnd times.
 			qty := dp.TotalSleep
 			sleepMetric := models.HealthMetricRow{
-				Time:       dp.SleepEnd.Time,
+				Time:       date.Add(12 * time.Hour),
 				UserID:     userID,
 				MetricName: "sleep_analysis",
 				Source:     "Health Auto Export",

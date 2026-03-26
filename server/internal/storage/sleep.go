@@ -247,7 +247,7 @@ func (db *DB) backfillUserSleepSessions(ctx context.Context, log *slog.Logger, u
 
 		qty := totalSleep
 		sleepMetric := models.HealthMetricRow{
-			Time:       sleepEnd,
+			Time:       date.Add(12 * time.Hour), // noon UTC for stable dedup
 			UserID:     userID,
 			MetricName: "sleep_analysis",
 			Source:     "FreeReps Backfill",
