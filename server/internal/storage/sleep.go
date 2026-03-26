@@ -16,7 +16,17 @@ func (db *DB) InsertSleepSession(ctx context.Context, row models.SleepSessionRow
 	_, err := db.Pool.Exec(ctx,
 		`INSERT INTO sleep_sessions (user_id, date, total_sleep, asleep, core, deep, rem, in_bed, sleep_start, sleep_end, in_bed_start, in_bed_end)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-		 ON CONFLICT (user_id, date) DO NOTHING`,
+		 ON CONFLICT (user_id, date) DO UPDATE SET
+		   total_sleep = EXCLUDED.total_sleep,
+		   asleep = EXCLUDED.asleep,
+		   core = EXCLUDED.core,
+		   deep = EXCLUDED.deep,
+		   rem = EXCLUDED.rem,
+		   in_bed = EXCLUDED.in_bed,
+		   sleep_start = EXCLUDED.sleep_start,
+		   sleep_end = EXCLUDED.sleep_end,
+		   in_bed_start = EXCLUDED.in_bed_start,
+		   in_bed_end = EXCLUDED.in_bed_end`,
 		row.UserID, row.Date, row.TotalSleep, row.Asleep, row.Core, row.Deep, row.REM,
 		row.InBed, row.SleepStart, row.SleepEnd, row.InBedStart, row.InBedEnd)
 	if err != nil {

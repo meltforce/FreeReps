@@ -178,6 +178,8 @@ func (s *Syncer) logImport(ctx context.Context, userID int, start time.Time, sta
 // syncDataType fetches and stores one data type for a user.
 func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType string, stats *syncStats) error {
 	// Determine date range: from last sync (or backfill) to today.
+	// Always overlap by 2 days so delayed data (e.g. Oura sleep that appears
+	// hours after waking) is picked up on subsequent syncs.
 	endDate := time.Now().Format("2006-01-02")
 
 	state, err := s.db.GetOuraSyncState(ctx, userID, dataType)
@@ -187,7 +189,7 @@ func (s *Syncer) syncDataType(ctx context.Context, userID int, token, dataType s
 
 	var startDate string
 	if state != nil {
-		startDate = state.LastSync.Format("2006-01-02")
+		startDate = state.LastSync.AddDate(0, 0, -2).Format("2006-01-02")
 	} else {
 		startDate = time.Now().AddDate(0, 0, -s.cfg.BackfillDays).Format("2006-01-02")
 	}

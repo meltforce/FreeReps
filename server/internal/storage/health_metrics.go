@@ -83,6 +83,10 @@ var cumulativeMetrics = map[string]bool{
 	"distance_downhill_snow_sports": true,
 }
 
+// maxParamsPerBatch is the PostgreSQL extended protocol parameter limit (65535)
+// divided by 12 parameters per row, with headroom.
+const maxRowsPerBatch = 5000
+
 // InsertHealthMetrics batch-inserts health metric rows. Returns the number actually inserted
 // (skipped duplicates via ON CONFLICT DO NOTHING).
 func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
@@ -90,6 +94,22 @@ func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetri
 		return 0, nil
 	}
 
+	var totalInserted int64
+	for start := 0; start < len(rows); start += maxRowsPerBatch {
+		end := start + maxRowsPerBatch
+		if end > len(rows) {
+			end = len(rows)
+		}
+		inserted, err := db.insertHealthMetricsBatch(ctx, rows[start:end])
+		if err != nil {
+			return totalInserted, err
+		}
+		totalInserted += inserted
+	}
+	return totalInserted, nil
+}
+
+func (db *DB) insertHealthMetricsBatch(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
 	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid)
 VALUES `
 	args := make([]any, 0, len(rows)*12)

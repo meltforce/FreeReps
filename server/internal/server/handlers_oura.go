@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -177,7 +178,7 @@ func (s *Server) handleOuraSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		if err := s.ouraSyncer.TriggerSync(r.Context(), uid); err != nil {
+		if err := s.ouraSyncer.TriggerSync(context.Background(), uid); err != nil {
 			s.log.Error("manual oura sync failed", "user_id", uid, "error", err)
 		}
 	}()
