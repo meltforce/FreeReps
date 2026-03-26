@@ -240,8 +240,20 @@ func (db *DB) backfillUserSleepSessions(ctx context.Context, log *slog.Logger, u
 			InBedEnd:   sleepEnd,
 		}
 
-		if err := db.InsertSleepSession(ctx, session); err != nil {
+		// Use DO NOTHING: backfill is a fallback — don't overwrite sessions
+		// from direct sources (Oura, HAE) which have more accurate data.
+		tag, err := db.Pool.Exec(ctx,
+			`INSERT INTO sleep_sessions (user_id, date, total_sleep, asleep, core, deep, rem, in_bed, sleep_start, sleep_end, in_bed_start, in_bed_end)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			 ON CONFLICT (user_id, date) DO NOTHING`,
+			session.UserID, session.Date, session.TotalSleep, session.Asleep,
+			session.Core, session.Deep, session.REM, session.InBed,
+			session.SleepStart, session.SleepEnd, session.InBedStart, session.InBedEnd)
+		if err != nil {
 			return created, fmt.Errorf("inserting backfill session: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			continue // session already exists from a direct source
 		}
 		created++
 

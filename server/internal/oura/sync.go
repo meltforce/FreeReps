@@ -259,6 +259,11 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 				return err
 			}
 		}
+		// Insert sleep_analysis metrics for each long_sleep session so the
+		// dashboard chart has data. Use noon UTC for stable dedup.
+		if err := s.insertSleepAnalysis(ctx, sessions, stats); err != nil {
+			return err
+		}
 		// Also insert overlapping metrics from sleep data.
 		return s.insertSleepMetrics(ctx, items, userID, stats)
 
@@ -338,6 +343,24 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 	default:
 		return fmt.Errorf("unknown data type: %s", dataType)
 	}
+}
+
+// insertSleepAnalysis creates sleep_analysis health metrics from Oura long_sleep
+// sessions so the dashboard chart has data. Uses noon UTC for stable dedup.
+func (s *Syncer) insertSleepAnalysis(ctx context.Context, sessions []models.SleepSessionRow, stats *syncStats) error {
+	var rows []models.HealthMetricRow
+	for _, session := range sessions {
+		qty := session.TotalSleep
+		rows = append(rows, models.HealthMetricRow{
+			Time:       session.Date.Add(12 * time.Hour),
+			UserID:     session.UserID,
+			MetricName: "sleep_analysis",
+			Source:     ouraSource,
+			Units:      "hr",
+			Qty:        &qty,
+		})
+	}
+	return s.insertMetrics(ctx, rows, stats)
 }
 
 // insertSleepMetrics extracts overlapping health metrics from detailed sleep data
