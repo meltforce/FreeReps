@@ -246,6 +246,9 @@ export interface Workout {
   UserID: number;
   Name: string;
   Source?: string;
+  /** Every source that reported this workout; more than one when a provider's
+   *  session also reaches HealthKit. See recordedBy(). */
+  Sources?: string[];
   StartTime: string;
   EndTime: string;
   DurationSec: number;

@@ -21,7 +21,7 @@ import {
 } from "../utils/format";
 import { ZONE_COLORS, zoneBands } from "../utils/stageColors";
 import { queryMessage, queryState } from "../utils/queryState";
-import { sourceLabel } from "../utils/sourceLabel";
+import { recordedBy, recordedByTitle } from "../utils/sourceLabel";
 
 const RANGES = ["1d", "7d", "30d", "90d", "1y"] as const;
 type Range = (typeof RANGES)[number];
@@ -422,8 +422,11 @@ function WorkoutTable({
                 >
                   {formatDistance(w.Distance, w.DistanceUnits)}
                 </td>
-                <td style={{ fontSize: 12.5, color: "var(--color-neutral-700)" }}>
-                  {sourceLabel(w.Source)}
+                <td
+                  style={{ fontSize: 12.5, color: "var(--color-neutral-700)" }}
+                  title={recordedByTitle(w.Source, w.Sources)}
+                >
+                  {recordedBy(w.Source, w.Sources)}
                 </td>
               </tr>
             ))}
@@ -487,7 +490,9 @@ function WorkoutCards({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {[noteFor(w), sourceLabel(w.Source)].filter(Boolean).join(" · ")}
+                  {[noteFor(w), recordedBy(w.Source, w.Sources)]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
                 <span
                   className="num"

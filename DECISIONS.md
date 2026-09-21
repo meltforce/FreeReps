@@ -19,6 +19,45 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-21 — The workout list names the provider that recorded a session, not the path it arrived on
+
+**Decided:** 2026-09-21
+
+**Decision.** `QueryWorkouts` returns, with the surviving row, every source of
+its 5-minute window in `Sources`. The list labels a row that has no source name
+of its own with the named source of its window; the delivery path moves into the
+cell's title. `recordedBy` in `server/web/src/utils/sourceLabel.ts` holds the
+rule, `sourceLabel` keeps naming a single source.
+
+**Reasoning.** A session recorded in the Oura app reaches FreeReps twice, over
+the Oura API and as the copy the app writes into HealthKit, which Health Auto
+Export forwards without a source name. The priority for the `activity` category
+ranks Apple Health first, so the row the list shows is the copy — and it was
+labelled "Apple Health", which names the hub rather than the recorder. Measured
+over 2026-07-23 to 2026-09-22: 52 such pairs, in each of which the energy
+figures are identical, so the copy is the Oura workout in every one of them.
+
+A named source is the recorder, because Apple Health is the only source that
+arrives without a name — `provider.go` stores `source = ''` for everything from
+Health Auto Export, and the `sources[]` entry of the payload that names the
+device is dropped (see ROADMAP.md). The rule therefore needs no new data.
+
+**Alternatives rejected.** Ranking Oura first for the `activity` category would
+label the session correctly and cost the rest: the category also governs 18
+activity metrics including `step_count`, and the row that would then win carries
+no GPS track — 42 of the 52 pairs have one on the Apple Health row — and fewer
+heart rate rows in 15 of them, none in 4. Rewriting the stored source of the
+copy would destroy the distinction the priority rests on, and with it the
+ability to tell the two deliveries apart at all.
+
+**Trigger to re-open.** A payload that names the writing app, which would make
+the origin a property of the row rather than of its window — the ROADMAP item on
+the discarded device name is the same data. Two unrelated workouts inside one
+5-minute window would also break the rule, as they already break the
+deduplication it rests on.
+
+---
+
 ## 2026-09-21 — An Oura workout gets its heart rate from the sample series, averaged per minute
 
 **Decided:** 2026-09-21

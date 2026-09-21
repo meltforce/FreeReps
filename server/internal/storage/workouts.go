@@ -213,6 +213,14 @@ type WorkoutDetail struct {
 // Deduplicates overlapping workouts from different sources using source priority:
 // when two workouts start within the same 5-minute window, only the highest-priority
 // source's workout is returned. Excludes raw_json to keep the list payload small.
+//
+// The returned row carries every source of its window in Sources. An Oura
+// session arrives twice — once over the API and once as the copy the Oura app
+// writes into HealthKit — and the second one wins here whenever Apple Health
+// ranks first, which is what the display needs the list for: the row it shows
+// was recorded by Oura, and labelling it with the hub it came through names the
+// wrong provider. The list rests on the same assumption as the deduplication
+// itself, that two workouts starting in one 5-minute window are one session.
 func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID int, nameFilter string) ([]models.WorkoutRow, error) {
 	priorities := db.ResolveSourcePriority(ctx, userID, "activity")
 	priorityExpr := sourcePriorityCaseSQL(priorities)
@@ -223,20 +231,23 @@ func (db *DB) QueryWorkouts(ctx context.Context, start, end time.Time, userID in
 		args = append(args, nameFilter)
 	}
 	query := fmt.Sprintf(
-		`WITH ranked AS (
-			SELECT *, ROW_NUMBER() OVER (
-				PARTITION BY date_trunc('hour', start_time) + INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM start_time) / 5)
-				ORDER BY %s
-			) AS rn
+		`WITH bucketed AS (
+			SELECT *, date_trunc('hour', start_time)
+			          + INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM start_time) / 5) AS bucket
 			FROM workouts
 			WHERE %s
+		), ranked AS (
+			SELECT *,
+				ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY %s) AS rn,
+				array_agg(source) OVER (PARTITION BY bucket) AS bucket_sources
+			FROM bucketed
 		)
 		SELECT id, user_id, name, source, start_time, end_time, duration_sec, location, is_indoor,
 			active_energy_burned, active_energy_units, total_energy, total_energy_units,
 			distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
-			elevation_up, elevation_down
+			elevation_up, elevation_down, bucket_sources
 		FROM ranked WHERE rn = 1
-		ORDER BY start_time DESC`, priorityExpr, where)
+		ORDER BY start_time DESC`, where, priorityExpr)
 	rows, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying workouts: %w", err)
@@ -325,16 +336,37 @@ func scanWorkoutListRows(rows interface {
 	var result []models.WorkoutRow
 	for rows.Next() {
 		var w models.WorkoutRow
+		var bucketSources []string
 		if err := rows.Scan(&w.ID, &w.UserID, &w.Name, &w.Source, &w.StartTime, &w.EndTime, &w.DurationSec,
 			&w.Location, &w.IsIndoor,
 			&w.ActiveEnergyBurned, &w.ActiveEnergyUnits, &w.TotalEnergy, &w.TotalEnergyUnits,
 			&w.Distance, &w.DistanceUnits, &w.AvgHeartRate, &w.MaxHeartRate, &w.MinHeartRate,
-			&w.ElevationUp, &w.ElevationDown); err != nil {
+			&w.ElevationUp, &w.ElevationDown, &bucketSources); err != nil {
 			return nil, fmt.Errorf("scanning workout: %w", err)
 		}
+		w.Sources = distinctSources(bucketSources)
 		result = append(result, w)
 	}
 	return result, rows.Err()
+}
+
+// distinctSources reduces a window's source values to a sorted set. The order
+// array_agg produces over a window is not defined, and the list reaches the
+// browser, where a stable order keeps a rerender from reordering a label.
+func distinctSources(sources []string) []string {
+	if len(sources) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(sources))
+	out := make([]string, 0, len(sources))
+	for _, s := range sources {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // QueryWorkoutsMerged returns workouts enriched with strength session names from
@@ -414,6 +446,7 @@ func (db *DB) QueryWorkoutsMerged(ctx context.Context, start, end time.Time, use
 			UserID:           userID,
 			Name:             syntheticWorkoutName,
 			Source:           source,
+			Sources:          []string{source},
 			StartTime:        a.SessionDate,
 			EndTime:          sessionEnd,
 			DurationSec:      sessionEnd.Sub(a.SessionDate).Seconds(),

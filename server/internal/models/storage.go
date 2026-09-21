@@ -72,6 +72,14 @@ type WorkoutRow struct {
 	ElevationDown      *float64
 	RawJSON            []byte `json:"-"`
 	AlphaSessionName   string `json:"alpha_session_name,omitempty"`
+
+	// Sources names every source that reported this workout, which is more
+	// than one whenever a provider writes its session into HealthKit as well
+	// and a second client forwards it. The list survives the deduplication in
+	// QueryWorkouts, where only the highest-priority row is returned, so the
+	// display can name the provider that recorded a session rather than the
+	// hub it arrived through. Empty on the single-row path.
+	Sources []string `json:"Sources,omitempty"`
 }
 
 // WorkoutHRRow is a row for the workout_heart_rate table.
