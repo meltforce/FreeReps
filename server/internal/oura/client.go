@@ -80,11 +80,31 @@ func (c *Client) get(ctx context.Context, path, token string, params url.Values)
 }
 
 // fetchAll fetches all pages for a date-range endpoint using start_date/end_date.
+//
+// startDate and endDate are the inclusive day range the caller wants. The API
+// does not treat end_date that way on every endpoint: on
+// /v2/usercollection/workout and /v2/usercollection/daily_activity a record of
+// the end day itself is left out, so a sync whose range ends today never sees
+// today. Measured against the live API on 2026-09-21, a day with two recorded
+// workouts: start_date=2026-09-19&end_date=2026-09-21 returned the two workouts
+// of the 19th and neither of the 21st, end_date=2026-09-22 returned all four.
+// daily_activity returned 2026-09-20 only until end_date reached 2026-09-22. In
+// the same measurement daily_sleep, daily_readiness, daily_stress, daily_spo2,
+// daily_resilience, daily_cardiovascular_age and sleep all returned the end day.
+//
+// The request therefore asks for the day after endDate, which covers both kinds
+// of endpoint: the extra day carries no data at sync time, because it has not
+// started yet.
 func fetchAll[T any](c *Client, ctx context.Context, path, token, startDate, endDate string) ([]T, error) {
+	end, err := dayAfter(endDate)
+	if err != nil {
+		return nil, fmt.Errorf("end date for %s: %w", path, err)
+	}
+
 	var all []T
 	params := url.Values{
 		"start_date": {startDate},
-		"end_date":   {endDate},
+		"end_date":   {end},
 	}
 
 	for {
@@ -103,6 +123,16 @@ func fetchAll[T any](c *Client, ctx context.Context, path, token, startDate, end
 		params.Set("next_token", *resp.NextToken)
 	}
 	return all, nil
+}
+
+// dayAfter returns the calendar day following a YYYY-MM-DD date. See fetchAll
+// for why the end of a range is shifted by one day.
+func dayAfter(date string) (string, error) {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return "", fmt.Errorf("parsing %q as YYYY-MM-DD: %w", date, err)
+	}
+	return t.AddDate(0, 0, 1).Format("2006-01-02"), nil
 }
 
 // fetchAllDatetime fetches all pages using start_datetime/end_datetime (for heartrate).

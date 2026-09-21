@@ -135,3 +135,61 @@ func TestGetHeartRateUsesDatetimeParams(t *testing.T) {
 		t.Errorf("unexpected items: %+v", items)
 	}
 }
+
+// TestDayRangeEndsOnTheDayAfter covers the boundary the workout and
+// daily_activity endpoints apply: a record of the end day is returned only when
+// end_date names the following day, so the client asks for one day more than the
+// caller passes. Without the shift the workout of the range's last day — the
+// current day during a sync — never arrives.
+func TestDayRangeEndsOnTheDayAfter(t *testing.T) {
+	var gotStart, gotEnd string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotStart = r.URL.Query().Get("start_date")
+		gotEnd = r.URL.Query().Get("end_date")
+
+		// The live endpoint answers an end_date of the day itself with the
+		// earlier days only.
+		data := []WorkoutItem{{ID: "w1", Activity: "walking", Day: "2026-09-19"}}
+		if gotEnd > "2026-09-21" {
+			data = append(data, WorkoutItem{ID: "w2", Activity: "yoga", Day: "2026-09-21"})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Response[WorkoutItem]{Data: data})
+	}))
+	defer srv.Close()
+
+	items, err := newTestClient(srv.URL).GetWorkouts(
+		context.Background(), "tok", "2026-09-19", "2026-09-21")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotStart != "2026-09-19" {
+		t.Errorf("start_date = %q, want 2026-09-19 — the start is passed through", gotStart)
+	}
+	if gotEnd != "2026-09-22" {
+		t.Errorf("end_date = %q, want 2026-09-22", gotEnd)
+	}
+	if len(items) != 2 {
+		t.Fatalf("got %d workouts, want 2 — the workout of the end day is missing", len(items))
+	}
+	if items[1].Day != "2026-09-21" {
+		t.Errorf("second workout day = %q, want 2026-09-21", items[1].Day)
+	}
+}
+
+// TestDayRangeRejectsAnUnparseableEnd keeps the shift from silently passing a
+// malformed range to the API, where it would return an empty result rather than
+// an error.
+func TestDayRangeRejectsAnUnparseableEnd(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("request sent although the end date is not a date")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Response[WorkoutItem]{})
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv.URL).GetWorkouts(context.Background(), "tok", "2026-09-19", "yesterday")
+	if err == nil {
+		t.Fatal("expected an error for an end date that is not YYYY-MM-DD")
+	}
+}
