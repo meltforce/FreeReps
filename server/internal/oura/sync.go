@@ -13,7 +13,10 @@ import (
 	"github.com/claude/freereps/internal/storage"
 )
 
-// dataTypes defines the Oura data types to sync, in order.
+// dataTypes defines the Oura data types to sync, in order. "workout" comes
+// last on purpose: the workout object carries no heart rate, so the series is
+// derived from the samples "heartrate" has already stored in the same cycle —
+// see storage.FillWorkoutHeartRateFromMetrics.
 var dataTypes = []string{
 	"daily_readiness",
 	"daily_sleep",
@@ -34,6 +37,7 @@ type syncStats struct {
 	metricsInserted  int64
 	workoutsReceived int
 	workoutsInserted int
+	workoutHRPoints  int64
 	sleepSessions    int
 	errors           []string
 }
@@ -151,9 +155,17 @@ func (s *Syncer) logImport(ctx context.Context, userID int, start time.Time, sta
 		errMsg = &msg
 	}
 
-	var metadata *json.RawMessage
+	meta := map[string]any{}
 	if len(stats.errors) > 0 {
-		raw, _ := json.Marshal(map[string]any{"data_type_errors": stats.errors})
+		meta["data_type_errors"] = stats.errors
+	}
+	if stats.workoutHRPoints > 0 {
+		meta["workout_hr_minutes"] = stats.workoutHRPoints
+	}
+
+	var metadata *json.RawMessage
+	if len(meta) > 0 {
+		raw, _ := json.Marshal(meta)
 		rm := json.RawMessage(raw)
 		metadata = &rm
 	}
@@ -334,9 +346,18 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 		for _, w := range workouts {
 			if _, err := s.db.InsertWorkout(ctx, w); err != nil {
 				s.log.Warn("inserting oura workout", "error", err)
-			} else {
-				stats.workoutsInserted++
+				continue
 			}
+			stats.workoutsInserted++
+
+			n, err := s.db.FillWorkoutHeartRateFromMetrics(
+				ctx, userID, w.ID, ouraSource, w.StartTime, w.EndTime)
+			if err != nil {
+				s.log.Warn("deriving oura workout heart rate",
+					"workout_id", w.ID, "error", err)
+				continue
+			}
+			stats.workoutHRPoints += n
 		}
 		return nil
 

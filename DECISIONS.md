@@ -19,6 +19,55 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-21 — An Oura workout gets its heart rate from the sample series, averaged per minute
+
+**Decided:** 2026-09-21
+
+**Decision.** The Oura sync derives a workout's heart rate from the
+`heart_rate` metrics of the same user, source and interval, writes one row per
+minute into `workout_heart_rate`, and sets the workout's summary from those
+minutes. Migration `000033_oura_workout_heart_rate` does the same for the Oura
+workouts already stored. The rule is not Oura-specific in the code —
+`FillWorkoutHeartRateFromMetrics` takes the source as a parameter — but the
+sync calls it only for Oura.
+
+**Reasoning.** The Oura API's workout object carries no heart rate. Its fields,
+read from a live response on 2026-09-21, are `id`, `activity`, `calories`,
+`day`, `distance`, `end_datetime`, `intensity`, `label`, `source` and
+`start_datetime`. The samples exist on `/v2/usercollection/heartrate`, which
+reports each one with a source of its own, `workout` among them, and the sync
+already stores them as `heart_rate` metrics — for the session of 2026-09-21,
+92 samples inside the workout interval, of which 77 sit in a 5-second burst over
+the first six minutes.
+
+Until now the heart rate of an Oura workout reached the dashboard only over
+Apple Health, because the Oura app writes the workout into HealthKit and the
+Health Auto Export path carries `heartRateData` with it. A user with Oura alone,
+or a user whose export stops, had a workout row without a heart rate although
+every sample sat in the database. That was the state on 2026-09-21: 194 Oura
+workouts, none with a summary.
+
+**Minutes rather than samples.** Oura records densely while a workout runs and
+sparsely afterwards, so an average over samples is an average of the sampling
+rate as much as of the heart rate — the same defect the dashboard aggregation
+was corrected for on 2026-09-20. For that session the two readings are 98.32
+over the samples and 96.16 over the 16 minutes. Per-minute rows also match the
+shape the Health Auto Export path writes, so the detail chart reads one kind of
+row.
+
+**This does not replace the Apple Health copy.** Measured for the same session:
+HealthKit holds three minutes (07:20, 07:50, 07:51) that the API does not
+return, including the minimum of 69 bpm and the maximum of 116, while the API
+holds the 77-sample burst that HealthKit does not have. Neither series contains
+the other, which is why the priority for the `activity` category keeps deciding
+which row the list shows rather than one of them being dropped.
+
+**Trigger to re-open.** An Oura endpoint that carries heart rate on the workout
+itself, or a second source whose workouts arrive without one — the second would
+turn the sync's fixed `Oura` argument into a per-source decision.
+
+---
+
 ## 2026-09-20 — Data has its own ramp, and the nav bar has its own surface
 
 **Decided:** 2026-09-20

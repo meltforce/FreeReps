@@ -91,6 +91,75 @@ func (db *DB) InsertWorkoutHeartRate(ctx context.Context, rows []models.WorkoutH
 	return tag.RowsAffected(), nil
 }
 
+// FillWorkoutHeartRateFromMetrics derives a workout's heart rate series from the
+// stored heart_rate metrics of one source and attaches it to that workout.
+//
+// It exists for the Oura API path. The workout object there carries no heart
+// rate — its fields are id, activity, calories, day, distance, end_datetime,
+// intensity, label, source and start_datetime — while
+// /v2/usercollection/heartrate reports every sample with a source of its own,
+// "workout" among them. For a user whose workouts reach FreeReps over the Oura
+// API alone, those samples are the only heart rate the workout can have.
+//
+// The samples are grouped per minute, and the summary on the workout row
+// averages the minutes rather than the samples. An average over samples is an
+// average of the sampling rate as much as of the heart rate, which is the defect
+// the dashboard aggregation was corrected for on 2026-09-20 (see DECISIONS.md).
+// Measured for a 103-minute session on 2026-09-21, where a 5-second burst over
+// the first six minutes holds 77 of the 92 samples: 98.32 over the samples
+// against 96.16 over the 16 minutes.
+//
+// Idempotent, because the sync re-reads the same days: existing rows are kept
+// and the summary is recomputed from what the table holds afterwards. A workout
+// whose interval carries no sample of that source leaves both tables unchanged.
+// Returns the number of minute rows inserted.
+func (db *DB) FillWorkoutHeartRateFromMetrics(ctx context.Context, userID int, workoutID uuid.UUID, source string, start, end time.Time) (int64, error) {
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// COALESCE covers both metric shapes: Oura stores one value per sample in
+	// qty, the Health Auto Export path stores min/avg/max per row.
+	tag, err := tx.Exec(ctx,
+		`INSERT INTO workout_heart_rate (time, workout_id, user_id, min_bpm, avg_bpm, max_bpm, source)
+		 SELECT date_trunc('minute', time), $1, $2,
+		        MIN(COALESCE(min_val, qty)), AVG(COALESCE(avg_val, qty)), MAX(COALESCE(max_val, qty)), $3
+		 FROM health_metrics
+		 WHERE user_id = $2 AND metric_name = 'heart_rate' AND source = $3
+		   AND time >= $4 AND time < $5
+		   AND COALESCE(avg_val, qty) IS NOT NULL
+		 GROUP BY 1
+		 ON CONFLICT DO NOTHING`,
+		workoutID, userID, source, start, end)
+	if err != nil {
+		return 0, fmt.Errorf("deriving workout heart rate: %w", err)
+	}
+	inserted := tag.RowsAffected()
+
+	// The summary reads the table rather than the insert above, so a workout
+	// that already carries minutes from an earlier cycle keeps a summary over
+	// all of them.
+	if _, err := tx.Exec(ctx,
+		`UPDATE workouts w SET
+		   avg_heart_rate = s.avg_bpm,
+		   min_heart_rate = s.min_bpm,
+		   max_heart_rate = s.max_bpm
+		 FROM (SELECT AVG(avg_bpm) AS avg_bpm, MIN(min_bpm) AS min_bpm, MAX(max_bpm) AS max_bpm
+		       FROM workout_heart_rate
+		       WHERE workout_id = $1 AND user_id = $2) s
+		 WHERE w.id = $1 AND w.user_id = $2 AND s.avg_bpm IS NOT NULL`,
+		workoutID, userID); err != nil {
+		return 0, fmt.Errorf("updating workout heart rate summary: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("committing derived workout heart rate: %w", err)
+	}
+	return inserted, nil
+}
+
 // InsertWorkoutRoutes batch-inserts workout route points. Returns count inserted.
 func (db *DB) InsertWorkoutRoutes(ctx context.Context, rows []models.WorkoutRouteRow) (int64, error) {
 	if len(rows) == 0 {
