@@ -62,9 +62,25 @@ holds the 77-sample burst that HealthKit does not have. Neither series contains
 the other, which is why the priority for the `activity` category keeps deciding
 which row the list shows rather than one of them being dropped.
 
+**The API returns Oura's own workouts only.** The Oura app shows workouts it
+imported from Apple Health, and those do not come back out of the API, so an
+`Oura` row is never a re-import of an Apple workout. Measured over 2026-07-23 to
+2026-09-22 for this account: 53 workouts from the API against 173 Apple Health
+workouts in the same window, with `source` reading `confirmed` 45 times,
+`workout_heart_rate` 7 times and `manual` once. The 121 Apple workouts without a
+counterpart are 73 × Walking, 15 × Traditional Strength Training, 13 × Cycling,
+10 × Flexibility, 6 × Functional Strength Training, 3 × Outdoor Cycling and one
+dive. The direction of the 52 pairs is settled by their energy: Apple's
+`activeEnergyBurned` in kJ equals the Oura figure in kcal times 4.184 to the last
+floating-point digit, in all 52 — the Apple row is the Oura workout written into
+HealthKit. The duplication in the workout list is therefore always one Oura
+session on two paths, which the 5-minute rule in `QueryWorkouts` resolves.
+
 **Trigger to re-open.** An Oura endpoint that carries heart rate on the workout
 itself, or a second source whose workouts arrive without one — the second would
-turn the sync's fixed `Oura` argument into a per-source decision.
+turn the sync's fixed `Oura` argument into a per-source decision. Equally, Oura
+beginning to return the workouts it imported: those would arrive as `Oura` rows
+with the start times of Apple rows.
 
 ---
 
