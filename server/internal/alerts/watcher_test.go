@@ -18,7 +18,7 @@ type fakeStore struct {
 	settings storage.AlertSettings
 	known    bool
 	runs     map[string]map[int][]storage.SourceRun
-	last     map[string]time.Time
+	last     map[string]time.Time // per source: when a delivery last stored a row
 	state    map[int]storage.AlertState
 }
 
@@ -56,7 +56,7 @@ func (f *fakeStore) RecentRunsBySource(_ context.Context, source string, limit i
 	return out, nil
 }
 
-func (f *fakeStore) LastRunAt(_ context.Context, source string) (time.Time, bool, error) {
+func (f *fakeStore) LastStoredRunAt(_ context.Context, source string) (time.Time, bool, error) {
 	t, ok := f.last[source]
 	return t, ok, nil
 }
@@ -224,8 +224,8 @@ func TestOneUsersFailureIsNotMaskedByAnother(t *testing.T) {
 }
 
 // TestAppleIngestSilence covers the threshold and, in the second half, the case
-// that must stay silent: a path that never delivered is a deployment that has not
-// been configured yet, not an outage.
+// that must stay silent: a path that never stored anything is a deployment that
+// has not been configured yet, not an outage.
 func TestAppleIngestSilence(t *testing.T) {
 	store := newFakeStore()
 	store.last["hae_rest"] = time.Now().Add(-40 * time.Hour)
@@ -249,6 +249,31 @@ func TestAppleIngestSilence(t *testing.T) {
 		if p.MonitorID == MonitorAppleIngest {
 			t.Errorf("alerted on a path that never delivered: %+v", p)
 		}
+	}
+}
+
+// TestAppleIngestCountsStoredRowsNotDeliveries covers the state this rule was
+// rewritten for: the phone keeps posting, every row is a duplicate. The store
+// answers with the last delivery that wrote a row, 40 hours old, while the
+// deliveries themselves continue — the alert has to fire on the data, not on the
+// traffic.
+func TestAppleIngestCountsStoredRowsNotDeliveries(t *testing.T) {
+	store := newFakeStore()
+	store.last["hae_rest"] = time.Now().Add(-40 * time.Hour)
+	rec := &recorder{}
+	testWatcher(store, rec).Check(context.Background())
+
+	var msg string
+	for _, p := range rec.sent {
+		if p.MonitorID == MonitorAppleIngest && p.Status == notify.StatusProblem {
+			msg = p.Msg
+		}
+	}
+	if msg == "" {
+		t.Fatal("no alert although nothing has been stored for 40 hours, threshold is 36")
+	}
+	if !strings.Contains(msg, "last stored export") {
+		t.Errorf("message = %q, want it to name the last stored export", msg)
 	}
 }
 

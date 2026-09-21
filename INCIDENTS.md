@@ -16,6 +16,63 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-09-21 — No workout of the current day arrived, from either source
+
+**Symptoms.** On 2026-09-21 the Workouts screen showed nothing from that day,
+although two workouts had been recorded. Measured against the deployed instance
+(`edge-f7b66e2`) at 17:00 UTC: `workouts` held no row after
+2026-09-20 16:56:38Z, `workout_heart_rate` and `workout_routes` none after
+2026-09-20 17:13Z, and Apple Health `health_metrics` none after
+2026-09-20 08:23:01Z. Oura sleep, readiness, stress and heart rate continued to
+arrive, the newest at 2026-09-21 12:00Z, which is what made the gap look
+specific to workouts.
+
+**Root cause.** Two independent causes, one per channel, with identical
+symptoms.
+
+*Oura.* `fetchAll` in `internal/oura/client.go` passed the caller's range
+straight through, and `syncDataType` ends its range at `time.Now()`. On
+`/v2/usercollection/workout` and `/v2/usercollection/daily_activity` the API
+compares `end_date` against a timestamp, so a record of the end day itself is
+left out. Measured against the live API on 2026-09-21:
+`start_date=2026-09-19&end_date=2026-09-21` returned the two workouts of the
+19th and neither of the 21st, `end_date=2026-09-22` returned all four;
+`daily_activity` returned 2026-09-20 only until `end_date` reached 2026-09-22.
+`daily_sleep`, `daily_readiness`, `daily_stress`, `daily_spo2`,
+`daily_resilience`, `daily_cardiovascular_age` and `sleep` returned the end day
+in the same measurement, which is why sleep never showed the defect. The
+two-day overlap in `syncDataType` hid the rest: the current day's workouts and
+activity arrived on the following day's first sync, so only the current day was
+ever missing, on every day since the Oura integration was added.
+
+*Health Auto Export.* The export window in the phone's automation was set to
+"previous 7 days", which ends on the previous day. The deliveries of
+2026-09-21 at 05:19, 12:24 and 16:18 each carried the same 24 workouts of
+2026-09-14 to 2026-09-20, 0 inserted; the delivery at 05:17 wrote the 4 of
+2026-09-20. This is configuration on the phone rather than code, and it is
+recorded here because the server-side symptom is indistinguishable from a
+defect in the ingest path.
+
+*The rule that should have reported it.* `checkAppleIngest` read
+`LastRunAt('hae_rest')`, the newest `import_logs` row of any content. Monitor
+9204 therefore reported `export received 49m0s ago` and stayed resolved through
+33 hours in which nothing new was stored, against a threshold of 36 hours.
+
+**Fix.** `fetchAll` asks for the day after the caller's end date, the boundary
+both kinds of endpoint answer; `dayAfter` rejects a range end that is not
+`YYYY-MM-DD` rather than sending it. `checkAppleIngest` reads
+`LastStoredRunAt`, the newest delivery that wrote at least one row
+(`metrics_inserted`, `workouts_inserted`, `sleep_sessions` or `sets_inserted`),
+and the Settings text for the threshold says so. The missing days need no
+backfill: the two-day overlap re-reads them on the next sync.
+
+**Lesson.** A delivery is not a measurement. Both failures here left the
+transport intact and changed only what it carried, so a rule that counts
+requests reports the transport and misses the condition — it has to read what
+was stored.
+
+---
+
 ## 2026-09-20 — Every night's sleep stages were stored twice
 
 **Symptoms.** The hypnogram drew a grey bar across the whole Awake lane, and

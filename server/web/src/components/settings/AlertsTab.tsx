@@ -296,8 +296,11 @@ export default function AlertsTab() {
                     color: "var(--color-neutral-600)",
                   }}
                 >
-                  hours without a Health Auto Export delivery before the ingress
-                  counts as down. 0 turns the rule off.
+                  hours without a Health Auto Export delivery that stored a row
+                  before the ingress counts as down. An export window that
+                  repeats the same days keeps delivering without storing
+                  anything, which is why the rule counts stored rows. 0 turns
+                  the rule off.
                 </span>
               </span>
             </Row>

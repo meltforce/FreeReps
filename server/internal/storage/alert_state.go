@@ -51,14 +51,24 @@ func (db *DB) RecentRunsBySource(ctx context.Context, source string, limit int) 
 	return out, rows.Err()
 }
 
-// LastRunAt returns when a source last wrote an import log of any status, and
-// false when it never has.
-func (db *DB) LastRunAt(ctx context.Context, source string) (time.Time, bool, error) {
+// LastStoredRunAt returns when a source last wrote an import log that stored at
+// least one row, and false when it never has.
+//
+// This is the question the silence rule asks, rather than when a request last
+// arrived: Health Auto Export repeats a fixed export window, so a phone whose
+// last new sample is two days old keeps posting payloads whose rows are all
+// duplicates. Measured on 2026-09-21: three deliveries of the same 24 workouts,
+// 0 inserted each, while the rule that counted requests reported the ingress as
+// healthy — see the 2026-09-21 entry in INCIDENTS.md.
+func (db *DB) LastStoredRunAt(ctx context.Context, source string) (time.Time, bool, error) {
 	var t *time.Time
 	err := db.Pool.QueryRow(ctx,
-		`SELECT MAX(created_at) FROM import_logs WHERE source = $1`, source).Scan(&t)
+		`SELECT MAX(created_at) FROM import_logs
+		 WHERE source = $1
+		   AND (metrics_inserted > 0 OR workouts_inserted > 0
+		        OR sleep_sessions > 0 OR sets_inserted > 0)`, source).Scan(&t)
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("querying last run for %s: %w", source, err)
+		return time.Time{}, false, fmt.Errorf("querying last stored run for %s: %w", source, err)
 	}
 	if t == nil {
 		return time.Time{}, false, nil

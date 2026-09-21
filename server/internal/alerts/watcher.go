@@ -63,7 +63,7 @@ const appleIngestSource = "hae_rest"
 type Store interface {
 	GetAlertSettings(ctx context.Context) (storage.AlertSettings, bool, error)
 	RecentRunsBySource(ctx context.Context, source string, limit int) (map[int][]storage.SourceRun, error)
-	LastRunAt(ctx context.Context, source string) (time.Time, bool, error)
+	LastStoredRunAt(ctx context.Context, source string) (time.Time, bool, error)
 	GetAlertState(ctx context.Context, monitorID int) (storage.AlertState, error)
 	SetAlertState(ctx context.Context, monitorID int, firing bool, since time.Time, msg string) error
 }
@@ -208,14 +208,22 @@ func (w *Watcher) checkSource(ctx context.Context, st storage.AlertSettings, c s
 	return w.report(ctx, st, c.monitorID, c.service, firing, msg)
 }
 
-// checkAppleIngest fires when the Health Auto Export path has delivered nothing
+// checkAppleIngest fires when the Health Auto Export path has stored nothing new
 // for longer than AppleSilence.
 //
-// A path that has never delivered does not fire: on a fresh deployment that is
-// the expected state, and an alert for it would arrive before the automation has
-// been configured at all.
+// The condition counts deliveries that wrote at least one row, not deliveries.
+// An automation exports a fixed window — "previous 7 days" on the phone this was
+// measured on — and repeats it on every run, so a phone that stopped producing
+// new samples keeps posting payloads whose rows are all duplicates. On
+// 2026-09-21 that state lasted 33 hours: three deliveries of the same 24
+// workouts, 0 inserted each, and the rule counting deliveries reported "export
+// received 49m ago" throughout.
+//
+// A path that has never stored anything does not fire: on a fresh deployment
+// that is the expected state, and an alert for it would arrive before the
+// automation has been configured at all.
 func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings) error {
-	last, ok, err := w.store.LastRunAt(ctx, appleIngestSource)
+	last, ok, err := w.store.LastStoredRunAt(ctx, appleIngestSource)
 	if err != nil {
 		return err
 	}
@@ -225,10 +233,10 @@ func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings
 
 	silence := time.Since(last)
 	firing := st.AppleSilence > 0 && silence > st.AppleSilence
-	msg := fmt.Sprintf("last export %s (%s ago), threshold %s",
+	msg := fmt.Sprintf("last stored export %s (%s ago), threshold %s",
 		last.UTC().Format(time.RFC3339), silence.Round(time.Minute), st.AppleSilence)
 	if !firing {
-		msg = fmt.Sprintf("export received %s ago", silence.Round(time.Minute))
+		msg = fmt.Sprintf("export stored %s ago", silence.Round(time.Minute))
 	}
 
 	return w.report(ctx, st, MonitorAppleIngest, ServiceNames[MonitorAppleIngest], firing, msg)
