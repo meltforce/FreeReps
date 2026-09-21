@@ -25,6 +25,7 @@ migrate-up:
 migrate-down:
 	@echo "Use golang-migrate CLI: migrate -path migrations -database postgres://... down"
 
-# Lint
+# Lint. The wrapper pins the version CI uses and installs it when the local
+# binary differs — see tools/lint.sh.
 lint:
-	golangci-lint run ./...
+	../tools/lint.sh

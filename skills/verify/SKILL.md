@@ -46,11 +46,21 @@ contents.
 ## 2. golangci-lint
 
 ```bash
-cd server && golangci-lint run ./...
+tools/lint.sh
 ```
 
-CI pins v2.10.1 (`.forgejo/workflows/ci.yml`). A local version that differs can
-pass where CI fails; on a disagreement, the pinned version decides.
+Run it from the repo root; `make lint` calls the same script. It reads the
+pinned version from `.forgejo/workflows/ci.yml`, installs that version when the
+binary at `$(go env GOPATH)/bin/golangci-lint` is absent or older, and runs it
+over `server/`.
+
+**Do not reach for the bare `golangci-lint` instead.** `~/go/bin` is not on the
+PATH a tool call inherits on the development Macs, so `command -v` reports the
+linter as missing; and a binary built with an older Go toolchain than
+`server/go.mod` targets refuses to load the configuration. Both read like an
+absent installation, and skipping the step over it is what broke CI run 924 on
+2026-08-05: build, vet, tests and the frontend were green, `errcheck` rejected
+three discarded `fmt.Fprint` results, and the fix landed as `edeb15d`.
 
 ## 3. Frontend
 
