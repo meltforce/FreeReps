@@ -80,6 +80,14 @@ type WorkoutRow struct {
 	// display can name the provider that recorded a session rather than the
 	// hub it arrived through. Empty on the single-row path.
 	Sources []string `json:"Sources,omitempty"`
+
+	// RecordedBy is the name to show for this workout, resolved from Source and
+	// Sources by RecordedBy(). Carried on the row so that the workout list and
+	// the MCP tool report the same provider; see DECISIONS.md, 2026-09-21.
+	//
+	// Absent on the single-row path: GetWorkout selects no source column, so
+	// resolving there would label every workout "Apple Health".
+	RecordedBy string `json:"RecordedBy,omitempty"`
 }
 
 // WorkoutHRRow is a row for the workout_heart_rate table.

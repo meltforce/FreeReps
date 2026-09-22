@@ -79,6 +79,12 @@ func TestWorkoutListReportsEverySourceOfTheWindow(t *testing.T) {
 	if len(paired.Sources) != 2 || paired.Sources[0] != "" || paired.Sources[1] != "Oura" {
 		t.Errorf("Sources = %q, want [\"\" \"Oura\"] so the list can name the recorder", paired.Sources)
 	}
+	if paired.RecordedBy != "Oura" {
+		t.Errorf("RecordedBy of the pair = %q, want \"Oura\" — the row the list shows is the HealthKit copy", paired.RecordedBy)
+	}
+	if alone.RecordedBy != "Apple Health" {
+		t.Errorf("RecordedBy of the unpaired workout = %q, want \"Apple Health\"", alone.RecordedBy)
+	}
 	if len(alone.Sources) != 1 || alone.Sources[0] != "" {
 		t.Errorf("Sources of the unpaired workout = %q, want [\"\"]", alone.Sources)
 	}

@@ -247,8 +247,12 @@ export interface Workout {
   Name: string;
   Source?: string;
   /** Every source that reported this workout; more than one when a provider's
-   *  session also reaches HealthKit. See recordedBy(). */
+   *  session also reaches HealthKit. */
   Sources?: string[];
+  /** The provider that recorded the session, resolved on the server from
+   *  Source and Sources so that this screen and the MCP tool agree. Absent on
+   *  the single-workout endpoint, which selects no source column. */
+  RecordedBy?: string;
   StartTime: string;
   EndTime: string;
   DurationSec: number;

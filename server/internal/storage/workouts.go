@@ -345,6 +345,7 @@ func scanWorkoutListRows(rows interface {
 			return nil, fmt.Errorf("scanning workout: %w", err)
 		}
 		w.Sources = distinctSources(bucketSources)
+		w.RecordedBy = models.RecordedBy(w.Source, w.Sources)
 		result = append(result, w)
 	}
 	return result, rows.Err()
@@ -447,6 +448,7 @@ func (db *DB) QueryWorkoutsMerged(ctx context.Context, start, end time.Time, use
 			Name:             syntheticWorkoutName,
 			Source:           source,
 			Sources:          []string{source},
+			RecordedBy:       models.RecordedBy(source, []string{source}),
 			StartTime:        a.SessionDate,
 			EndTime:          sessionEnd,
 			DurationSec:      sessionEnd.Sub(a.SessionDate).Seconds(),
