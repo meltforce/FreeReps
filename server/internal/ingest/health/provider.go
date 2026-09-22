@@ -172,6 +172,10 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 				p.log.Warn("skipping data point", "metric", m.Name, "error", err)
 				continue
 			}
+			if _, unknown := normalizeUnits(row); unknown {
+				p.log.Warn("storing metric in an unconverted unit",
+					"metric", m.Name, "units", m.Units, "canonical", canonicalUnit[m.Name])
+			}
 			healthRows = append(healthRows, *row)
 		}
 	}
