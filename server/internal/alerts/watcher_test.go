@@ -18,7 +18,8 @@ type fakeStore struct {
 	settings storage.AlertSettings
 	known    bool
 	runs     map[string]map[int][]storage.SourceRun
-	last     map[string]time.Time // per source: when a delivery last stored a row
+	last     map[string]time.Time // per source: when a delivery last stored a metric
+	lastWork map[string]time.Time // per source: when a workout was last delivered
 	state    map[int]storage.AlertState
 }
 
@@ -34,10 +35,11 @@ func newFakeStore() *fakeStore {
 			FailureThreshold: 3,
 			AppleSilence:     36 * time.Hour,
 		},
-		known: true,
-		runs:  map[string]map[int][]storage.SourceRun{},
-		last:  map[string]time.Time{},
-		state: map[int]storage.AlertState{},
+		known:    true,
+		runs:     map[string]map[int][]storage.SourceRun{},
+		last:     map[string]time.Time{},
+		lastWork: map[string]time.Time{},
+		state:    map[int]storage.AlertState{},
 	}
 }
 
@@ -56,8 +58,13 @@ func (f *fakeStore) RecentRunsBySource(_ context.Context, source string, limit i
 	return out, nil
 }
 
-func (f *fakeStore) LastStoredRunAt(_ context.Context, source string) (time.Time, bool, error) {
+func (f *fakeStore) LastStoredMetricRunAt(_ context.Context, source string) (time.Time, bool, error) {
 	t, ok := f.last[source]
+	return t, ok, nil
+}
+
+func (f *fakeStore) LastWorkoutDeliveryAt(_ context.Context, source string) (time.Time, bool, error) {
+	t, ok := f.lastWork[source]
 	return t, ok, nil
 }
 
@@ -400,5 +407,63 @@ func TestSendTestUsesTheResolvedStatus(t *testing.T) {
 	}
 	if rec.sent[0].Status != notify.StatusResolved {
 		t.Errorf("status = %d, want %d", rec.sent[0].Status, notify.StatusResolved)
+	}
+}
+
+// TestAppleChannelsAreWatchedSeparately is the regression test for 2026-09-20:
+// the metric automation stopped and the workout one kept posting every few
+// hours, and a rule that accepted any stored row reported the ingress as alive
+// for 46 hours. Each channel now answers for itself.
+func TestAppleChannelsAreWatchedSeparately(t *testing.T) {
+	store := newFakeStore()
+	store.last["hae_rest"] = time.Now().Add(-46 * time.Hour)    // metrics stopped
+	store.lastWork["hae_rest"] = time.Now().Add(-3 * time.Hour) // workouts still arriving
+	rec := &recorder{}
+	testWatcher(store, rec).Check(context.Background())
+
+	var metricMsg string
+	for _, p := range rec.sent {
+		switch p.MonitorID {
+		case MonitorAppleIngest:
+			if p.Status == notify.StatusProblem {
+				metricMsg = p.Msg
+			}
+		case MonitorAppleWorkouts:
+			if p.Status == notify.StatusProblem {
+				t.Errorf("the workout channel alerted although it delivered 3 hours ago: %q", p.Msg)
+			}
+		}
+	}
+	if metricMsg == "" {
+		t.Fatal("the metric channel did not alert after 46 hours, threshold is 36")
+	}
+	if !strings.Contains(metricMsg, "last stored export") {
+		t.Errorf("message = %q, want it to name the last stored export", metricMsg)
+	}
+}
+
+// TestAppleWorkoutChannelAlertsOnItsOwn covers the other direction: the workout
+// automation stops while the metric one keeps storing rows.
+func TestAppleWorkoutChannelAlertsOnItsOwn(t *testing.T) {
+	store := newFakeStore()
+	store.last["hae_rest"] = time.Now().Add(-2 * time.Hour)
+	store.lastWork["hae_rest"] = time.Now().Add(-40 * time.Hour)
+	rec := &recorder{}
+	testWatcher(store, rec).Check(context.Background())
+
+	var found bool
+	for _, p := range rec.sent {
+		if p.MonitorID == MonitorAppleIngest && p.Status == notify.StatusProblem {
+			t.Errorf("the metric channel alerted although it stored 2 hours ago: %q", p.Msg)
+		}
+		if p.MonitorID == MonitorAppleWorkouts && p.Status == notify.StatusProblem {
+			found = true
+			if !strings.Contains(p.Msg, "last workout delivery") {
+				t.Errorf("message = %q, want it to name the last workout delivery", p.Msg)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the workout channel did not alert after 40 hours, threshold is 36")
 	}
 }

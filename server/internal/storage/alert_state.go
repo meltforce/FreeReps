@@ -51,8 +51,8 @@ func (db *DB) RecentRunsBySource(ctx context.Context, source string, limit int) 
 	return out, rows.Err()
 }
 
-// LastStoredRunAt returns when a source last wrote an import log that stored at
-// least one row, and false when it never has.
+// LastStoredMetricRunAt returns when a source last wrote an import log that
+// stored at least one health metric, and false when it never has.
 //
 // This is the question the silence rule asks, rather than when a request last
 // arrived: Health Auto Export repeats a fixed export window, so a phone whose
@@ -60,15 +60,39 @@ func (db *DB) RecentRunsBySource(ctx context.Context, source string, limit int) 
 // duplicates. Measured on 2026-09-21: three deliveries of the same 24 workouts,
 // 0 inserted each, while the rule that counted requests reported the ingress as
 // healthy — see the 2026-09-21 entry in INCIDENTS.md.
-func (db *DB) LastStoredRunAt(ctx context.Context, source string) (time.Time, bool, error) {
+//
+// The condition names the metric channel alone. Health Auto Export runs one
+// automation per data type, and they stop independently: from 2026-09-20 10:25
+// the metric automation delivered nothing for 46 hours while the workout one
+// kept posting every few hours. A rule that accepted any stored row read the
+// workout deliveries as proof that the ingress was alive and reported "export
+// stored 12h30m ago" throughout.
+func (db *DB) LastStoredMetricRunAt(ctx context.Context, source string) (time.Time, bool, error) {
+	return db.lastRunAt(ctx, source, "metrics_inserted > 0")
+}
+
+// LastWorkoutDeliveryAt returns when a source last delivered a workout, counting
+// what arrived rather than what was stored.
+//
+// The metric channel and the workout channel need opposite tests. New metric
+// samples accrue continuously, so an absence of newly stored rows is a signal.
+// Workouts are sporadic — a rest day produces none — and the export resends a
+// fixed window, so `workouts_inserted` is 0 on most deliveries and counting
+// stored rows would fire on every quiet week. What is observable for workouts is
+// whether the automation still posts at all.
+func (db *DB) LastWorkoutDeliveryAt(ctx context.Context, source string) (time.Time, bool, error) {
+	return db.lastRunAt(ctx, source, "workouts_received > 0")
+}
+
+// lastRunAt answers both of the above. The predicate is a constant from this
+// file, never a caller's string.
+func (db *DB) lastRunAt(ctx context.Context, source, predicate string) (time.Time, bool, error) {
 	var t *time.Time
 	err := db.Pool.QueryRow(ctx,
-		`SELECT MAX(created_at) FROM import_logs
-		 WHERE source = $1
-		   AND (metrics_inserted > 0 OR workouts_inserted > 0
-		        OR sleep_sessions > 0 OR sets_inserted > 0)`, source).Scan(&t)
+		`SELECT MAX(created_at) FROM import_logs WHERE source = $1 AND `+predicate,
+		source).Scan(&t)
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("querying last stored run for %s: %w", source, err)
+		return time.Time{}, false, fmt.Errorf("querying last run for %s: %w", source, err)
 	}
 	if t == nil {
 		return time.Time{}, false, nil

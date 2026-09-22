@@ -35,6 +35,9 @@ const (
 	MonitorOuraSync     = 9202
 	MonitorHevySync     = 9203
 	MonitorAppleIngest  = 9204
+	// MonitorAppleWorkouts is its own id because the two Health Auto Export
+	// automations stop independently; see checkAppleIngest.
+	MonitorAppleWorkouts = 9205
 )
 
 // maxMsgLen keeps a message readable wherever it is displayed. The upstream error
@@ -63,7 +66,8 @@ const appleIngestSource = "hae_rest"
 type Store interface {
 	GetAlertSettings(ctx context.Context) (storage.AlertSettings, bool, error)
 	RecentRunsBySource(ctx context.Context, source string, limit int) (map[int][]storage.SourceRun, error)
-	LastStoredRunAt(ctx context.Context, source string) (time.Time, bool, error)
+	LastStoredMetricRunAt(ctx context.Context, source string) (time.Time, bool, error)
+	LastWorkoutDeliveryAt(ctx context.Context, source string) (time.Time, bool, error)
 	GetAlertState(ctx context.Context, monitorID int) (storage.AlertState, error)
 	SetAlertState(ctx context.Context, monitorID int, firing bool, since time.Time, msg string) error
 }
@@ -71,11 +75,12 @@ type Store interface {
 // ServiceNames maps a monitor id to the `service` field the payload carries, so
 // the Settings screen labels a condition with the same name the consumer sees.
 var ServiceNames = map[int]string{
-	MonitorChannelTest:  "freereps - channel test",
-	MonitorWithingsSync: "freereps - withings sync",
-	MonitorOuraSync:     "freereps - oura sync",
-	MonitorHevySync:     "freereps - hevy sync",
-	MonitorAppleIngest:  "freereps - apple health ingest",
+	MonitorChannelTest:   "freereps - channel test",
+	MonitorWithingsSync:  "freereps - withings sync",
+	MonitorOuraSync:      "freereps - oura sync",
+	MonitorHevySync:      "freereps - hevy sync",
+	MonitorAppleIngest:   "freereps - apple health metrics",
+	MonitorAppleWorkouts: "freereps - apple health workouts",
 }
 
 // fallbackInterval is how often the watcher looks again when the channel is
@@ -135,7 +140,10 @@ func (w *Watcher) Check(ctx context.Context) time.Duration {
 		}
 	}
 	if err := w.checkAppleIngest(ctx, st); err != nil {
-		w.log.Warn("alert rule failed", "source", appleIngestSource, "error", err)
+		w.log.Warn("alert rule failed", "source", appleIngestSource, "channel", "metrics", "error", err)
+	}
+	if err := w.checkAppleWorkouts(ctx, st); err != nil {
+		w.log.Warn("alert rule failed", "source", appleIngestSource, "channel", "workouts", "error", err)
 	}
 	return w.interval(st)
 }
@@ -208,22 +216,29 @@ func (w *Watcher) checkSource(ctx context.Context, st storage.AlertSettings, c s
 	return w.report(ctx, st, c.monitorID, c.service, firing, msg)
 }
 
-// checkAppleIngest fires when the Health Auto Export path has stored nothing new
-// for longer than AppleSilence.
+// checkAppleIngest fires when the Health Auto Export path has stored no new
+// health metric for longer than AppleSilence.
 //
-// The condition counts deliveries that wrote at least one row, not deliveries.
-// An automation exports a fixed window — "previous 7 days" on the phone this was
+// The condition counts runs that wrote at least one row, not requests. An
+// automation exports a fixed window — "previous 7 days" on the phone this was
 // measured on — and repeats it on every run, so a phone that stopped producing
 // new samples keeps posting payloads whose rows are all duplicates. On
 // 2026-09-21 that state lasted 33 hours: three deliveries of the same 24
-// workouts, 0 inserted each, and the rule counting deliveries reported "export
+// workouts, 0 inserted each, and the rule counting requests reported "export
 // received 49m ago" throughout.
+//
+// It counts the metric channel alone. Health Auto Export runs one automation
+// per data type and they stop independently: from 2026-09-20 10:25 the metric
+// automation delivered nothing for 46 hours while the workout one kept posting
+// every few hours, and the rule that accepted any stored row read those
+// deliveries as proof of a live ingress and reported "export stored 12h30m ago"
+// throughout. checkAppleWorkouts watches the other channel.
 //
 // A path that has never stored anything does not fire: on a fresh deployment
 // that is the expected state, and an alert for it would arrive before the
 // automation has been configured at all.
 func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings) error {
-	last, ok, err := w.store.LastStoredRunAt(ctx, appleIngestSource)
+	last, ok, err := w.store.LastStoredMetricRunAt(ctx, appleIngestSource)
 	if err != nil {
 		return err
 	}
@@ -240,6 +255,35 @@ func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings
 	}
 
 	return w.report(ctx, st, MonitorAppleIngest, ServiceNames[MonitorAppleIngest], firing, msg)
+}
+
+// checkAppleWorkouts fires when the workout automation has posted nothing for
+// longer than AppleSilence.
+//
+// It counts deliveries where checkAppleIngest counts stored rows, and the two
+// are right for opposite reasons. Metric samples accrue continuously, so an
+// absence of newly stored rows means the phone stopped producing them. Workouts
+// are sporadic and the export resends a fixed window, so most deliveries store
+// nothing and a stored-row rule would fire through every quiet week. What is
+// observable here is whether the automation still posts.
+func (w *Watcher) checkAppleWorkouts(ctx context.Context, st storage.AlertSettings) error {
+	last, ok, err := w.store.LastWorkoutDeliveryAt(ctx, appleIngestSource)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	silence := time.Since(last)
+	firing := st.AppleSilence > 0 && silence > st.AppleSilence
+	msg := fmt.Sprintf("last workout delivery %s (%s ago), threshold %s",
+		last.UTC().Format(time.RFC3339), silence.Round(time.Minute), st.AppleSilence)
+	if !firing {
+		msg = fmt.Sprintf("workouts delivered %s ago", silence.Round(time.Minute))
+	}
+
+	return w.report(ctx, st, MonitorAppleWorkouts, ServiceNames[MonitorAppleWorkouts], firing, msg)
 }
 
 // report sends a message only on a transition — entering the problem state or
