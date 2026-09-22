@@ -19,6 +19,55 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-22 — Compression stays off, and the measurement is recorded so the decision needs no second one
+
+**Decided:** 2026-09-22
+
+**Decision.** `health_metrics`, `workout_routes`, `workout_heart_rate` and
+`sleep_stages` keep `compression_enabled = false`. The figures below were
+measured against the deployed database and are the basis for turning it on when
+disk becomes a constraint; they do not have to be taken again.
+
+**What compression achieves here.** Three chunks were compressed with
+`segmentby = metric_name, source` and `orderby = time DESC`, then decompressed
+again:
+
+| chunk | window | before | after | factor |
+|---|---|---|---|---|
+| `_hyper_1_49` | 2025-11-27 to 12-04 | 19 MB | 664 kB | 29.7 |
+| `_hyper_1_471` | 2026-02-26 to 03-05 | 20 MB | 744 kB | 26.9 |
+| `_hyper_1_567` | 2022-09-15 to 09-22 | 16 MB | 952 kB | 17.5 |
+
+**What it costs.** The compressed February week against the uncompressed week
+before it, same size, two runs each: a week of daily `step_count` sums took
+5.9 and 6.9 ms compressed against 0.8 and 1.9 ms uncompressed, and the newest
+row per metric in the window took 4.8 ms twice against 0.5 and 2.1 ms. A
+compressed chunk costs about 5 ms where an uncompressed one costs about 1, and
+the uncompressed figures fall on the second run while the compressed ones do
+not, so decompression runs on every access. A one-year query touches 52 chunks;
+the 73 ms such a query takes today would become roughly 260 ms.
+
+**What is at stake.** Chunks older than 90 days hold 1.92 GB of
+`health_metrics`, 496 MB of `workout_routes`, 70 MB of `workout_heart_rate` and
+14 MB of `sleep_stages`. At the measured factor the first would fall to about
+79 MB, saving roughly 1.8 GB of the 12 GB in use on a 24 GB disk.
+
+**Why not now.** The disk is at 51 %, and the growth rate fell on the same day
+from 2,876 to 137 Apple samples a day when the export was trimmed to ten
+metrics. Three to five times the time on historical ranges is the price, and the
+correlation screen is what reads them.
+
+**What to do differently when it is turned on.** TimescaleDB warns `column
+"user_id" should be used for segmenting or ordering`; this table is multi-user,
+so `user_id` belongs in `segmentby`. `workout_routes` was not measured — GPS
+floats do not repeat the way a metric name and a source do, so the factor from
+`health_metrics` does not carry over to it.
+
+**Trigger to re-open.** The disk on `freereps-lxc` past roughly 80 %, or a
+hypertable that grows faster than the trimmed export does.
+
+---
+
 ## 2026-09-22 — Health Auto Export rows keep the empty source, and "Apple Health" stays a display label
 
 **Decided:** 2026-09-22
