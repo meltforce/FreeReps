@@ -14,8 +14,23 @@ import (
 )
 
 const (
+	// Oura moved this integration to a Curity authorization server. The issuer
+	// is https://moi.ouraring.com/oauth/v2/ext/oauth-anonymous, named in the
+	// `iss` parameter Oura appends to the callback, and its metadata document
+	// at <issuer>/.well-known/openid-configuration lists the endpoints below.
+	//
+	// The legacy token endpoint https://api.ouraring.com/oauth/token still
+	// resolves the client_id — a made-up one is answered with `invalid_client`,
+	// this one with `invalid_request` — but it issues no tokens for a migrated
+	// client. Both the authorization-code exchange and every refresh failed
+	// against it with `400 invalid_request` from 2026-09-21 20:53 onward.
+	//
+	// The authorization request still goes through cloud.ouraring.com, which
+	// forwards to the new server and rewrites each scope into the `extapi:`
+	// namespace on the way. Addressing the new authorization endpoint directly
+	// would require spelling the scopes that way in ouraScopes.
 	defaultAuthorizeURL = "https://cloud.ouraring.com/oauth/authorize"
-	defaultTokenURL     = "https://api.ouraring.com/oauth/token"
+	defaultTokenURL     = "https://moi.ouraring.com/oauth/v2/ext/oauth-token"
 
 	// Scopes required for FreeReps integration. Includes newer scopes
 	// (spo2, stress, heart_health) not yet in the v1.28 OpenAPI spec.
@@ -55,15 +70,13 @@ func NewTokenManager(db *storage.DB) *TokenManager {
 // AuthorizeURL returns the Oura OAuth2 authorization URL for user consent.
 // Loads the user's client_id from the database.
 //
-// The request carries no redirect_uri. Oura moved this client to its new
-// authorization server: cloud.ouraring.com/oauth/authorize now forwards to
-// moi.ouraring.com/oauth/v2/ext/oauth-authorize, rewrites each scope into the
-// `extapi:` namespace and inserts the redirect URI registered with the
-// application itself. A request that also carries redirect_uri is answered with
-// `400 invalid_request`, and that holds for the registered value as well as for
-// any other — measured on 2026-09-22 against all three of
-// `/oura/callback`, `/api/v1/oura/callback` and an unrelated host.
-func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, state string) (string, error) {
+// redirect_uri has to match the value registered for the application in Oura's
+// developer console; every other value is answered with `400 invalid_request`.
+// Sending it explicitly is what makes a mismatch visible at the authorization
+// step. Omitting it makes Oura substitute the registered value, which sent the
+// consent redirect to the retired `leo-royal` tailnet on 2026-09-22 while the
+// request itself still succeeded. ExchangeCode has to send the same value.
+func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, redirectURI, state string) (string, error) {
 	stored, err := tm.db.GetOuraToken(ctx, userID)
 	if err != nil {
 		return "", fmt.Errorf("getting oura credentials: %w", err)
@@ -75,6 +88,7 @@ func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, state stri
 	params := url.Values{
 		"response_type": {"code"},
 		"client_id":     {stored.ClientID},
+		"redirect_uri":  {redirectURI},
 		"scope":         {ouraScopes},
 		"state":         {state},
 	}
