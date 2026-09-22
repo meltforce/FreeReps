@@ -54,7 +54,16 @@ func NewTokenManager(db *storage.DB) *TokenManager {
 
 // AuthorizeURL returns the Oura OAuth2 authorization URL for user consent.
 // Loads the user's client_id from the database.
-func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, redirectURI, state string) (string, error) {
+//
+// The request carries no redirect_uri. Oura moved this client to its new
+// authorization server: cloud.ouraring.com/oauth/authorize now forwards to
+// moi.ouraring.com/oauth/v2/ext/oauth-authorize, rewrites each scope into the
+// `extapi:` namespace and inserts the redirect URI registered with the
+// application itself. A request that also carries redirect_uri is answered with
+// `400 invalid_request`, and that holds for the registered value as well as for
+// any other — measured on 2026-09-22 against all three of
+// `/oura/callback`, `/api/v1/oura/callback` and an unrelated host.
+func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, state string) (string, error) {
 	stored, err := tm.db.GetOuraToken(ctx, userID)
 	if err != nil {
 		return "", fmt.Errorf("getting oura credentials: %w", err)
@@ -66,7 +75,6 @@ func (tm *TokenManager) AuthorizeURL(ctx context.Context, userID int, redirectUR
 	params := url.Values{
 		"response_type": {"code"},
 		"client_id":     {stored.ClientID},
-		"redirect_uri":  {redirectURI},
 		"scope":         {ouraScopes},
 		"state":         {state},
 	}

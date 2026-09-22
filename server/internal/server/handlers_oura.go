@@ -119,7 +119,7 @@ func (s *Server) handleOuraAuthorize(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	url, err := s.ouraTokenMgr.AuthorizeURL(r.Context(), uid, s.callbackURL(r, ouraCallbackPath), state)
+	url, err := s.ouraTokenMgr.AuthorizeURL(r.Context(), uid, state)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
