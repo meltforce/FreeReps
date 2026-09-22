@@ -19,6 +19,53 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-22 — Health Auto Export rows keep the empty source, and "Apple Health" stays a display label
+
+**Decided:** 2026-09-22
+
+**Decision.** `provider.go` keeps storing `source = ''` for everything the Health
+Auto Export path delivers. The name "Apple Health" is produced where a row is
+shown — `sourceLabel` in `server/web/src/utils/sourceLabel.ts` — and is not
+written into `health_metrics.source`.
+
+**Reasoning.** The empty string is not a missing value. Three rules read it as
+one:
+
+- `sourceLabel('')` returns "Apple Health" and `sourceLabelLong('')` returns
+  "Apple Health (HealthKit)", decided on 2026-08-05 in this file after six of
+  seventeen visible metrics showed an em dash for an origin that is known.
+- `recordedBy` tells a HealthKit delivery from its recorder by exactly this
+  property: a named source in a workout's 5-minute window is the recorder,
+  because Apple Health is the only source that arrives without a name
+  (2026-09-21, this file). Writing "Apple Health" into the column removes that
+  test and labels an Oura session with the hub again.
+- The source-priority rules match the empty string.
+
+The change would be a migration rather than an edit. The deduplication index is
+`(metric_name, source, time, user_id)`, so rows written under a new name do not
+collide with the stored ones, and the next seven-day export would insert every
+row of its window a second time — the shape that produced 132 duplicate rows on
+2026-09-22, removed the same day. Carrying the rename through means
+`health_metrics` at 4.95 million rows plus `workouts`, `sleep_stages`,
+`workout_heart_rate` and `category_samples`.
+
+The case the change was meant to serve is already covered: a second HealthKit
+sender, such as the iOS companion posting on its own path, writes the same empty
+string and is displayed under the same name.
+
+**Alternatives rejected.** Writing the constant into the column, for the reasons
+above. Resolving the per-sample identifier the payload carries to a device name
+is the better change — it answers by data what `recordedBy` answers by heuristic
+— but it is open work rather than a decision, and [`ROADMAP.md`](ROADMAP.md)
+holds it as the discarded device name.
+
+**Trigger to re-open.** A second delivery path whose rows have to be told apart
+from the Health Auto Export ones after storage, or a source-priority rule that
+has to rank two HealthKit senders differently. Either makes the origin a
+property of the row, which the empty string cannot carry.
+
+---
+
 ## 2026-09-21 — The workout list names the provider that recorded a session, not the path it arrived on
 
 **Decided:** 2026-09-21
