@@ -47,52 +47,60 @@ func parseFlexTime(s string) (time.Time, error) {
 
 // --- Tool definitions ---
 
+// Shared parameter descriptions. The storage queries bound time as
+// start <= t < end, and parseFlexTime reads a bare date as 00:00 UTC.
+const (
+	descStart  = "Start, inclusive: RFC 3339 timestamp with offset, or YYYY-MM-DD read as 00:00 UTC."
+	descEnd    = "End, exclusive: RFC 3339 timestamp with offset, or YYYY-MM-DD read as 00:00 UTC. To include a whole day, pass the following date."
+	descMetric = "Metric name as listed by list_available_metrics"
+)
+
 var toolGetHealthMetrics = mcp.NewTool("get_health_metrics",
-	mcp.WithDescription("Retrieve time-bucketed health metrics. Returns aggregated data points (avg/min/max/count) per time bucket."),
-	mcp.WithString("metric", mcp.Required(), mcp.Description("Metric name (e.g. heart_rate, resting_heart_rate, heart_rate_variability, weight_body_mass)")),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithDescription("Retrieve one metric as a time series, one data point (avg/min/max/count) per bucket. For a cumulative metric (is_cumulative in list_available_metrics, e.g. step count or active energy) the avg field holds the bucket total, not a mean. Values are in the metric's stored unit. For a single figure over a range use get_metric_stats; to compare two ranges use compare_periods."),
+	mcp.WithString("metric", mcp.Required(), mcp.Description(descMetric + " (e.g. heart_rate, resting_heart_rate, heart_rate_variability, weight_body_mass).")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("bucket", mcp.Description("Time bucket size (e.g. '1 hour', '1 day', '1 week', '1 month'). Defaults to '1 day'."), mcp.Enum("1 hour", "1 day", "1 week", "1 month")),
 )
 
 var toolGetMetricStats = mcp.NewTool("get_metric_stats",
-	mcp.WithDescription("Get aggregate statistics (avg, min, max, stddev, count) for a metric over a time range."),
-	mcp.WithString("metric", mcp.Required(), mcp.Description("Metric name")),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithDescription("Get aggregate statistics (avg, min, max, stddev, count) for one metric over a time range. For a cumulative metric (is_cumulative in list_available_metrics) the avg field holds the range total, not a mean, and min/max/stddev are over individual samples. Use get_health_metrics for the course over time."),
+	mcp.WithString("metric", mcp.Required(), mcp.Description(descMetric + ".")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetCorrelation = mcp.NewTool("get_correlation",
-	mcp.WithDescription("Compute Pearson correlation between two health metrics. Returns time-aligned data points and the correlation coefficient."),
-	mcp.WithString("x", mcp.Required(), mcp.Description("X-axis metric name")),
-	mcp.WithString("y", mcp.Required(), mcp.Description("Y-axis metric name")),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithDescription("Compute the Pearson correlation between two metrics. Both are aggregated per bucket — summed for a cumulative metric, averaged otherwise — and only buckets holding both metrics are paired. Returns the paired points, pearson_r (null when it cannot be computed) and the pair count."),
+	mcp.WithString("x", mcp.Required(), mcp.Description(descMetric + ", plotted on the x axis.")),
+	mcp.WithString("y", mcp.Required(), mcp.Description(descMetric + ", plotted on the y axis.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("bucket", mcp.Description("Time bucket for alignment. Defaults to '1 day'."), mcp.Enum("1 hour", "1 day", "1 week", "1 month")),
 )
 
 var toolGetSleepData = mcp.NewTool("get_sleep_data",
-	mcp.WithDescription("Retrieve sleep sessions and individual sleep stages. Sessions include total sleep, stage durations (core/deep/REM), and timing. Stages are individual segments with start/end times."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithDescription("Retrieve individual sleep sessions and sleep stages. Sessions include total sleep, stage durations (core/deep/REM), and timing. Stages are individual segments with start/end times. For averages over weeks or months use get_sleep_summary."),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetWorkouts = mcp.NewTool("get_workouts",
 	mcp.WithDescription("Query workouts with optional type filter. Returns workout summaries including duration, energy, distance, and heart rate data."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("type", mcp.Description("Filter by workout type (e.g. 'Traditional Strength Training', 'Running')")),
 )
 
 var toolGetWorkoutSets = mcp.NewTool("get_workout_sets",
 	mcp.WithDescription("FreeReps database: individual strength training sets. Returns exercise, muscle group, weight, reps, and the effort rating on the scale its source recorded — RIR for Alpha Progression, RPE for Hevy."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("exercise", mcp.Description("Filter by exercise name (partial match, e.g. 'bench press')")),
 )
 
 var toolListAvailableMetrics = mcp.NewTool("list_available_metrics",
-	mcp.WithDescription("List all available health metrics with their categories and enabled status."),
+	mcp.WithDescription("List every health metric with its category, enabled status, display_unit, display_multiplier and is_cumulative. The other tools return stored values: multiply by display_multiplier to get display_unit (e.g. a stored fraction becomes a percentage), and read is_cumulative to know whether an avg field is a total."),
 )
 
 // The strength_* tools are named for their data basis rather than for "training"
@@ -102,88 +110,88 @@ var toolListAvailableMetrics = mcp.NewTool("list_available_metrics",
 
 var toolGetStrengthSummary = mcp.NewTool("get_strength_summary",
 	mcp.WithDescription("FreeReps database: monthly/weekly aggregated workout and strength volume across all logging sources. Returns workout counts, duration, calories by type, plus strength set/rep/tonnage totals per period. In the strength block, 'sessions' counts distinct session start times and is the denominator of 'avg_sets_per_session'; 'training_days' counts calendar days on which anything was logged. The two differ only on a day holding more than one session."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 6 months ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 6 months ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("bucket", mcp.Description("Aggregation period. Defaults to '1 month'."), mcp.Enum("1 week", "1 month")),
 )
 
 var toolGetStrengthIntensity = mcp.NewTool("get_strength_intensity",
 	mcp.WithDescription("FreeReps database: effort distribution in reps-in-reserve bands, failure rate, per-exercise stats, and optional per-session progression. Covers sets logged as RIR and as RPE alike."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 90 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 90 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("exercise", mcp.Description("Filter by exercise name (partial match). When set, includes session-by-session progression.")),
 )
 
 var toolGetStrengthVolume = mcp.NewTool("get_strength_volume",
 	mcp.WithDescription("FreeReps database: sets per muscle group per period, as primary-target sets and as sets weighted with assisting muscles at 0.5. Also reports training frequency per muscle, and how much of each figure rests on approximate exercise mapping or on exercises with no muscle data at all."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 12 weeks ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 12 weeks ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("bucket", mcp.Description("Aggregation period. Defaults to '1 week'."), mcp.Enum("1 week", "1 month")),
 )
 
 var toolGetStrengthE1RM = mcp.NewTool("get_strength_1rm",
 	mcp.WithDescription("FreeReps database: estimated one-rep max per exercise per session, using Epley over repetitions plus reps in reserve. Sets without an effort rating are excluded. The estimate loses accuracy above roughly ten effective repetitions."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 6 months ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 6 months ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("exercise", mcp.Description("Filter by exercise name (partial match). Without it, every exercise is returned.")),
 )
 
 var toolGetSleepSummary = mcp.NewTool("get_sleep_summary",
-	mcp.WithDescription("Aggregated sleep stats per period: duration, stage percentages, efficiency, bedtime/waketime consistency."),
-	mcp.WithString("start", mcp.Description("Start date. Defaults to 90 days ago.")),
-	mcp.WithString("end", mcp.Description("End date. Defaults to now.")),
+	mcp.WithDescription("Aggregated sleep stats per week or month: duration, stage percentages, efficiency, bedtime/waketime consistency. For individual nights use get_sleep_data."),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 90 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("bucket", mcp.Description("Aggregation period. Defaults to '1 month'."), mcp.Enum("1 week", "1 month")),
 )
 
 var toolComparePeriods = mcp.NewTool("compare_periods",
-	mcp.WithDescription("Compare a metric's statistics between two time periods (e.g. this week vs last week)."),
-	mcp.WithString("metric", mcp.Required(), mcp.Description("Metric name")),
-	mcp.WithString("period_a_start", mcp.Required(), mcp.Description("Period A start date")),
-	mcp.WithString("period_a_end", mcp.Required(), mcp.Description("Period A end date")),
-	mcp.WithString("period_b_start", mcp.Required(), mcp.Description("Period B start date")),
-	mcp.WithString("period_b_end", mcp.Required(), mcp.Description("Period B end date")),
+	mcp.WithDescription("Compare one metric's statistics between two time periods (e.g. this week vs last week). Returns the get_metric_stats figures for each period, so for a cumulative metric avg is the period total."),
+	mcp.WithString("metric", mcp.Required(), mcp.Description(descMetric + ".")),
+	mcp.WithString("period_a_start", mcp.Required(), mcp.Description(descStart)),
+	mcp.WithString("period_a_end", mcp.Required(), mcp.Description(descEnd)),
+	mcp.WithString("period_b_start", mcp.Required(), mcp.Description(descStart)),
+	mcp.WithString("period_b_end", mcp.Required(), mcp.Description(descEnd)),
 )
 
 var toolGetECGRecordings = mcp.NewTool("get_ecg_recordings",
 	mcp.WithDescription("Query ECG recordings by date range. Returns id, classification, average heart rate, start date, and source."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetAudiograms = mcp.NewTool("get_audiograms",
 	mcp.WithDescription("Query audiograms by date range. Returns id, sensitivity points, start date, and source."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetActivitySummaries = mcp.NewTool("get_activity_summaries",
 	mcp.WithDescription("Query daily activity summaries by date range. Returns date, active energy, exercise time, stand hours, and their goals."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetMedications = mcp.NewTool("get_medications",
 	mcp.WithDescription("Query medication records by date range. Returns id, name, dosage, log status, start date, and source."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetVisionPrescriptions = mcp.NewTool("get_vision_prescriptions",
 	mcp.WithDescription("Query vision prescriptions by date range. Returns all prescription fields including eye details."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetStateOfMind = mcp.NewTool("get_state_of_mind",
 	mcp.WithDescription("Query state of mind records by date range. Returns id, kind, valence, labels, associations, start date."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 )
 
 var toolGetCategorySamples = mcp.NewTool("get_category_samples",
 	mcp.WithDescription("Query category samples by date range and optional type filter. Returns id, type, value, value label, start/end dates."),
-	mcp.WithString("start", mcp.Description("Start date (ISO 8601 or YYYY-MM-DD). Defaults to 7 days ago.")),
-	mcp.WithString("end", mcp.Description("End date (ISO 8601 or YYYY-MM-DD). Defaults to now.")),
+	mcp.WithString("start", mcp.Description(descStart + " Defaults to 7 days ago.")),
+	mcp.WithString("end", mcp.Description(descEnd + " Defaults to now.")),
 	mcp.WithString("type", mcp.Description("Filter by category sample type (e.g. 'sleepAnalysis', 'menstrualFlow')")),
 )
 

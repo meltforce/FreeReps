@@ -30,6 +30,7 @@ string proves the shape and nothing about the numbers.
 A scratch database for them, in the version the deployment runs:
 
 ```bash
+export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"   # CLI is not on the tool-call PATH
 docker run -d --name freereps-scratch \
   -e POSTGRES_DB=freereps_scratch -e POSTGRES_USER=freereps \
   -e POSTGRES_PASSWORD=scratch -p 55432:5432 \
@@ -58,9 +59,8 @@ over `server/`.
 PATH a tool call inherits on the development Macs, so `command -v` reports the
 linter as missing; and a binary built with an older Go toolchain than
 `server/go.mod` targets refuses to load the configuration. Both read like an
-absent installation, and skipping the step over it is what broke CI run 924 on
-2026-08-05: build, vet, tests and the frontend were green, `errcheck` rejected
-three discarded `fmt.Fprint` results, and the fix landed as `edeb15d`.
+absent installation. Skipping the step lets findings that only the linter
+reports, such as `errcheck` on a discarded `fmt.Fprint` result, through to CI.
 
 ## 3. Frontend
 
