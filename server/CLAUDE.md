@@ -36,8 +36,10 @@ ssh -f -N -L 15432:127.0.0.1:15432 root@freereps-lxc
 ssh root@freereps-lxc 'docker rm -f freereps-idem'   # and kill the tunnel
 ```
 
-The helper refuses to run against a database named `freereps`, because it
-truncates. *Why the scratch server rather than a fake:* the property these tests
+The helpers refuse to run against a database named `freereps`, because they
+delete test data: the `storage` tests remove their own user's rows, and
+`internal/ingest/alpha/ingest_integration_test.go` runs `TRUNCATE workout_sets`.
+*Why the scratch server rather than a fake:* the property these tests
 check is enforced by a unique constraint, so a fake store would assert the
 fake's behaviour — see the 2026-08-10 entry in [`INCIDENTS.md`](../INCIDENTS.md).
 
