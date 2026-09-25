@@ -5,6 +5,23 @@ struct FreeRepsApp: App {
 
     @StateObject private var importState = ImportState()
 
+    init() {
+        Self.pinInterfaceLanguageOnce()
+    }
+
+    /// The bundle carries a German localization only for the Siri phrases of the
+    /// Shortcuts action (AppShortcuts.xcstrings); the interface itself exists in
+    /// English alone. Without this, a German device shows the English texts mixed
+    /// with German system strings. The app-level AppleLanguages key is what
+    /// Settings › FreeReps › Language writes, so it is set once and the user can
+    /// still change it there. iOS reads it at launch: it applies from the second one.
+    private static func pinInterfaceLanguageOnce() {
+        let flag = "interfaceLanguagePinned_v1"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        UserDefaults.standard.set(["en"], forKey: "AppleLanguages")
+        UserDefaults.standard.set(true, forKey: flag)
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
