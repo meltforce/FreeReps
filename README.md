@@ -7,11 +7,11 @@ Oura, Withings and Hevy, stores it persistently, visualizes it through a web
 dashboard with freely configurable correlations, and exposes it as an MCP server
 for LLMs.
 
-> **The iOS app is being developed again (2026-09-25).** It syncs on iOS 27, reads
-> a fixed set of HealthKit types instead of every type, lets the server decide
-> per user which metrics it accepts, and syncs from a widget or a Shortcuts
-> action instead of in the background. Work is in progress; see
-> [iOS companion app](#ios-companion-app) and [`app/README.md`](app/README.md).
+> **FreeReps for iOS 2.1 is coming to the App Store soon.** The version in the
+> App Store today, 1.0, stopped syncing on iOS 27. Version 2.1 syncs on iOS 27,
+> sends only what HealthKit added since the last sync, and starts a sync from
+> the app, a Home Screen widget or Siri. It needs a FreeReps server of the same
+> release, 2.1. See [iOS app](#ios-app).
 
 ## Dashboard Features
 
@@ -26,8 +26,9 @@ for LLMs.
   strength session
 - **Metrics** — time series with a moving average and a normal range band
 - **Trends** — small multiples across the metric set, over a selectable window
-- **Settings** — per-metric visibility, source priority per category, the
-  integrations, the ingest log, and the alert channel
+- **Settings** — per-metric visibility, which metrics the ingest accepts,
+  source priority per category, the integrations, the ingest log, and the alert
+  channel
 
 ## Screenshots
 
@@ -50,13 +51,29 @@ capture is a screenshot of Claude Desktop, so it has one version only.
 |:-:|
 | ![Claude MCP](docs/screenshots/claude-mcp.png) |
 
-## iOS companion app
+| iOS app | | | |
+|:-:|:-:|:-:|:-:|
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ios/framed-dashboard-dark.png"><img alt="Sync dashboard" src="docs/screenshots/ios/framed-dashboard.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ios/framed-syncing-dark.png"><img alt="Sync in progress" src="docs/screenshots/ios/framed-syncing.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ios/framed-widget-dark.png"><img alt="Home Screen widget" src="docs/screenshots/ios/framed-widget.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ios/framed-settings-dark.png"><img alt="Settings" src="docs/screenshots/ios/framed-settings.png"></picture> |
 
-The FreeReps iOS app syncs HealthKit directly to the server, from the app, a
-widget or a Shortcuts action, and syncs on iOS 27 since 2026-09-25. It is under
-active development. Documentation, screenshots and the App Store link are in
-[`app/README.md`](app/README.md). [Health Auto Export](#health-auto-export-ios-default)
-is the second Apple Health path and posts to the same endpoint.
+## iOS app
+
+[FreeReps for iOS](https://apps.apple.com/us/app/freereps/id6760661354) sends
+Apple Health data straight to your server:
+
+- **Only what changed** — after the first backfill, each sync sends what
+  HealthKit added since the previous one.
+- **A sync where you want it** — the Sync tab, a Home Screen widget that shows
+  the last sync, or the Shortcuts action "Sync Health Data" for Siri, the Action
+  button and personal automations. There is no background sync: HealthKit is
+  unreadable while the iPhone is locked.
+- **A fixed set of data** — 38 HealthKit types covering activity, body, vitals,
+  sleep, workouts with routes, blood pressure and state of mind. Diagnoses,
+  clinical records, prescriptions and symptoms are not read.
+- **Your server decides** — metrics switched off in **Settings → Ingest** are
+  skipped before the app reads HealthKit.
+
+Version 2.1 needs iOS 27 and a FreeReps server 2.1. Setup, the Shortcuts
+triggers that work and the developer notes are in [`app/README.md`](app/README.md).
 
 ## Why FreeReps?
 
@@ -133,7 +150,7 @@ frontend dependency versions in
 ## Prerequisites
 
 - **[Tailscale](https://tailscale.com/)** — FreeReps uses Tailscale for authentication and TLS natively (via [tsnet](https://tailscale.com/kb/1244/tsnet)). There are no passwords or API keys — access is controlled by your tailnet. Tailscale must be set up before running FreeReps.
-- **[Health Auto Export](https://www.healthyapps.dev/apps/health-auto-export/)** (iOS) — one of two ways to get Apple Health data into FreeReps; the other is the [FreeReps iOS app](#freereps-ios-app). Its REST automation posts to the ingest endpoint directly; see [Health Auto Export](#health-auto-export-ios-default).
+- **An iPhone with Apple Health data**, sending it through the [FreeReps iOS app](#freereps-ios-app) or [Health Auto Export](#health-auto-export-ios).
 - **[mcp-proxy](https://github.com/sparfenyuk/mcp-proxy)** (optional) — Needed only by an MCP client that speaks stdio alone; it bridges stdio to the HTTP endpoint. Install with `brew install mcp-proxy` or `pip install mcp-proxy`.
 - **`lzfse`** (optional, macOS) — Required by `freereps-upload` for reading `.hae` files. `brew install lzfse`.
 
@@ -151,11 +168,30 @@ To use the pre-built image from Docker Hub instead of building locally, replace 
 
 ## Data Sources
 
-### Health Auto Export (iOS, default)
+Apple Health data reaches FreeReps through the FreeReps iOS app or through
+Health Auto Export. Both post to `/api/v1/ingest` and both write their rows
+with an empty source; the server tells them apart by the client
+(`health_metrics.client`), and where both delivered the same window the app's
+rows count — see [`DECISIONS.md`](DECISIONS.md), 2026-09-25.
 
-[Health Auto Export](https://www.healthyapps.dev/apps/health-auto-export/) is the
-supported way to get Apple Health data into FreeReps. It reads HealthKit on the
-iPhone and delivers it over three paths, which can be combined:
+### FreeReps iOS app
+
+1. Install [FreeReps](https://apps.apple.com/us/app/freereps/id6760661354) on
+   an iPhone in your tailnet.
+2. In **Settings**, set the host to the server's Tailscale name and grant the
+   Apple Health permissions. On iOS 27, choose **All Recorded Data** in the
+   second permission step; **Past 30 Days** hides everything older.
+3. Under **Advanced**, choose how far back the first sync reaches, then tap
+   **Full Sync** on the Sync tab.
+
+Later syncs send only what HealthKit added. The app identifies itself with
+`X-FreeReps-Client: freereps-ios`; its ingests appear as `freereps_ios` in
+**Settings → Ingest**. [`app/README.md`](app/README.md) has the details.
+
+### Health Auto Export (iOS)
+
+[Health Auto Export](https://www.healthyapps.dev/apps/health-auto-export/) reads
+HealthKit on the iPhone and delivers it over three paths, which can be combined:
 
 | Path | What it is | Used for |
 |---|---|---|
@@ -183,13 +219,6 @@ accepts is written down in
 up. For everything before that, use `freereps-upload` in TCP mode against the
 app's server connection, or in file mode against an iCloud export — see
 [Upload Tool](#upload-tool-macos).
-
-### FreeReps iOS app
-
-The companion app posts HealthKit data to the same ingest endpoint, identified
-by the `X-FreeReps-Client: freereps-ios` header, and adds sleep and mindfulness
-category samples, state of mind, activity summaries and workout routes.
-[`app/README.md`](app/README.md) carries its documentation.
 
 ### Oura Ring
 
@@ -326,7 +355,10 @@ session twice ([`INCIDENTS.md`](INCIDENTS.md), 2026-08-10).
 
 124 metric names are on the allowlist. `GET /api/v1/metrics/available` returns
 the list the running instance actually carries, with its display metadata; the
-table below names the groups.
+table below names the groups. Each user switches metrics off for their own
+ingest in **Settings → Ingest**; a metric switched off is rejected from every
+client and its stored rows are kept. The iOS app reads a subset of 38 types;
+Health Auto Export sends what its automation selects.
 
 | Category | Metrics |
 |----------|---------|
@@ -610,7 +642,7 @@ an identity, so a health check needs no credentials.
 |----------|--------|-------------|
 | `/api/v1/version` | GET | Build version (no identity required) |
 | `/api/v1/me` | GET | Current user identity |
-| `/api/v1/ingest/` | POST | Ingest health data JSON (Health Auto Export REST, iOS app) |
+| `/api/v1/ingest/` | POST | Ingest health data JSON (Health Auto Export REST; the iOS app with `X-FreeReps-Client: freereps-ios`) |
 | `/api/v1/ingest/alpha` | POST | Ingest Alpha Progression CSV |
 | `/api/v1/import` | POST | Unified import (auto-detects format) |
 | `/api/v1/import/hae-tcp/check` | POST | Probe a Health Auto Export TCP server |
@@ -624,7 +656,8 @@ an identity, so a health check needs no credentials.
 | `/api/v1/metrics/visibility` | PUT | Save per-user metric visibility |
 | `/api/v1/timeseries` | GET | Time-bucketed metric data |
 | `/api/v1/correlation` | GET | Pearson r between two metrics |
-| `/api/v1/allowlist` | GET | Metric allowlist |
+| `/api/v1/allowlist` | GET | Metric allowlist, `enabled` resolved for the calling user |
+| `/api/v1/metrics/enabled` | PUT | Save per-user ingest enablement |
 | `/api/v1/sleep` | GET | Sleep sessions + stages |
 | `/api/v1/workouts` | GET | Workout list with filters |
 | `/api/v1/workouts/zones` | GET | Heart rate zone distribution |

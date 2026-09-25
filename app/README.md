@@ -1,14 +1,13 @@
 # FreeReps iOS App
 
-> **Status: syncs again on iOS 27 since 2026-09-25.** A first full sync from
-> 2000-01-01 did not complete, and HealthKit's statistics query fails for some
-> workout ranges; both are handled since then. Health Auto Export remains the
-> default Apple Health path and is described in the
-> [main README](../README.md#health-auto-export-ios-default).
+> **Version 2.1 is coming to the App Store soon.** Version 1.0, in the App Store
+> today, stopped syncing on iOS 27. Version 2.1 syncs on iOS 27, sends only what
+> HealthKit added since the last sync, and adds a Home Screen widget and a
+> Shortcuts action. It needs iOS 27 and a FreeReps server 2.1.
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
 
-FreeReps is an iOS companion app that syncs Apple HealthKit data to a FreeReps server via HTTP. Your health data flows from HealthKit on your phone to your self-hosted server — no cloud services, no third parties.
+FreeReps for iOS sends Apple Health data to your own FreeReps server. Your health data flows from HealthKit on your phone to your self-hosted server — no cloud services, no third parties.
 
 ## Screenshots
 
@@ -36,13 +35,12 @@ The list is fixed in `Sources/FreeReps/Models/HealthDataType.swift`; diagnoses, 
 
 ## Features
 
-- **Full sync with resumable backfill** — the first run backfills the configured range (one week to all data); later runs resend the 7 days before the previous run
+- **Resumable backfill, then only what changed** — the first run backfills the configured range (one week to all data); later runs send what HealthKit added since the previous one
 - **Shortcuts action** — "Sync Health Data" for Shortcuts automations, Siri and the Action button
 - **Widget** — shows when the last sync finished and whether it succeeded; tapping it opens the app and starts a sync
 - **Live Activity** — sync progress on the lock screen and Dynamic Island
-- **Data browser** — browse all synced data by category with search and filtering
-- **Location tracking** — continuous GPS logging and geofence-based check-ins with customizable place categories
-- **Re-sync and repair** — per-category re-sync to repair or backfill data that may have been missed
+- **Per-category re-sync** — long-press a category tile to sync or reset it
+- **Alpha Progression import** — **Settings → Data → Import File** uploads a training CSV export
 - **No dependencies** — pure Swift using only Apple frameworks (HealthKit, AppIntents, WidgetKit, ActivityKit)
 
 ## Architecture
@@ -89,26 +87,28 @@ The app uses `FreeRepsService` (a lightweight `URLSession` HTTP wrapper) to POST
 ```
 Sources/FreeReps/
   FreeRepsApp.swift              App entry point; handles freereps://sync and file imports
-  ContentView.swift              Root TabView (Sync, Browse, Settings)
+  ContentView.swift              Root TabView (Sync, Settings)
   Models/
     FreeRepsConfig.swift         Connection config (host, port, HTTPS toggle)
     SyncState.swift              Observable sync state
     HealthDataType.swift         All HealthKit type descriptors
-    HealthRecord.swift           Record models for the data browser
+    HealthRecord.swift           Record models
     ...
   Services/
     FreeRepsService.swift        HTTP client for the FreeReps API (URLSession)
     HealthKitService.swift       HealthKit queries and permissions
-    SyncService.swift            Sync orchestration and resumable backfill
+    SyncService.swift            Sync orchestration: resumable backfill, then anchored syncs
+    SyncAnchors.swift            HealthKit anchors per type, stored after the server accepted
   Intents/
     SyncHealthDataIntent.swift   Shortcuts action "Sync Health Data"
   ViewModels/                    View models for each tab
   Views/
-    Sync/                        Sync dashboard and category status cards
-    DataBrowser/                 Data browsing views per type
+    Sync/                        Sync dashboard and category tiles
     Settings/                    All settings and configuration views
+    Import/                      Result sheet of a file import
   Resources/
     Info.plist                   HealthKit usage description, freereps URL scheme
+    AppShortcuts.xcstrings       German Siri phrases of the Shortcuts action
     FreeReps.entitlements        HealthKit and App Group entitlements
 Sources/FreeRepsWidgets/         Live Activity for sync progress, last-sync widget
 Sources/Shared/                  Compiled into both targets: deep link and last-sync record
@@ -132,11 +132,11 @@ Set **Host** to your machine's local IP (e.g., `192.168.1.100`), **Port** to `80
 
 ### Initial setup
 
-1. Install the app on your iPhone.
-2. Go to **Settings > FreeReps Connection** and configure your server's host and port.
-3. Tap **Test Connection** to verify connectivity.
-4. Go to **Settings > Apple Health Permissions** and grant access to the health data types you want to sync.
-5. Return to the **Sync** tab and tap **Full Sync** to backfill your historical data. **Keep the screen on until the full sync completes** — HealthKit is not accessible when the device is locked. The app enables "Keep Screen On" by default during full sync (configurable in Settings).
+1. Install the app on an iPhone in your tailnet.
+2. In **Settings**, tap the connection row at the top, set the server's host and port, and tap **Test Connection**.
+3. Open **Settings → Apple Health Permissions** and grant access. On iOS 27 the permission sheet has a second step: choose **All Recorded Data and Future Data**. With **Past 30 Days**, HealthKit returns nothing older and reports no error.
+4. Under **Settings → Advanced**, choose how far back the first sync reaches (one week to all data).
+5. On the **Sync** tab, tap **Full Sync**. The backfill keeps the screen on while it runs, because HealthKit is unreadable once the iPhone locks; **Keep Screen On** in Settings switches that off.
 
 ### Ongoing sync
 
@@ -151,10 +151,6 @@ HealthKit data is readable only while the iPhone is unlocked, so an automation w
 Siri understands "Sync FreeReps", "Sync health data with FreeReps" and "Start a FreeReps sync"; their German translations are in `Sources/FreeReps/Resources/AppShortcuts.xcstrings`.
 
 After the first completed backfill, a sync sends only what HealthKit added since the previous one: the app keeps one `HKAnchoredObjectQuery` anchor per type and re-sends the hours those samples fall into. A sample HealthKit receives more than 7 days after its own time is not sent. Once a day the last 24 hours are re-sent in full. "Reset Sync State" clears the anchors, and the next sync is a backfill again.
-
-### Location tracking
-
-Enable location tracking in **Settings > Location & Places** to log GPS coordinates. You can also set up geofences around places (home, office, gym, etc.) to log check-in and check-out events.
 
 ## App Store review: temporary test server
 
