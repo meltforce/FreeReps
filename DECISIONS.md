@@ -19,6 +19,39 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-25 — The iOS app syncs on request only: a Shortcuts action and a widget replace background sync
+
+**Decided:** 2026-09-25
+
+**Decision.** The app no longer syncs in the background. `BackgroundSyncManager`
+(an `HKObserverQuery` per type with `.immediate` background delivery), the
+`BGProcessingTask` and the incremental sync they called are removed, together
+with `UIBackgroundModes`, the `healthkit.background-delivery` entitlement and
+the settings toggle. A sync starts from the Full Sync button, from the widget,
+which opens the app through `freereps://sync`, or from the App Intent "Sync
+Health Data", which runs in the app's process without opening it. All three go
+through `SyncViewModel.shared` and `runFullSync`. The outcome of the last run is
+written to the App Group `group.com.meltforce.freereps`, where the widget reads
+it.
+
+**Reasoning.** Background delivery gave no control over when a sync ran, and
+HealthKit rejects reads while the device is locked, so a run started by the
+system often failed in every category. On 2026-09-25 one launch posted 181
+failure notifications, none of which reached the user because notification
+permission was not granted. An App Intent runs where the operator decides —
+Siri, the Action button, or a Shortcuts automation — and a trigger such as
+*Alarm is stopped* or *Apple Watch workout ends* fires while the phone is
+unlocked. The intent checks `isProtectedDataAvailable` and reports a locked
+device instead of attempting the sync. The widget and a Control Center control
+were built as wrappers around the same path; the control was removed on the
+same day because tapping it did not start a sync on the device and the use case
+does not need it.
+
+**Trigger to re-open.** iOS allows HealthKit reads while locked, or a sync has to
+happen without any user action.
+
+---
+
 ## 2026-09-25 — The iOS app reads a fixed set of HealthKit types, and the server decides per user which of them it stores
 
 **Decided:** 2026-09-25

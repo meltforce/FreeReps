@@ -1,10 +1,9 @@
 # FreeReps iOS App
 
-> **Status: does not work on iOS 27, and development is likely to stop.**
-> The app stopped syncing with iOS 27; the cause has not been diagnosed and no
-> fix is planned. It is documented here for the installations that still run it
-> on an earlier iOS release. **For a new installation, use Health Auto Export
-> instead** — it is the supported Apple Health path and is described in the
+> **Status: syncs again on iOS 27 since 2026-09-25.** A first full sync from
+> 2000-01-01 did not complete, and HealthKit's statistics query fails for some
+> workout ranges; both are handled since then. Health Auto Export remains the
+> default Apple Health path and is described in the
 > [main README](../README.md#health-auto-export-ios-default).
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
@@ -23,26 +22,26 @@ This app is based on [HealthBeat](https://github.com/kempu/HealthBeat) by kempu,
 
 ## What it syncs
 
-- **85 quantity types** — steps, heart rate, blood pressure, blood glucose, body temperature, VO2 max, nutrition (all macros and micronutrients), audio exposure, and more
-- **22 category types** — sleep analysis, menstrual cycles, symptoms, mindfulness, heart events, stand hours
-- **Workouts** — activity type, duration, energy burned, distance, swim strokes, flights climbed
+- **36 quantity types** — activity and energy, distances, body weight and composition, heart rate and HRV, resting and walking heart rate, heart rate recovery, respiratory rate, SpO2, VO2 max, body and wrist temperature, time in daylight, effort scores, cycling metrics, caffeine and water
+- **2 category types** — sleep analysis and mindful sessions
+- **Workouts** — activity type, duration, energy burned, distance, per-minute heart rate
 - **Blood pressure** — systolic/diastolic correlation pairs
-- **ECG recordings** — classification, heart rate, voltage measurements
-- **Audiograms** — hearing sensitivity by frequency
 - **Workout routes** — GPS coordinates recorded during workouts
 - **Activity summaries** — daily ring data (active energy, exercise minutes, stand hours)
-- **Medications** — name, dosage, start/end dates (iOS 26+)
+- **State of mind** (iOS 18+)
+
+The list is fixed in `Sources/FreeReps/Models/HealthDataType.swift`; diagnoses, clinical records, prescriptions, symptoms and most nutrition are not read at all. Within it, the server decides per user which metrics it accepts (**Settings › Ingest** in the web UI), and the app skips the rest before reading HealthKit. The reasoning is in [`DECISIONS.md`](../DECISIONS.md), 2026-09-25.
 
 ## Features
 
-- **Full and incremental sync** — initial backfill of all historical data, then ongoing incremental syncs for new records
-- **Real-time background sync** — registers HealthKit observer queries for immediate delivery when new data is recorded
-- **Background processing** — periodic sync via BGProcessingTask when the app isn't active
+- **Full sync with resumable backfill** — the first run backfills the configured range (one week to all data); later runs resend the 7 days before the previous run
+- **Shortcuts action** — "Sync Health Data" for Shortcuts automations, Siri and the Action button
+- **Widget** — shows when the last sync finished and whether it succeeded; tapping it opens the app and starts a sync
 - **Live Activity** — sync progress on the lock screen and Dynamic Island
 - **Data browser** — browse all synced data by category with search and filtering
 - **Location tracking** — continuous GPS logging and geofence-based check-ins with customizable place categories
 - **Re-sync and repair** — per-category re-sync to repair or backfill data that may have been missed
-- **No dependencies** — pure Swift using only Apple frameworks (HealthKit, BackgroundTasks, ActivityKit)
+- **No dependencies** — pure Swift using only Apple frameworks (HealthKit, AppIntents, WidgetKit, ActivityKit)
 
 ## Architecture
 
@@ -74,8 +73,8 @@ The app uses `FreeRepsService` (a lightweight `URLSession` HTTP wrapper) to POST
 3. In **Signing & Capabilities**, select your development team and set a unique bundle identifier.
 
 4. Verify the following capabilities are present (they should already be configured):
-   - HealthKit (with Background Delivery)
-   - Background Modes: Background processing, Background fetch
+   - HealthKit, on the app target
+   - App Groups with `group.com.meltforce.freereps`, on the app and the widget target; the widget reads the last sync outcome from it
 
 5. Verify build settings point to the right files:
    - `INFOPLIST_FILE` = `Sources/FreeReps/Resources/Info.plist`
@@ -87,7 +86,7 @@ The app uses `FreeRepsService` (a lightweight `URLSession` HTTP wrapper) to POST
 
 ```
 Sources/FreeReps/
-  FreeRepsApp.swift              App entry point and background task registration
+  FreeRepsApp.swift              App entry point; handles freereps://sync and file imports
   ContentView.swift              Root TabView (Sync, Browse, Settings)
   Models/
     FreeRepsConfig.swift         Connection config (host, port, HTTPS toggle)
@@ -98,17 +97,19 @@ Sources/FreeReps/
   Services/
     FreeRepsService.swift        HTTP client for the FreeReps API (URLSession)
     HealthKitService.swift       HealthKit queries and permissions
-    SyncService.swift            Full/incremental sync orchestration
-    BackgroundSyncManager.swift  HKObserverQuery registration and background delivery
+    SyncService.swift            Sync orchestration and resumable backfill
+  Intents/
+    SyncHealthDataIntent.swift   Shortcuts action "Sync Health Data"
   ViewModels/                    View models for each tab
   Views/
     Sync/                        Sync dashboard and category status cards
     DataBrowser/                 Data browsing views per type
     Settings/                    All settings and configuration views
   Resources/
-    Info.plist                   HealthKit usage description, BG task identifiers
-    FreeReps.entitlements        HealthKit entitlements
-Sources/FreeRepsWidgets/         Live Activity widget for sync progress
+    Info.plist                   HealthKit usage description, freereps URL scheme
+    FreeReps.entitlements        HealthKit and App Group entitlements
+Sources/FreeRepsWidgets/         Live Activity for sync progress, last-sync widget
+Sources/Shared/                  Compiled into both targets: deep link and last-sync record
 ```
 
 ## Connection modes
@@ -137,11 +138,13 @@ Set **Host** to your machine's local IP (e.g., `192.168.1.100`), **Port** to `80
 
 ### Ongoing sync
 
-After the initial full sync, the app automatically syncs new data in the background:
+The app does not sync in the background on its own. A sync starts from one of:
 
-- **Observer-based**: HealthKit notifies the app immediately when new data is recorded (requires the app to have run recently)
-- **Scheduled**: A background processing task runs periodically (approximately every 15 minutes, subject to iOS scheduling)
-- **Manual**: Pull down on the Sync tab to trigger an incremental sync
+- **Full Sync** on the Sync tab
+- **The widget** — tapping it opens the app and starts a sync
+- **The Shortcuts action "Sync Health Data"** — runs without opening the app, from Siri, the Action button or a personal automation
+
+HealthKit data is readable only while the iPhone is unlocked, so an automation works when its trigger fires while the phone is in use: *Alarm is stopped*, *Apple Watch workout ends*, or *App is closed* for a training or ring app. A time-of-day trigger usually finds the phone locked; the action then reports "iPhone is locked" and skips the sync.
 
 ### Location tracking
 
@@ -161,16 +164,11 @@ No code changes are needed — the app already supports arbitrary host/port/HTTP
 
 ## Known quirks and limitations
 
-### HealthKit background access
+### HealthKit access while locked
 
-HealthKit restricts data access when the device is locked:
+HealthKit rejects every read while the device is locked (`errorDatabaseInaccessible`). The Shortcuts action checks for this first and skips the sync with a message. A long backfill needs continuous access; the app keeps the screen on while it runs.
 
-- **Screen on / app in foreground**: Full HealthKit access. All syncs work normally.
-- **Screen off but recently unlocked**: HealthKit data remains accessible briefly. Observer-based background syncs triggered by new health data typically succeed.
-- **Device locked for a long time**: HealthKit queries return authorization errors. Background syncs skip and retry next time.
-- **Full sync requires screen on**: A full historical backfill needs continuous HealthKit access. Use the "Keep Screen On" toggle.
-
-In practice, incremental syncs work well because they're triggered right when new data is recorded and the data volume per sync is small.
+Since iOS 27, the read permission has a second stage: "Past 30 Days and Future Data" or "All Recorded Data and Future Data". With the 30-day grant, HealthKit returns nothing older than 30 days and reports no error, so a longer backfill range has no effect.
 
 ### VPN and Tailscale
 
@@ -178,13 +176,7 @@ If your server is only reachable via Tailscale, be aware that iOS aggressively m
 
 - iOS may disconnect VPN tunnels in the background to save battery.
 - Tailscale's iOS app uses NEPacketTunnelProvider, which is subject to the same iOS restrictions.
-- When the tunnel is down, connections will time out. The app retries on the next sync cycle.
-
-### iOS background execution limits
-
-- `BGProcessingTask` runs at iOS's discretion — typically when charging and on Wi-Fi.
-- iOS may defer background tasks if the device is low on battery or the app hasn't been used recently.
-- After a force-quit, background tasks stop until the app is launched again.
+- When the tunnel is down, connections time out and the sync fails; it has to be started again once the tunnel is up. On 2026-09-25 this surfaced as "A server with the specified hostname could not be found." while Tailscale was off on the phone.
 
 ## License
 

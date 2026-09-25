@@ -7,6 +7,12 @@ Oura, Withings and Hevy, stores it persistently, visualizes it through a web
 dashboard with freely configurable correlations, and exposes it as an MCP server
 for LLMs.
 
+> **The iOS app is being developed again (2026-09-25).** It syncs on iOS 27, reads
+> a fixed set of HealthKit types instead of every type, lets the server decide
+> per user which metrics it accepts, and syncs from a widget or a Shortcuts
+> action instead of in the background. Work is in progress; see
+> [iOS companion app](#ios-companion-app) and [`app/README.md`](app/README.md).
+
 ## Dashboard Features
 
 - **Daily overview** — the four hero numbers are chosen per user, each with its
@@ -46,11 +52,11 @@ capture is a screenshot of Claude Desktop, so it has one version only.
 
 ## iOS companion app
 
-An iOS companion app that syncs HealthKit directly to the server exists, but it
-**does not work on iOS 27 and its development is likely to stop**. Documentation,
-screenshots and the App Store link are in [`app/README.md`](app/README.md).
-The supported Apple Health path is
-[Health Auto Export](#health-auto-export-ios-default).
+The FreeReps iOS app syncs HealthKit directly to the server, from the app, a
+widget or a Shortcuts action, and syncs on iOS 27 since 2026-09-25. It is under
+active development. Documentation, screenshots and the App Store link are in
+[`app/README.md`](app/README.md). [Health Auto Export](#health-auto-export-ios-default)
+is the second Apple Health path and posts to the same endpoint.
 
 ## Why FreeReps?
 
@@ -69,7 +75,7 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
                  │  └─ TCP/JSON-RPC ────┤ freereps-upload  │
                  │                      └──── HTTPS POST ──┤
                  │                                         │
-  FreeReps iOS app (legacy) ──────────── HTTPS POST ───────┤
+  FreeReps iOS app ───────────────────── HTTPS POST ───────┤
   Alpha Progression CSV ──────── upload / POST /ingest/alpha┤
                                                            ▼
    Oura API v2    ←── OAuth2, 30 min ───┐    ┌──────────────────────────────┐
@@ -127,7 +133,7 @@ frontend dependency versions in
 ## Prerequisites
 
 - **[Tailscale](https://tailscale.com/)** — FreeReps uses Tailscale for authentication and TLS natively (via [tsnet](https://tailscale.com/kb/1244/tsnet)). There are no passwords or API keys — access is controlled by your tailnet. Tailscale must be set up before running FreeReps.
-- **[Health Auto Export](https://www.healthyapps.dev/apps/health-auto-export/)** (iOS) — the supported way to get Apple Health data into FreeReps. Its REST automation posts to the ingest endpoint directly; see [Health Auto Export](#health-auto-export-ios-default).
+- **[Health Auto Export](https://www.healthyapps.dev/apps/health-auto-export/)** (iOS) — one of two ways to get Apple Health data into FreeReps; the other is the [FreeReps iOS app](#freereps-ios-app). Its REST automation posts to the ingest endpoint directly; see [Health Auto Export](#health-auto-export-ios-default).
 - **[mcp-proxy](https://github.com/sparfenyuk/mcp-proxy)** (optional) — Needed only by an MCP client that speaks stdio alone; it bridges stdio to the HTTP endpoint. Install with `brew install mcp-proxy` or `pip install mcp-proxy`.
 - **`lzfse`** (optional, macOS) — Required by `freereps-upload` for reading `.hae` files. `brew install lzfse`.
 
@@ -178,12 +184,12 @@ up. For everything before that, use `freereps-upload` in TCP mode against the
 app's server connection, or in file mode against an iCloud export — see
 [Upload Tool](#upload-tool-macos).
 
-### FreeReps iOS app (legacy)
+### FreeReps iOS app
 
-The companion app posts HealthKit data to the same ingest endpoint and adds
-category samples, ECG, audiograms and workout routes. It **does not work on iOS
-27** and its development is likely to stop; [`app/README.md`](app/README.md)
-carries its documentation.
+The companion app posts HealthKit data to the same ingest endpoint, identified
+by the `X-FreeReps-Client: freereps-ios` header, and adds sleep and mindfulness
+category samples, state of mind, activity summaries and workout routes.
+[`app/README.md`](app/README.md) carries its documentation.
 
 ### Oura Ring
 
@@ -666,7 +672,7 @@ an identity, so a health check needs no credentials.
 | [`DECISIONS.md`](DECISIONS.md) | Decisions taken, with reasoning. |
 | [`INCIDENTS.md`](INCIDENTS.md) | Postmortems. |
 | [`server/specs/`](server/specs/) | Wire formats and payload shapes of the ingest sources. |
-| [`app/README.md`](app/README.md) | The iOS companion app, which does not work on iOS 27. |
+| [`app/README.md`](app/README.md) | The iOS companion app. |
 | [`docs/mcp-server.md`](docs/mcp-server.md) | The MCP server in detail. |
 
 ## License
