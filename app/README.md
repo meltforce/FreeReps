@@ -12,9 +12,11 @@ FreeReps is an iOS companion app that syncs Apple HealthKit data to a FreeReps s
 
 ## Screenshots
 
+Each image follows the reader's colour scheme, light or dark.
+
 | | | | |
 |:-:|:-:|:-:|:-:|
-| ![Main](../docs/screenshots/ios/framed-main.png) | ![Sync](../docs/screenshots/ios/framed-sync.png) | ![Settings](../docs/screenshots/ios/framed-settings.png) | ![Permissions](../docs/screenshots/ios/framed-permissions.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../docs/screenshots/ios/framed-dashboard-dark.png"><img alt="Sync dashboard" src="../docs/screenshots/ios/framed-dashboard.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../docs/screenshots/ios/framed-syncing-dark.png"><img alt="Sync in progress" src="../docs/screenshots/ios/framed-syncing.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../docs/screenshots/ios/framed-widget-dark.png"><img alt="Home Screen widget" src="../docs/screenshots/ios/framed-widget.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../docs/screenshots/ios/framed-settings-dark.png"><img alt="Settings" src="../docs/screenshots/ios/framed-settings.png"></picture> |
 
 ## Acknowledgements
 

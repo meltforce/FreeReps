@@ -31,22 +31,25 @@ a:hover { text-decoration: underline; }
 <body>
 <a href="/" class="back">&larr; Back to FreeReps</a>
 <h1>Privacy Policy</h1>
-<p class="meta">Last updated: September 20, 2026</p>
+<p class="meta">Last updated: September 25, 2026</p>
 
 <h2>Overview</h2>
 <p>FreeReps is a self-hosted health data server. Your data stays on your own infrastructure &mdash; we never collect, store, or transmit your health data to any third-party service.</p>
 
 <h2>Data Collection</h2>
-<p>A FreeReps server receives the following data from Apple Health, sent by <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> running on your iPhone:</p>
+<p>The FreeReps iOS app reads the following data from Apple Health and sends it to your FreeReps server:</p>
 <ul>
-  <li>Quantity samples (heart rate, steps, blood pressure, etc.)</li>
-  <li>Category samples (sleep analysis, menstrual cycles, etc.)</li>
-  <li>Workout data (type, duration, distance, heart rate, GPS routes)</li>
-  <li>ECG recordings and audiograms</li>
-  <li>Activity summaries (Move, Exercise, Stand rings)</li>
-  <li>Medications and vision prescriptions</li>
+  <li>Activity and energy: steps, distances, active and resting energy, exercise, move and stand time, flights climbed, time in daylight, effort scores</li>
+  <li>Body measurements: weight, body fat, lean body mass</li>
+  <li>Vitals: heart rate, heart rate variability, resting and walking heart rate, heart rate recovery, respiratory rate, blood oxygen, VO2 max, body and wrist temperature</li>
+  <li>Blood pressure</li>
+  <li>Sleep analysis and mindful sessions</li>
+  <li>Workouts (type, duration, distance, heart rate, GPS routes) and activity summaries (Move, Exercise, Stand rings)</li>
+  <li>Caffeine and water intake</li>
   <li>State of mind entries</li>
 </ul>
+<p>The app does not read clinical records, medications, vision prescriptions, ECG recordings, audiograms, symptoms, reproductive health data or nutrition beyond caffeine and water. In the server's settings you can switch off any of the data above; the app then stops sending it.</p>
+<p>If you use <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> instead, it sends the data types you configure in it to the same server.</p>
 <p>This data is sent exclusively to your self-hosted FreeReps server. No data is sent to Meltforce, Apple (beyond HealthKit), or any other third party.</p>
 
 <h2>Connected Services</h2>
@@ -56,7 +59,7 @@ a:hover { text-decoration: underline; }
 <p>All health data is stored in a PostgreSQL database on your own server. You are responsible for the security and backup of your data. FreeReps supports Tailscale for encrypted, authenticated access.</p>
 
 <h2>Tracking</h2>
-<p>FreeReps does not track you. It contains no analytics, no advertising SDKs, and no telemetry. There are no third-party tracking domains.</p>
+<p>FreeReps does not track you. Neither the app nor the server contains analytics, advertising SDKs or telemetry. There are no third-party tracking domains.</p>
 
 <h2>Third-Party Services</h2>
 <p>FreeReps itself uses no third-party services. Your server talks to the data providers you connect, and to nothing else.</p>

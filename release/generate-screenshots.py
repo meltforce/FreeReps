@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Generate framed App Store screenshots using Apple iPhone bezels."""
+"""Generate framed App Store screenshots, light and dark.
 
-from PIL import Image, ImageDraw, ImageFont
+Reads release/screenshots/<shot>-<mode>.png (written by prepare-screenshots.py)
+and writes:
+- release/framed/<nn>-<shot>-<mode>.png, the App Store set (6.9", 1320 x 2868)
+- docs/screenshots/ios/framed-<shot>.png and framed-<shot>-dark.png, the same
+  images for the website and the app README
+"""
+
+import shutil
 from pathlib import Path
 
-# Paths
+from PIL import Image, ImageDraw, ImageFont
+
 BASE = Path(__file__).parent
 SCREENSHOTS = BASE / "screenshots"
 BEZELS = BASE / "bezels"
 OUTPUT = BASE / "framed"
-OUTPUT.mkdir(exist_ok=True)
+DOCS = BASE.parent / "docs" / "screenshots" / "ios"
 
 # Canvas size (App Store 6.9")
 W, H = 1320, 2868
@@ -19,12 +27,11 @@ BEZEL_W, BEZEL_H = 1470, 3000
 SCREEN_OFFSET_X = 75   # (1470-1320)/2
 SCREEN_OFFSET_Y = 66   # (3000-2868)/2
 
-# FreeReps brand colors
-ACCENT = (0, 113, 227)      # #0071e3 — website accent
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-GRAY = (102, 102, 102)
-GRAY_DARK = (136, 136, 136)
+# Per mode: background, headline, accent (the app's Brand colour), subtext.
+MODES = {
+    "light": {"bg": (255, 255, 255), "text": (0, 0, 0), "accent": (0x0E, 0x80, 0x6F), "sub": (102, 102, 102)},
+    "dark": {"bg": (0, 0, 0), "text": (255, 255, 255), "accent": (0x3C, 0xCF, 0xB6), "sub": (136, 136, 136)},
+}
 
 
 def load_font(size, weight_name="Regular"):
@@ -37,129 +44,114 @@ def load_font(size, weight_name="Regular"):
         return ImageFont.load_default()
 
 
-FONT_HEADLINE = load_font(82, "Bold")
 FONT_SUBTEXT = load_font(44, "Semibold")
 
-# Screenshot definitions
-# (output_name, screenshot_file, headline_parts, subtext, bg_color)
+# (number, shot, headline parts, subtext, kind)
+# Every capture goes into the bezel; the widget shot is a rebuilt Home Screen.
 SHOTS = [
-    ("01-main", "main_screen.png",
+    ("01", "dashboard",
      [("Sync", True), (" your health data", False)],
-     "85+ HealthKit data types", "white"),
+     "Only what changed since the last sync", "phone"),
 
-    ("02-sync", "sync.png",
-     [("Real-time", True), (" sync progress", False)],
-     "Background sync keeps you up to date", "white"),
+    ("02", "syncing",
+     [("Every sync, ", False), ("visible", True)],
+     "Progress per category while it runs", "phone"),
 
-    ("03-settings", "settings.png",
-     [("Easy ", False), ("configuration", True)],
-     "", "white"),
+    ("03", "widget",
+     [("Sync from your ", False), ("Home Screen", True)],
+     "Tap the widget, or ask Siri", "phone"),
 
-    ("04-permissions", "health_permissions.png",
-     [("Full ", False), ("HealthKit", True), (" access", False)],
-     "", "white"),
+    ("04", "settings",
+     [("Your server, ", False), ("your data", True)],
+     "Self-hosted, reached over your tailnet", "phone"),
 ]
+
+# Corner radius of the display in capture pixels. A capture is rectangular and
+# the bezel's screen opening is not; unrounded, the capture's corners showed
+# outside the frame.
+SCREEN_RADIUS = 186
 
 DEVICE_SCALE = 0.60
 DEVICE_VPOS = 0.52
 
 
-def draw_headline(draw, parts, y, is_white):
-    normal_color = BLACK if is_white else WHITE
+def headline_font(parts):
+    """82 pt bold, smaller when the headline would not fit the canvas."""
+    text = "".join(t for t, _ in parts)
+    size = 82
+    while size > 50 and load_font(size, "Bold").getlength(text) > W - 120:
+        size -= 2
+    return load_font(size, "Bold")
 
-    total_w = 0
-    for text, _ in parts:
-        bbox = draw.textbbox((0, 0), text, font=FONT_HEADLINE)
-        total_w += bbox[2] - bbox[0]
 
-    x = (W - total_w) // 2
+def draw_headline(draw, parts, y, colors):
+    font = headline_font(parts)
+    total_w = sum(font.getlength(text) for text, _ in parts)
+    x = (W - total_w) / 2
     for text, is_accent in parts:
-        color = ACCENT if is_accent else normal_color
-        draw.text((x, y), text, font=FONT_HEADLINE, fill=color)
-        bbox = draw.textbbox((0, 0), text, font=FONT_HEADLINE)
-        x += bbox[2] - bbox[0]
+        draw.text((x, y), text, font=font, fill=colors["accent"] if is_accent else colors["text"])
+        x += font.getlength(text)
 
 
-def generate(name, screenshot_file, headline_parts, subtext, bg):
-    screenshot_path = SCREENSHOTS / screenshot_file
-    if not screenshot_path.exists():
-        print(f"  SKIP {name}: {screenshot_file} not found")
-        return False
+def phone_layer(screenshot):
+    """The capture inside the bezel, and the device's top and bottom on the canvas."""
+    bezel = Image.open(BEZELS / "iPhone 17 Pro Max - Silver - Portrait.png").convert("RGBA")
+    bezel_w, bezel_h = int(BEZEL_W * DEVICE_SCALE), int(BEZEL_H * DEVICE_SCALE)
+    screen_w, screen_h = int(1320 * DEVICE_SCALE), int(2868 * DEVICE_SCALE)
+    bezel_x = (W - bezel_w) // 2
+    bezel_y = int(H * DEVICE_VPOS - bezel_h / 2)
 
-    bezel_path = BEZELS / "iPhone 17 Pro Max - Silver - Portrait.png"
-    if not bezel_path.exists():
-        print(f"  SKIP {name}: bezel not found")
-        return False
+    screen = screenshot.convert("RGBA")
+    mask = Image.new("L", screen.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, screen.width - 1, screen.height - 1), radius=SCREEN_RADIUS, fill=255)
+    screen.putalpha(mask)
 
-    is_white = bg == "white"
-    bg_color = WHITE if is_white else BLACK
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    layer.alpha_composite(screen.resize((screen_w, screen_h), Image.LANCZOS),
+                        (bezel_x + int(SCREEN_OFFSET_X * DEVICE_SCALE), bezel_y + int(SCREEN_OFFSET_Y * DEVICE_SCALE)))
+    layer.alpha_composite(bezel.resize((bezel_w, bezel_h), Image.LANCZOS), (bezel_x, bezel_y))
+    return layer, bezel_y, bezel_y + bezel_h
 
-    canvas = Image.new("RGB", (W, H), bg_color)
 
-    bezel = Image.open(bezel_path).convert("RGBA")
-    screenshot = Image.open(screenshot_path).convert("RGB")
+def generate(number, shot, headline_parts, subtext, kind, mode):
+    source = SCREENSHOTS / f"{shot}-{mode}.png"
+    if not source.exists():
+        print(f"  SKIP {shot}-{mode}: {source.name} not found")
+        return None
+    colors = MODES[mode]
+    canvas = Image.new("RGBA", (W, H), colors["bg"] + (255,))
+    capture = Image.open(source)
+    layer, top, bottom = phone_layer(capture.convert("RGB"))
+    canvas.alpha_composite(layer)
 
-    # Scale
-    bezel_draw_w = int(BEZEL_W * DEVICE_SCALE)
-    bezel_draw_h = int(BEZEL_H * DEVICE_SCALE)
-    screen_draw_w = int(1320 * DEVICE_SCALE)
-    screen_draw_h = int(2868 * DEVICE_SCALE)
-
-    bezel_resized = bezel.resize((bezel_draw_w, bezel_draw_h), Image.LANCZOS)
-    screenshot_resized = screenshot.resize((screen_draw_w, screen_draw_h), Image.LANCZOS)
-
-    # Position
-    bezel_x = (W - bezel_draw_w) // 2
-    bezel_y = int(H * DEVICE_VPOS - bezel_draw_h / 2)
-    screen_x = bezel_x + int(SCREEN_OFFSET_X * DEVICE_SCALE)
-    screen_y = bezel_y + int(SCREEN_OFFSET_Y * DEVICE_SCALE)
-
-    # Paste screenshot, then bezel on top
-    canvas.paste(screenshot_resized, (screen_x, screen_y))
-
-    bezel_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    bezel_layer.paste(bezel_resized, (bezel_x, bezel_y))
-    canvas = Image.composite(bezel_layer, canvas.convert("RGBA"), bezel_layer).convert("RGB")
-
-    # Draw text
     draw = ImageDraw.Draw(canvas)
+    box = draw.textbbox((0, 0), "Xg", font=headline_font(headline_parts))
+    draw_headline(draw, headline_parts, top // 2 - (box[3] - box[1]) // 2, colors)
 
-    # Headline: centered between top and device top
-    headline_bbox = draw.textbbox((0, 0), "Xg", font=FONT_HEADLINE)
-    headline_h = headline_bbox[3] - headline_bbox[1]
-    headline_y = bezel_y // 2 - headline_h // 2
-    draw_headline(draw, headline_parts, headline_y, is_white)
-
-    # Subtext: centered between device bottom and canvas bottom
     if subtext:
-        sub_color = GRAY if is_white else GRAY_DARK
-        bbox = draw.textbbox((0, 0), subtext, font=FONT_SUBTEXT)
-        sub_w = bbox[2] - bbox[0]
-        sub_h = bbox[3] - bbox[1]
-        device_bottom = bezel_y + bezel_draw_h
-        sub_x = (W - sub_w) // 2
-        sub_y = device_bottom + (H - device_bottom) // 2 - sub_h // 2
-        draw.text((sub_x, sub_y), subtext, font=FONT_SUBTEXT, fill=sub_color)
+        box = draw.textbbox((0, 0), subtext, font=FONT_SUBTEXT)
+        draw.text(((W - (box[2] - box[0])) // 2, bottom + (H - bottom) // 2 - (box[3] - box[1]) // 2),
+                  subtext, font=FONT_SUBTEXT, fill=colors["sub"])
 
-    out_path = OUTPUT / f"{name}.png"
-    canvas.save(out_path, "PNG")
-    return True
+    out = OUTPUT / f"{number}-{shot}-{mode}.png"
+    canvas.convert("RGB").save(out, "PNG")
+    return out
 
 
 def main():
-    print(f"Generating {len(SHOTS)} framed screenshots...")
-    print(f"Output: {OUTPUT}")
-    print()
-
+    OUTPUT.mkdir(exist_ok=True)
+    DOCS.mkdir(parents=True, exist_ok=True)
     ok = 0
-    for shot in SHOTS:
-        name = shot[0]
-        success = generate(*shot)
-        if success:
+    for number, shot, parts, subtext, kind in SHOTS:
+        for mode in MODES:
+            out = generate(number, shot, parts, subtext, kind, mode)
+            if out is None:
+                continue
+            suffix = "" if mode == "light" else "-dark"
+            shutil.copyfile(out, DOCS / f"framed-{shot}{suffix}.png")
             ok += 1
-            print(f"  OK  {name}.png")
-
-    print(f"\nDone: {ok}/{len(SHOTS)} screenshots generated in {OUTPUT}")
+            print(f"  OK  {out.name}")
+    print(f"\nDone: {ok}/{len(SHOTS) * len(MODES)} screenshots in {OUTPUT} and {DOCS}")
 
 
 if __name__ == "__main__":
