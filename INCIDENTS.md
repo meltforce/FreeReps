@@ -34,13 +34,22 @@ steps, active and basal energy, the three distances, exercise, move and stand
 time, flights climbed and swimming strokes. How many past hours are affected
 depends on when syncs ran and was not measured.
 
+The same insert serves the Oura integration, which writes a day's steps as one
+row at 12:00 of that day and updates it every 30 minutes. That row also kept its
+first delivery: on 2026-09-25 it held 8 steps until the fix, and 1,716 after the
+next Oura sync.
+
 **Fix.** `InsertHealthMetrics` upserts: `ON CONFLICT … DO UPDATE` with a
 `WHERE … IS DISTINCT FROM` guard, so a changed bucket replaces the stored one and
 an identical one writes nothing. Rows repeating a key within one call are
 reduced to the last, because `DO UPDATE` rejects a statement that touches one
 row twice. `health_metrics_upsert_integration_test.go` reproduces the 230.94 /
-413 case. Past hours are corrected by re-sending them from the app after the
-deploy; the upsert does not repair them on its own.
+413 case. Verified on the deployed instance (`edge-c494f27`, 12:50Z) with one sync
+from the app: the 12:00Z bucket went from 230.94 to 413, and three earlier hours
+of the same day also moved — 09:00Z from 9 to 28, 10:00Z from 6 to 226, 11:00Z
+from 4 to 121. Past hours are corrected by re-sending them from the app; the
+upsert does not repair them on its own, and each sync re-sends only the 7 days
+before the previous one.
 
 **Lesson.** A key that identifies a bucket rather than a measurement needs an
 upsert; insert-or-skip keeps whichever version of the bucket arrived first.
