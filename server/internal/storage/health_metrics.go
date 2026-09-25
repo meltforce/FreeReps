@@ -200,9 +200,14 @@ var cumulativeMetrics = map[string]bool{
 // divided by 12 parameters per row, with headroom.
 const maxRowsPerBatch = 5000
 
-// InsertHealthMetrics batch-inserts health metric rows. Returns the number actually inserted
-// (skipped duplicates via ON CONFLICT DO NOTHING).
+// InsertHealthMetrics batch-upserts health metric rows and returns the number of rows
+// inserted or changed. A row whose key (metric_name, source, time, user_id) already
+// exists replaces the stored values when they differ: a client that aggregates into
+// buckets sends the bucket again once more samples have arrived, and the first,
+// partial delivery must not win. An identical re-delivery writes nothing and is not
+// counted. Rows repeating a key within one call keep the last occurrence.
 func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
+	rows = dedupeHealthMetricRows(rows)
 	if len(rows) == 0 {
 		return 0, nil
 	}
@@ -238,13 +243,46 @@ VALUES `
 			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic, r.SourceUUID)
 	}
 
-	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"
+	query += strings.Join(valueStrings, ",") + `
+ON CONFLICT (metric_name, source, time, user_id) DO UPDATE SET
+	units = EXCLUDED.units, qty = EXCLUDED.qty,
+	min_val = EXCLUDED.min_val, avg_val = EXCLUDED.avg_val, max_val = EXCLUDED.max_val,
+	systolic = EXCLUDED.systolic, diastolic = EXCLUDED.diastolic, source_uuid = EXCLUDED.source_uuid
+WHERE (health_metrics.units, health_metrics.qty, health_metrics.min_val, health_metrics.avg_val,
+       health_metrics.max_val, health_metrics.systolic, health_metrics.diastolic, health_metrics.source_uuid)
+	IS DISTINCT FROM
+      (EXCLUDED.units, EXCLUDED.qty, EXCLUDED.min_val, EXCLUDED.avg_val,
+       EXCLUDED.max_val, EXCLUDED.systolic, EXCLUDED.diastolic, EXCLUDED.source_uuid)`
 
 	tag, err := db.Pool.Exec(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("inserting health metrics: %w", err)
 	}
 	return tag.RowsAffected(), nil
+}
+
+// dedupeHealthMetricRows drops earlier rows that share the conflict key with a later
+// one. ON CONFLICT DO UPDATE fails when one statement touches the same row twice.
+func dedupeHealthMetricRows(rows []models.HealthMetricRow) []models.HealthMetricRow {
+	type key struct {
+		metric, source string
+		time           time.Time
+		user           int
+	}
+	last := make(map[key]int, len(rows))
+	for i, r := range rows {
+		last[key{r.MetricName, r.Source, r.Time.UTC(), r.UserID}] = i
+	}
+	if len(last) == len(rows) {
+		return rows
+	}
+	out := make([]models.HealthMetricRow, 0, len(last))
+	for i, r := range rows {
+		if last[key{r.MetricName, r.Source, r.Time.UTC(), r.UserID}] == i {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // QueryHealthMetrics retrieves health metrics by name and time range.

@@ -344,8 +344,17 @@ CREATE TABLE user_metric_enabled (
 
 ## Deduplication Strategy
 
-All tables use `INSERT ... ON CONFLICT DO NOTHING`.
 Unique constraints on natural keys prevent duplicate data from repeated syncs.
+
+`health_metrics` upserts: a row whose key (`metric_name, source, time, user_id`)
+exists replaces the stored values when they differ, and an identical row writes
+nothing. A client that aggregates into buckets sends the current bucket while it
+fills and again once it is complete; under `DO NOTHING` the partial value stayed
+(see [`INCIDENTS.md`](../../INCIDENTS.md), 2026-09-25). Rows repeating a key
+within one call keep the last occurrence. The count returned to the client as
+`metrics_inserted` includes changed rows.
+
+The other tables use `INSERT ... ON CONFLICT DO NOTHING`.
 
 ## TimescaleDB Features Used
 

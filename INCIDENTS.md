@@ -16,6 +16,37 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-09-25 — Hourly sums stayed at the value of the first sync inside the hour
+
+**Symptoms.** The 12:00Z `step_count` bucket of 2026-09-25 (source `''`, written
+by the iOS app) held 230.94 steps. Apple Health showed 413 for that hour. A sync
+at 12:44Z delivered the complete hour — 200 ingest calls, all `success` — and the
+stored value did not change.
+
+**Root cause.** The iOS app sends 11 cumulative types as hourly sums
+(`queryCumulativeStatistics`, `syncStrategy: .aggregateCumulative(interval:
+3600)`), and every sync includes the hour still in progress. The first sync at
+12:22Z stored the sum up to that minute. `InsertHealthMetrics` wrote with
+`ON CONFLICT DO NOTHING` on `(metric_name, source, time, user_id)`, so every
+later delivery of the same hour was discarded without an error, including the
+7-day re-send each sync performs. Every hour in which a sync ran is affected for
+steps, active and basal energy, the three distances, exercise, move and stand
+time, flights climbed and swimming strokes. How many past hours are affected
+depends on when syncs ran and was not measured.
+
+**Fix.** `InsertHealthMetrics` upserts: `ON CONFLICT … DO UPDATE` with a
+`WHERE … IS DISTINCT FROM` guard, so a changed bucket replaces the stored one and
+an identical one writes nothing. Rows repeating a key within one call are
+reduced to the last, because `DO UPDATE` rejects a statement that touches one
+row twice. `health_metrics_upsert_integration_test.go` reproduces the 230.94 /
+413 case. Past hours are corrected by re-sending them from the app after the
+deploy; the upsert does not repair them on its own.
+
+**Lesson.** A key that identifies a bucket rather than a measurement needs an
+upsert; insert-or-skip keeps whichever version of the bucket arrived first.
+
+---
+
 ## 2026-09-21 — No workout of the current day arrived, from either source
 
 **Symptoms.** On 2026-09-21 the Workouts screen showed nothing from that day,
