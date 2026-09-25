@@ -648,6 +648,54 @@ final class HealthKitService {
         }
     }
 
+    /// Same buckets as `queryAggregatedStatistics`, computed from the individual samples.
+    /// Fallback for `HKStatisticsCollectionQuery` failing with "Unable to invalidate interval:
+    /// no data source available" (HKError code 3), which it does for some ranges on iOS 27.
+    /// Reads every sample in the range, so it is meant for short ranges such as one workout.
+    func aggregateSamples(
+        typeID: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        from startDate: Date,
+        until endDate: Date,
+        interval: TimeInterval
+    ) async throws -> [AggregatedBucket] {
+        guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let samples: [HKQuantitySample] = try await withCheckedThrowingContinuation { cont in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, results, error in
+                if let error = error {
+                    cont.resume(throwing: error)
+                } else {
+                    cont.resume(returning: (results as? [HKQuantitySample]) ?? [])
+                }
+            }
+            store.execute(query)
+        }
+
+        // Buckets are aligned to midnight, matching the anchor of queryAggregatedStatistics.
+        let anchor = Calendar.current.startOfDay(for: startDate)
+        var grouped: [Int: [Double]] = [:]
+        for s in samples {
+            let index = Int(floor(s.startDate.timeIntervalSince(anchor) / interval))
+            grouped[index, default: []].append(s.quantity.doubleValue(for: unit))
+        }
+        return grouped.keys.sorted().compactMap { index in
+            guard let values = grouped[index], let min = values.min(), let max = values.max() else { return nil }
+            return AggregatedBucket(
+                startDate: anchor.addingTimeInterval(Double(index) * interval),
+                min: min,
+                avg: values.reduce(0, +) / Double(values.count),
+                max: max
+            )
+        }
+    }
+
     /// Aggregates cumulative quantity samples into fixed-interval buckets with SUM.
     /// Used for step_count, energy, distance, etc. where individual samples are meaningless.
     struct CumulativeBucket {

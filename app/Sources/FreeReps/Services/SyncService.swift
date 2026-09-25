@@ -1326,11 +1326,21 @@ final class SyncService: ObservableObject {
                     // Query per-minute HR aggregates for this workout's time window
                     var hrData: [FreeRepsWorkoutHRPoint]?
                     if w.duration > 0 {
-                        let buckets = try await self.healthKit.queryAggregatedStatistics(
-                            typeID: .heartRate, unit: hrUnit,
-                            from: w.startDate, until: w.endDate,
-                            interval: 60 // 1-minute buckets, matching HAE format
-                        )
+                        let buckets: [HealthKitService.AggregatedBucket]
+                        do {
+                            buckets = try await self.healthKit.queryAggregatedStatistics(
+                                typeID: .heartRate, unit: hrUnit,
+                                from: w.startDate, until: w.endDate,
+                                interval: 60 // 1-minute buckets, matching HAE format
+                            )
+                        } catch {
+                            print("HR statistics failed for workout \(w.uuid), aggregating samples: \(error.localizedDescription)")
+                            buckets = try await self.healthKit.aggregateSamples(
+                                typeID: .heartRate, unit: hrUnit,
+                                from: w.startDate, until: w.endDate,
+                                interval: 60
+                            )
+                        }
                         if !buckets.isEmpty {
                             hrData = buckets.map { b in
                                 FreeRepsWorkoutHRPoint(
