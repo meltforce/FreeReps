@@ -55,6 +55,11 @@ struct ImportResult: Codable {
 /// Lightweight HTTP client for FreeReps ingest API.
 actor FreeRepsService {
 
+    /// Identifies this app to `/api/v1/ingest`, which Health Auto Export posts to as
+    /// well. The server records calls carrying it as `freereps_ios` in import_logs.
+    static let clientHeader = "X-FreeReps-Client"
+    static let clientID = "freereps-ios"
+
     private let session: URLSession
     private let baseURL: URL
 
@@ -73,6 +78,7 @@ actor FreeRepsService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.clientID, forHTTPHeaderField: Self.clientHeader)
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await performRequest(request)
@@ -87,6 +93,23 @@ actor FreeRepsService {
 
         do {
             return try JSONDecoder().decode(IngestResult.self, from: data)
+        } catch {
+            throw FreeRepsError.decodingError(error.localizedDescription)
+        }
+    }
+
+    private struct AllowlistEntry: Decodable {
+        let metric_name: String
+        let enabled: Bool
+    }
+
+    /// Metric names the server rejects for the signed-in user — disabled in the
+    /// Ingest settings tab or server-wide. The sync skips them before reading HealthKit.
+    func fetchDisabledMetrics() async throws -> Set<String> {
+        let data = try await get(path: "api/v1/allowlist")
+        do {
+            let entries = try JSONDecoder().decode([AllowlistEntry].self, from: data)
+            return Set(entries.filter { !$0.enabled }.map(\.metric_name))
         } catch {
             throw FreeRepsError.decodingError(error.localizedDescription)
         }

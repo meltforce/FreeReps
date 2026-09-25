@@ -150,14 +150,8 @@ final class SyncViewModel: ObservableObject {
         case "cat_bp":
             guard let t = HKObjectType.correlationType(forIdentifier: .bloodPressure) else { return nil }
             return await HealthKitService.shared.latestSampleDate(for: t)
-        case "cat_ecg":
-            return await HealthKitService.shared.latestSampleDate(for: .electrocardiogramType())
-        case "cat_audiogram":
-            return await HealthKitService.shared.latestSampleDate(for: .audiogramSampleType())
         case "cat_workout_routes":
             return await HealthKitService.shared.latestSampleDate(for: HKSeriesType.workoutRoute())
-        case "cat_vision":
-            return await HealthKitService.shared.latestSampleDate(for: HKObjectType.visionPrescriptionType())
         case "cat_state_of_mind":
             if #available(iOS 18, *) {
                 return await HealthKitService.shared.latestSampleDate(for: HKObjectType.stateOfMindType())

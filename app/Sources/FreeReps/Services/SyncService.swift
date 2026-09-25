@@ -48,7 +48,7 @@ final class SyncService: ObservableObject {
 
     /// Sparse categories that have very few records — skip 90-day windowing, query full range at once.
     private static let sparseCategories: Set<String> = [
-        "cat_ecg", "cat_audiogram", "cat_vision", "cat_state_of_mind", "cat_medications"
+        "cat_state_of_mind"
     ]
 
     // When true, skip live activity and allow resumable sync across background task invocations
@@ -96,12 +96,8 @@ final class SyncService: ObservableObject {
             ("cat_category", "Health Events", "heart.text.square.fill"),
             ("cat_workouts", "Workouts", "dumbbell.fill"),
             ("cat_bp", "Blood Pressure", "drop.fill"),
-            ("cat_ecg", "ECG", "waveform.path.ecg.rectangle.fill"),
-            ("cat_audiogram", "Audiogram", "ear.badge.waveform"),
             ("cat_activity_summaries", "Activity Rings", "chart.bar.fill"),
             ("cat_workout_routes", "Workout Routes", "map.fill"),
-            ("cat_medications", "Medications", "pills.fill"),
-            ("cat_vision", "Vision Prescriptions", "eye.fill"),
             ("cat_state_of_mind", "State of Mind", "brain.head.profile"),
             ("cat_strength", "Weight Training", "figure.strengthtraining.traditional"),
         ]
@@ -206,6 +202,14 @@ final class SyncService: ObservableObject {
         self.freereps = nil
     }
 
+    /// Metric names the server would reject for this user; loaded after each connect.
+    private var disabledMetrics: Set<String> = []
+
+    private func loadDisabledMetrics() async throws {
+        guard let freereps else { return }
+        disabledMetrics = try await freereps.fetchDisabledMetrics()
+    }
+
     // MARK: - Pre-sync validation
 
     /// Check HealthKit authorization and FreeReps connectivity before syncing.
@@ -277,6 +281,7 @@ final class SyncService: ObservableObject {
         do {
             connectFreeReps(config: config)
             guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
+            try await loadDisabledMetrics()
 
             syncState.updateCategory(categoryID, status: .syncing)
             syncState.currentOperation = "Syncing\u{2026}"
@@ -295,10 +300,6 @@ final class SyncService: ObservableObject {
             } else if Self.sparseCategories.contains(categoryID) {
                 // Sparse categories: skip windowing, query full range directly
                 switch categoryID {
-                case "cat_ecg":           count = try await syncECG(since: epoch, until: anchor)
-                case "cat_audiogram":     count = try await syncAudiograms(since: epoch, until: anchor)
-                case "cat_medications":   count = try await syncMedications(since: epoch, until: anchor)
-                case "cat_vision":        count = try await syncVisionPrescriptions(since: epoch, until: anchor)
                 case "cat_state_of_mind": count = try await syncStateOfMind(since: epoch, until: anchor)
                 default: count = 0
                 }
@@ -417,6 +418,7 @@ final class SyncService: ObservableObject {
         do {
             connectFreeReps(config: config)
             guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
+            try await loadDisabledMetrics()
 
             var failedCategories: [String] = []
 
@@ -490,10 +492,6 @@ final class SyncService: ObservableObject {
 
             // Sparse categories — skip windowing, query full range, run in parallel
             let sparseSpecials: [(String, String)] = [
-                ("cat_ecg", "ECG"),
-                ("cat_audiogram", "Audiograms"),
-                ("cat_medications", "Medications"),
-                ("cat_vision", "Vision Prescriptions"),
                 ("cat_state_of_mind", "State of Mind"),
             ]
             try Task.checkCancellation()
@@ -507,10 +505,6 @@ final class SyncService: ObservableObject {
                         group.addTask { [self] in
                             let count: Int
                             switch catID {
-                            case "cat_ecg":       count = try await syncECG(since: historicalStart, until: anchor)
-                            case "cat_audiogram": count = try await syncAudiograms(since: historicalStart, until: anchor)
-                            case "cat_medications": count = try await syncMedications(since: historicalStart, until: anchor)
-                            case "cat_vision":    count = try await syncVisionPrescriptions(since: historicalStart, until: anchor)
                             case "cat_state_of_mind": count = try await syncStateOfMind(since: historicalStart, until: anchor)
                             default: count = 0
                             }
@@ -743,6 +737,7 @@ final class SyncService: ObservableObject {
 
             connectFreeReps(config: config)
             guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
+            try await loadDisabledMetrics()
 
             // Find last sync date from UserDefaults-backed syncState.
             let distantPast = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
@@ -846,40 +841,6 @@ final class SyncService: ObservableObject {
             }
 
             try Task.checkCancellation()
-            syncState.updateCategory("cat_ecg", status: .syncing)
-            do {
-                let ecgCount = try await syncECG(since: querySince)
-                let existingECG = syncState.categories.first(where: { $0.id == "cat_ecg" })?.recordCount ?? 0
-                syncState.updateCategory("cat_ecg", status: .completed, recordCount: existingECG + ecgCount, lastSyncDate: Date())
-                total += ecgCount
-                updateLiveActivity(phase: "ECG", operation: "Synced ECG (\(ecgCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("ECG")
-                    syncState.updateCategory("cat_ecg", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_audiogram", status: .syncing)
-            do {
-                let audioCount = try await syncAudiograms(since: querySince)
-                let existingAudio = syncState.categories.first(where: { $0.id == "cat_audiogram" })?.recordCount ?? 0
-                syncState.updateCategory("cat_audiogram", status: .completed, recordCount: existingAudio + audioCount, lastSyncDate: Date())
-                total += audioCount
-                updateLiveActivity(phase: "Audiograms", operation: "Synced Audiograms (\(audioCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Audiograms")
-                    syncState.updateCategory("cat_audiogram", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
             syncState.updateCategory("cat_activity_summaries", status: .syncing)
             do {
                 let activityCount = try await syncActivitySummaries(since: querySince)
@@ -910,40 +871,6 @@ final class SyncService: ObservableObject {
                 if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
                     failedCategories.append("Workout Routes")
                     syncState.updateCategory("cat_workout_routes", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_medications", status: .syncing)
-            do {
-                let medCount = try await syncMedications(since: querySince)
-                let existingMeds = syncState.categories.first(where: { $0.id == "cat_medications" })?.recordCount ?? 0
-                syncState.updateCategory("cat_medications", status: .completed, recordCount: existingMeds + medCount, lastSyncDate: Date())
-                total += medCount
-                updateLiveActivity(phase: "Medications", operation: "Synced Medications (\(medCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Medications")
-                    syncState.updateCategory("cat_medications", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_vision", status: .syncing)
-            do {
-                let visionCount = try await syncVisionPrescriptions(since: querySince)
-                let existingVision = syncState.categories.first(where: { $0.id == "cat_vision" })?.recordCount ?? 0
-                syncState.updateCategory("cat_vision", status: .completed, recordCount: existingVision + visionCount, lastSyncDate: Date())
-                total += visionCount
-                updateLiveActivity(phase: "Vision", operation: "Synced Vision Prescriptions (\(visionCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Vision Prescriptions")
-                    syncState.updateCategory("cat_vision", status: .failed(error.localizedDescription), lastSyncDate: Date())
                 }
             }
 
@@ -1076,76 +1003,6 @@ final class SyncService: ObservableObject {
         return total
     }
 
-    // MARK: - Medication sync
-
-    private func syncMedications(since: Date?, until: Date? = nil) async throws -> Int {
-        if #available(iOS 26, *) {
-            return try await syncMedicationsIOS26(since: since, until: until)
-        }
-        return 0
-    }
-
-    @available(iOS 26, *)
-    private func syncMedicationsIOS26(since: Date?, until: Date? = nil) async throws -> Int {
-        var total = 0
-        let medications = (try? await healthKit.fetchUserAnnotatedMedications()) ?? []
-
-        if medications.isEmpty {
-            let events = try await healthKit.fetchMedicationDoseEvents(from: since, until: until)
-            for event in events {
-                try Task.checkCancellation()
-                total += try await ingestMedicationDoseEvent(event, medicationName: nil)
-            }
-            return total
-        }
-
-        for annotated in medications {
-            let concept = annotated.medication
-            let conceptPredicate = NSPredicate(
-                format: "%K == %@",
-                HKPredicateKeyPathMedicationConceptIdentifier,
-                concept.identifier
-            )
-            let events = try await healthKit.fetchMedicationDoseEvents(
-                from: since, until: until, additionalPredicate: conceptPredicate
-            )
-            for event in events {
-                try Task.checkCancellation()
-                total += try await ingestMedicationDoseEvent(event, medicationName: concept.displayText)
-            }
-        }
-        return total
-    }
-
-    @available(iOS 26, *)
-    private func ingestMedicationDoseEvent(_ event: HKMedicationDoseEvent, medicationName: String?) async throws -> Int {
-        let record = FreeRepsMedication(
-            id: event.uuid.uuidString,
-            name: medicationName ?? "Unknown",
-            dosage: event.doseQuantity.map { "\($0) \(event.unit.unitString)" },
-            log_status: logStatusString(event.logStatus),
-            start_date: haeDate(event.startDate),
-            end_date: haeDate(event.endDate),
-            source: event.sourceRevision.source.name
-        )
-        let payload = FreeRepsPayload(data: FreeRepsData(medications: [record]))
-        _ = try await ingest(payload)
-        return 1
-    }
-
-    @available(iOS 26, *)
-    private func logStatusString(_ status: HKMedicationDoseEvent.LogStatus) -> String {
-        switch status {
-        case .taken:               return "taken"
-        case .skipped:             return "skipped"
-        case .snoozed:             return "snoozed"
-        case .notInteracted:       return "notInteracted"
-        case .notificationNotSent: return "notificationNotSent"
-        case .notLogged:           return "notLogged"
-        @unknown default:          return "unknown"
-        }
-    }
-
     // MARK: - Quantity sync
 
     /// Streams HealthKit samples in pages using cursor-based HKSampleQuery pagination,
@@ -1158,7 +1015,8 @@ final class SyncService: ObservableObject {
         insertBatchSize: Int = batchSize,
         onBatchInserted: ((Int) -> Void)? = nil
     ) async throws -> Int {
-        guard let metricName = hkToFreeRepsMetricName[typeDesc.id] else { return 0 }
+        guard let metricName = hkToFreeRepsMetricName[typeDesc.id],
+              !disabledMetrics.contains(metricName) else { return 0 }
 
         // Use on-device aggregation for high-frequency discrete types (e.g. heart rate).
         if case .aggregate(let interval) = typeDesc.syncStrategy {
@@ -1291,6 +1149,9 @@ final class SyncService: ObservableObject {
     private func syncCategorySamples(since: Date?, until: Date? = nil, insertBatchSize: Int = batchSize) async throws -> Int {
         var total = 0
         for typeDesc in HealthDataTypes.allCategoryTypes {
+            // Sleep stages arrive as category samples but are governed by the sleep_analysis metric.
+            if typeDesc.id == HKCategoryTypeIdentifier.sleepAnalysis.rawValue,
+               disabledMetrics.contains("sleep_analysis") { continue }
             try await healthKit.streamCategorySamples(typeID: typeDesc.hkIdentifier, from: since, until: until) { hkBatch in
                 for batch in hkBatch.chunked(into: insertBatchSize) {
                     let samples = batch.map { s in
@@ -1408,6 +1269,8 @@ final class SyncService: ObservableObject {
     // MARK: - Blood pressure sync
 
     private func syncBloodPressure(since: Date?, until: Date? = nil) async throws -> Int {
+        if disabledMetrics.contains("blood_pressure_systolic"),
+           disabledMetrics.contains("blood_pressure_diastolic") { return 0 }
         let correlations = try await healthKit.fetchBloodPressure(from: since, until: until)
         guard !correlations.isEmpty else { return 0 }
 
@@ -1433,150 +1296,6 @@ final class SyncService: ObservableObject {
             let payload = FreeRepsPayload(data: FreeRepsData(metrics: metrics))
             let result = try await ingest(payload)
             total += result.metrics_inserted ?? sysPoints.count
-        }
-        return total
-    }
-
-    // MARK: - ECG sync
-
-    private func syncECG(since: Date?, until: Date? = nil) async throws -> Int {
-        let recordings = try await healthKit.fetchECG(from: since, until: until)
-        guard !recordings.isEmpty else { return 0 }
-
-        var total = 0
-        // ECG recordings include voltage data, so batch more conservatively
-        for batch in recordings.chunked(into: 50) {
-            var items: [FreeRepsECG] = []
-            for ecg in batch {
-                let voltages = try await healthKit.fetchECGVoltageMeasurements(for: ecg)
-                let mvUnit = HKUnit(from: "mV")
-                let voltageArray = voltages.compactMap { v -> Double? in
-                    v.quantity(for: .appleWatchSimilarToLeadI)?.doubleValue(for: mvUnit)
-                }
-
-                items.append(FreeRepsECG(
-                    id: ecg.uuid.uuidString,
-                    classification: ecg.classification.label,
-                    average_heart_rate: ecg.averageHeartRate?.doubleValue(for: HKUnit(from: "count/min")),
-                    sampling_frequency: ecg.samplingFrequency?.doubleValue(for: HKUnit(from: "Hz")),
-                    voltage_measurements: voltageArray.isEmpty ? nil : voltageArray,
-                    start_date: haeDate(ecg.startDate),
-                    source: ecg.sourceRevision.source.name
-                ))
-            }
-            guard !items.isEmpty else { continue }
-            try Task.checkCancellation()
-            let payload = FreeRepsPayload(data: FreeRepsData(ecg_recordings: items))
-            let result = try await ingest(payload)
-            total += result.ecg_recordings_inserted ?? items.count
-        }
-        return total
-    }
-
-    // MARK: - Audiogram sync
-
-    private func syncAudiograms(since: Date?, until: Date? = nil) async throws -> Int {
-        let audiograms = try await healthKit.fetchAudiograms(from: since, until: until)
-        guard !audiograms.isEmpty else { return 0 }
-
-        var total = 0
-        for batch in audiograms.chunked(into: batchSize) {
-            let items: [FreeRepsAudiogram] = batch.map { ag in
-                let points = ag.sensitivityPoints.map { pt in
-                    AudiogramPoint(
-                        hz: pt.frequency.doubleValue(for: .hertz()),
-                        left_db: pt.leftEarSensitivity?.doubleValue(for: HKUnit.decibelHearingLevel()),
-                        right_db: pt.rightEarSensitivity?.doubleValue(for: HKUnit.decibelHearingLevel())
-                    )
-                }
-                return FreeRepsAudiogram(
-                    id: ag.uuid.uuidString,
-                    sensitivity_points: points,
-                    start_date: haeDate(ag.startDate),
-                    source: ag.sourceRevision.source.name
-                )
-            }
-            try Task.checkCancellation()
-            let payload = FreeRepsPayload(data: FreeRepsData(audiograms: items))
-            let result = try await ingest(payload)
-            total += result.audiograms_inserted ?? items.count
-        }
-        return total
-    }
-
-    // MARK: - Vision prescription sync
-
-    private func syncVisionPrescriptions(since: Date?, until: Date? = nil) async throws -> Int {
-        let prescriptions = try await healthKit.fetchVisionPrescriptions(from: since, until: until)
-        guard !prescriptions.isEmpty else { return 0 }
-
-        let diopterUnit = HKUnit(from: "D")
-        let degreeUnit = HKUnit.count()
-        let mmUnit = HKUnit.meterUnit(with: .milli)
-
-        var total = 0
-        for batch in prescriptions.chunked(into: batchSize) {
-            let items: [FreeRepsVisionPrescription] = batch.map { p in
-                var rightEye: [String: Double]?
-                var leftEye: [String: Double]?
-
-                if let glasses = p as? HKGlassesPrescription {
-                    if let r = glasses.rightEye {
-                        var eye: [String: Double] = ["sphere": r.sphere.doubleValue(for: diopterUnit)]
-                        if let c = r.cylinder { eye["cylinder"] = c.doubleValue(for: diopterUnit) }
-                        if let a = r.axis { eye["axis"] = a.doubleValue(for: degreeUnit) }
-                        if let add = r.addPower { eye["add"] = add.doubleValue(for: diopterUnit) }
-                        rightEye = eye
-                    }
-                    if let l = glasses.leftEye {
-                        var eye: [String: Double] = ["sphere": l.sphere.doubleValue(for: diopterUnit)]
-                        if let c = l.cylinder { eye["cylinder"] = c.doubleValue(for: diopterUnit) }
-                        if let a = l.axis { eye["axis"] = a.doubleValue(for: degreeUnit) }
-                        if let add = l.addPower { eye["add"] = add.doubleValue(for: diopterUnit) }
-                        leftEye = eye
-                    }
-                } else if let contacts = p as? HKContactsPrescription {
-                    if let r = contacts.rightEye {
-                        var eye: [String: Double] = ["sphere": r.sphere.doubleValue(for: diopterUnit)]
-                        if let c = r.cylinder { eye["cylinder"] = c.doubleValue(for: diopterUnit) }
-                        if let a = r.axis { eye["axis"] = a.doubleValue(for: degreeUnit) }
-                        if let add = r.addPower { eye["add"] = add.doubleValue(for: diopterUnit) }
-                        if let bc = r.baseCurve { eye["base_curve"] = bc.doubleValue(for: mmUnit) }
-                        if let d = r.diameter { eye["diameter"] = d.doubleValue(for: mmUnit) }
-                        rightEye = eye
-                    }
-                    if let l = contacts.leftEye {
-                        var eye: [String: Double] = ["sphere": l.sphere.doubleValue(for: diopterUnit)]
-                        if let c = l.cylinder { eye["cylinder"] = c.doubleValue(for: diopterUnit) }
-                        if let a = l.axis { eye["axis"] = a.doubleValue(for: degreeUnit) }
-                        if let add = l.addPower { eye["add"] = add.doubleValue(for: diopterUnit) }
-                        if let bc = l.baseCurve { eye["base_curve"] = bc.doubleValue(for: mmUnit) }
-                        if let d = l.diameter { eye["diameter"] = d.doubleValue(for: mmUnit) }
-                        leftEye = eye
-                    }
-                }
-
-                let prescType: String?
-                switch p.prescriptionType {
-                case .glasses: prescType = "glasses"
-                case .contacts: prescType = "contacts"
-                @unknown default: prescType = nil
-                }
-
-                return FreeRepsVisionPrescription(
-                    id: p.uuid.uuidString,
-                    date_issued: haeDate(p.startDate),
-                    expiration_date: p.expirationDate.map { haeDate($0) },
-                    prescription_type: prescType,
-                    right_eye: rightEye,
-                    left_eye: leftEye,
-                    source: p.sourceRevision.source.name
-                )
-            }
-            try Task.checkCancellation()
-            let payload = FreeRepsPayload(data: FreeRepsData(vision_prescriptions: items))
-            let result = try await ingest(payload)
-            total += result.vision_prescriptions_inserted ?? items.count
         }
         return total
     }

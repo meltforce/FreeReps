@@ -52,8 +52,6 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>FreeReps connects to your FreeReps server on the local network to sync health data.</string>
-	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
-	<string>FreeReps reads your clinical health records, including medications, to sync them to FreeReps.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>FreeReps reads your Apple Health data to sync it to FreeReps for analysis and backup.</string>
 	<key>NSHealthUpdateUsageDescription</key>

@@ -109,20 +109,4 @@ final class SettingsViewModel: ObservableObject {
             isRequestingPermissions = false
         }
     }
-
-    // MARK: - Per-object authorization (medications & vision prescriptions)
-
-    func requestVisionPrescriptionAccess() {
-        Task {
-            await healthKit.requestVisionPrescriptionAuthorization()
-        }
-    }
-
-    func requestMedicationAccess() {
-        Task {
-            if #available(iOS 26, *) {
-                await healthKit.requestMedicationAuthorization()
-            }
-        }
-    }
 }

@@ -19,10 +19,6 @@ final class HealthKitService {
         guard isAvailable else { throw HKError(.errorHealthDataUnavailable) }
         let readTypes = HealthDataTypes.allReadTypes
         try await store.requestAuthorization(toShare: [], read: readTypes)
-        await requestVisionPrescriptionAuthorization()
-        if #available(iOS 26, *) {
-            await requestMedicationAuthorization()
-        }
     }
 
     func authorizationStatus(for type: HKObjectType) -> HKAuthorizationStatus {
@@ -198,83 +194,6 @@ final class HealthKitService {
         }
     }
 
-    // MARK: - ECG
-
-    func fetchECG(from startDate: Date? = nil, until endDate: Date? = nil) async throws -> [HKElectrocardiogram] {
-        let predicate: NSPredicate?
-        if startDate != nil || endDate != nil {
-            predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-        } else {
-            predicate = nil
-        }
-
-        let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: HKObjectType.electrocardiogramType(),
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDesc]
-            ) { _, samples, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: (samples as? [HKElectrocardiogram]) ?? [])
-                }
-            }
-            store.execute(query)
-        }
-    }
-
-    func fetchECGVoltageMeasurements(for ecg: HKElectrocardiogram) async throws -> [HKElectrocardiogram.VoltageMeasurement] {
-        try await withCheckedThrowingContinuation { continuation in
-            var measurements: [HKElectrocardiogram.VoltageMeasurement] = []
-            let query = HKElectrocardiogramQuery(ecg) { _, result in
-                switch result {
-                case .measurement(let m):
-                    measurements.append(m)
-                case .done:
-                    continuation.resume(returning: measurements)
-                case .error(let err):
-                    continuation.resume(throwing: err)
-                @unknown default:
-                    continuation.resume(returning: measurements)
-                }
-            }
-            store.execute(query)
-        }
-    }
-
-    // MARK: - Audiogram
-
-    func fetchAudiograms(from startDate: Date? = nil, until endDate: Date? = nil) async throws -> [HKAudiogramSample] {
-        let predicate: NSPredicate?
-        if startDate != nil || endDate != nil {
-            predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-        } else {
-            predicate = nil
-        }
-
-        let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: HKObjectType.audiogramSampleType(),
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDesc]
-            ) { _, samples, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: (samples as? [HKAudiogramSample]) ?? [])
-                }
-            }
-            store.execute(query)
-        }
-    }
-
     // MARK: - Activity Summaries
 
     func fetchActivitySummaries(from startDate: Date? = nil, until endDate: Date? = nil) async throws -> [HKActivitySummary] {
@@ -332,107 +251,6 @@ final class HealthKitService {
                 }
                 if let locs = newLocations { locations.append(contentsOf: locs) }
                 if done { continuation.resume(returning: locations) }
-            }
-            store.execute(query)
-        }
-    }
-
-    // MARK: - Medications (iOS 26+)
-
-    func requestVisionPrescriptionAuthorization() async {
-        try? await store.requestPerObjectReadAuthorization(
-            for: HKObjectType.visionPrescriptionType(),
-            predicate: nil
-        )
-    }
-
-    @available(iOS 26, *)
-    func requestMedicationAuthorization() async {
-        try? await store.requestPerObjectReadAuthorization(
-            for: HKObjectType.userAnnotatedMedicationType(),
-            predicate: nil
-        )
-    }
-
-    @available(iOS 26, *)
-    func fetchUserAnnotatedMedications() async throws -> [HKUserAnnotatedMedication] {
-        let descriptor = HKUserAnnotatedMedicationQueryDescriptor()
-        return try await descriptor.result(for: store)
-    }
-
-    @available(iOS 26, *)
-    func fetchMedicationDoseEvents(
-        from startDate: Date? = nil,
-        until endDate: Date? = nil,
-        additionalPredicate: NSPredicate? = nil
-    ) async throws -> [HKMedicationDoseEvent] {
-        let doseType = HKObjectType.medicationDoseEventType()
-        let datePredicate: NSPredicate? = (startDate != nil || endDate != nil)
-            ? HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-            : nil
-        let predicate: NSPredicate?
-        switch (datePredicate, additionalPredicate) {
-        case (let d?, let a?): predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [d, a])
-        case (let d?, nil):    predicate = d
-        case (nil, let a?):    predicate = a
-        case (nil, nil):       predicate = nil
-        }
-        let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: doseType,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDesc]
-            ) { _, samples, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: (samples as? [HKMedicationDoseEvent]) ?? [])
-                }
-            }
-            store.execute(query)
-        }
-    }
-
-    @available(iOS 26, *)
-    func countMedicationDoseEvents() async -> Int {
-        let doseType = HKObjectType.medicationDoseEventType()
-        return await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: doseType,
-                predicate: nil,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: nil
-            ) { _, samples, _ in
-                continuation.resume(returning: samples?.count ?? 0)
-            }
-            store.execute(query)
-        }
-    }
-
-    // MARK: - Vision Prescriptions (iOS 16+)
-
-    func fetchVisionPrescriptions(from startDate: Date? = nil, until endDate: Date? = nil) async throws -> [HKVisionPrescription] {
-        let type = HKObjectType.visionPrescriptionType()
-        let predicate: NSPredicate? = (startDate != nil || endDate != nil)
-            ? HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-            : nil
-        let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: type,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDesc]
-            ) { _, samples, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: (samples as? [HKVisionPrescription]) ?? [])
-                }
             }
             store.execute(query)
         }

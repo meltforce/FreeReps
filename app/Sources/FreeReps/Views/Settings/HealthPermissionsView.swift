@@ -96,36 +96,6 @@ struct HealthPermissionsView: View {
                 }
             }
 
-            // Per-object authorization (always shown — these require a separate picker each time)
-            Section("Individual Item Access") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Some data types require you to individually select which items to share. Tap each button below to choose which items FreeReps can access.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    actionButton(
-                        label: "Authorize Vision Prescriptions",
-                        icon: "eye.fill",
-                        color: Color.teal.opacity(0.12),
-                        foreground: .teal
-                    ) {
-                        vm.requestVisionPrescriptionAccess()
-                    }
-
-                    if #available(iOS 26, *) {
-                        actionButton(
-                            label: "Authorize Medications",
-                            icon: "pills.fill",
-                            color: Color.purple.opacity(0.12),
-                            foreground: .purple
-                        ) {
-                            vm.requestMedicationAccess()
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-
             // iOS permission dialog limitation notice
             if vm.permissionsRequested {
                 Section {
