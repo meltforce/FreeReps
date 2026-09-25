@@ -1,12 +1,9 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 struct SyncDashboardView: View {
     @ObservedObject var vm: SyncViewModel
-    @EnvironmentObject var importState: ImportState
     @State private var navigateToHealthPermissions = false
-    @State private var showFilePicker = false
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
 
     @Environment(\.colorScheme) private var colorScheme
@@ -32,23 +29,15 @@ struct SyncDashboardView: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .padding(.top, 12)
                     .padding(.bottom, 24)
                 }
             }
             .background(Color(.systemGroupedBackground))
+            // No visible title: the status card starts right below the safe area.
+            // The title stays for VoiceOver; Import File lives in Settings › Data.
             .navigationTitle("FreeReps")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showFilePicker = true
-                    } label: {
-                        Label("Import File", systemImage: "doc.badge.plus")
-                    }
-                    .tint(Color("Brand"))
-                    .disabled(vm.isAnySyncRunning)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $navigateToHealthPermissions) {
                 HealthPermissionsView(vm: SettingsViewModel())
             }
@@ -62,31 +51,6 @@ struct SyncDashboardView: View {
             }
             .onDisappear {
                 UIApplication.shared.isIdleTimerDisabled = false
-            }
-            .fileImporter(
-                isPresented: $showFilePicker,
-                allowedContentTypes: [.commaSeparatedText],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else { return }
-                    guard url.startAccessingSecurityScopedResource() else {
-                        importState.status = .error("Cannot access file")
-                        importState.showResult = true
-                        return
-                    }
-                    defer { url.stopAccessingSecurityScopedResource() }
-                    guard let data = try? Data(contentsOf: url) else {
-                        importState.status = .error("Failed to read file")
-                        importState.showResult = true
-                        return
-                    }
-                    performImport(data: data)
-                case .failure(let error):
-                    importState.status = .error(error.localizedDescription)
-                    importState.showResult = true
-                }
             }
             .alert("Sync Prerequisites", isPresented: $vm.showPrerequisiteAlert) {
                 Button("Continue Anyway") { }
@@ -366,26 +330,6 @@ struct SyncDashboardView: View {
             break
         case .healthDataUnavailable:
             break
-        }
-    }
-
-    private func performImport(data: Data) {
-        importState.status = .uploading
-        importState.showResult = true
-
-        Task {
-            let config = FreeRepsConfig.load()
-            let service = FreeRepsService(config: config)
-            do {
-                let result = try await service.uploadCSV(data: data)
-                importState.status = .success(setsInserted: result.sets_inserted)
-                // Update the Weight Training category card
-                let existing = vm.syncState.categories.first(where: { $0.id == "cat_strength" })?.recordCount ?? 0
-                vm.syncState.updateCategory("cat_strength", status: .completed, recordCount: existing + Int(result.sets_inserted), lastSyncDate: Date())
-                vm.syncState.persist()
-            } catch {
-                importState.status = .error(error.localizedDescription)
-            }
         }
     }
 }

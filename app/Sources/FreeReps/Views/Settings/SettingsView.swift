@@ -1,9 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     let syncViewModel: SyncViewModel
     @StateObject private var vm = SettingsViewModel()
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
+    @EnvironmentObject var importState: ImportState
+    @State private var showFilePicker = false
 
     var body: some View {
         NavigationStack {
@@ -61,6 +64,22 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Data") {
+                    Button {
+                        showFilePicker = true
+                    } label: {
+                        HStack {
+                            settingsRow("doc.badge.plus", title: "Import File", subtitle: "Alpha Progression CSV")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .disabled(syncViewModel.isAnySyncRunning)
+                }
+
                 Section("About") {
                     Link(destination: URL(string: "https://github.com/meltforce/FreeReps/releases/tag/\(appVersion)")!) {
                         LabeledContent("App Version") {
@@ -92,6 +111,31 @@ struct SettingsView: View {
                     .padding(.vertical, 6)
                     .background(.orange.opacity(0.2))
                     .foregroundStyle(.orange)
+                }
+            }
+            .fileImporter(
+                isPresented: $showFilePicker,
+                allowedContentTypes: [.commaSeparatedText],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    guard url.startAccessingSecurityScopedResource() else {
+                        importState.status = .error("Cannot access file")
+                        importState.showResult = true
+                        return
+                    }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    guard let data = try? Data(contentsOf: url) else {
+                        importState.status = .error("Failed to read file")
+                        importState.showResult = true
+                        return
+                    }
+                    performImport(data: data)
+                case .failure(let error):
+                    importState.status = .error(error.localizedDescription)
+                    importState.showResult = true
                 }
             }
             .onAppear {
@@ -143,5 +187,25 @@ struct SettingsView: View {
             .foregroundStyle(Color("Brand"))
             .frame(width: 30, height: 30)
             .background(Color("Brand").opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func performImport(data: Data) {
+        importState.status = .uploading
+        importState.showResult = true
+
+        Task {
+            let config = FreeRepsConfig.load()
+            let service = FreeRepsService(config: config)
+            do {
+                let result = try await service.uploadCSV(data: data)
+                importState.status = .success(setsInserted: result.sets_inserted)
+                // Update the Weight Training category card
+                let existing = syncViewModel.syncState.categories.first(where: { $0.id == "cat_strength" })?.recordCount ?? 0
+                syncViewModel.syncState.updateCategory("cat_strength", status: .completed, recordCount: existing + Int(result.sets_inserted), lastSyncDate: Date())
+                syncViewModel.syncState.persist()
+            } catch {
+                importState.status = .error(error.localizedDescription)
+            }
+        }
     }
 }
