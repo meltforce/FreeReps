@@ -7,18 +7,11 @@ coaching — that is a decision, not a gap ([`DECISIONS.md`](DECISIONS.md)).
 
 Monorepo. `server/` holds the Go binary `freereps` with the web UI embedded;
 `app/` holds the iOS companion (`FreeReps.xcodeproj`). Build and run
-instructions live in `server/CLAUDE.md` and `app/CLAUDE.md`, which load only
-when working under those paths.
+instructions, and the wire-format specs every ingest change starts from, live in
+`server/CLAUDE.md` and `app/CLAUDE.md`, which load only when working under those
+paths.
 
 ## Gotchas
-
-- **`server/specs/` is the source of truth for wire formats** —
-  `hae-export-format.md`, `hae-rest-api.md`, `alpha-progression.md`,
-  `hevy-api.md`, `withings-api.md`, `database-schema.md`. Read the spec before
-  changing an ingest path. *Why:* the
-  payloads come from third-party apps whose shape is not derivable from this
-  repo, and a mismatch surfaces as silently dropped rows rather than an error
-  (see [`INCIDENTS.md`](INCIDENTS.md), 2026-04-08).
 
 - **The backend does not compile without `server/web/dist`.** `server/web.go`
   embeds it via `go:embed`. Build the frontend first, or create the stub:
@@ -63,14 +56,6 @@ Runner labels: `docker` (normal jobs), `docker-buildx` (image builds), `host`
 (runs on the runner LXC itself — needed for Tailscale SSH into deploy targets).
 The Forgejo org `meltforce.net` already provides `REGISTRY_USER`,
 `REGISTRY_TOKEN`, `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`; no repo secrets.
-
-## Data source documentation
-
-Upstream references not reproduced in `server/specs/`:
-
-- [Health Auto Export — export formats](https://help.healthyapps.dev/en/health-auto-export/export-format/)
-- [Health Auto Export — server connection (TCP/MCP)](https://help.healthyapps.dev/en/health-auto-export/automations/server-connection/)
-- [HealthyApps reference server](https://github.com/HealthyApps/health-auto-export-server) — the Grafana-based implementation this project's ingest was checked against
 
 ## Repo documents
 

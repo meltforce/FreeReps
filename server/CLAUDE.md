@@ -1,9 +1,19 @@
 # Server Development
 
-- Build: `cd server && make build` (or `make build` from root)
-- Test: `cd server && go test ./...`
-- Frontend stub for Go build: `mkdir -p server/web/dist && touch server/web/dist/.gitkeep`
-- Frontend build: `cd server/web && npm ci && npm run build`
+## Wire formats
+
+**`specs/` is the source of truth for wire formats** — `hae-export-format.md`,
+`hae-rest-api.md`, `alpha-progression.md`, `hevy-api.md`, `withings-api.md`,
+`database-schema.md`. Read the spec before changing an ingest path. *Why:* the
+payloads come from third-party apps whose shape is not derivable from this repo,
+and a mismatch surfaces as silently dropped rows rather than an error (see
+[`INCIDENTS.md`](../INCIDENTS.md), 2026-04-08).
+
+Upstream references not reproduced in `specs/`:
+
+- [Health Auto Export — export formats](https://help.healthyapps.dev/en/health-auto-export/export-format/)
+- [Health Auto Export — server connection (TCP/MCP)](https://help.healthyapps.dev/en/health-auto-export/automations/server-connection/)
+- [HealthyApps reference server](https://github.com/HealthyApps/health-auto-export-server) — the Grafana-based implementation this project's ingest was checked against
 
 ## Integration tests
 
