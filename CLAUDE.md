@@ -106,8 +106,12 @@ Number and date formats follow the English convention: `1.82 GB` (decimal
 point), `217,226` (comma as thousands separator), `2026-08-04` (ISO 8601, never
 `04.08.2026`).
 
-The only exception is a verbatim quote of external output — an upstream error
-message, vendor documentation — which keeps its original wording.
+The only exceptions are a verbatim quote of external output — an upstream error
+message, vendor documentation — which keeps its original wording, and the
+translations of user-facing app strings, which live only in string catalogs
+(`*.xcstrings`). *Why:* the German Siri phrases of the Shortcuts action have to
+be German to be recognised; a catalog keeps them keyed by their English source
+string, so search from code to translation still works.
 
 Conversation language is independent of this and follows the operator.
 

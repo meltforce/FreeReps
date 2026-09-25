@@ -51,6 +51,45 @@ iOS 27.
 
 ---
 
+## 2026-09-25 — The iOS app syncs by HealthKit anchor after the first backfill
+
+**Decided:** 2026-09-25
+
+**Decision.** After the first completed backfill, `runFullSync` runs
+`runAnchoredSync`: per sample type an `HKAnchoredObjectQuery`, bounded to
+samples dated within the last 7 days, returns what HealthKit added since the
+stored anchor; the hours those samples fall into are re-sent through the
+existing date-range sync functions, and the new anchor is stored only after the
+server accepted every range. Once a day the last 24 hours are re-sent in full.
+Activity summaries, which have no anchor, are sent for today and yesterday.
+When the hourly statistics query fails (HKError code 3), the app queries each
+hour on its own instead of sending the raw samples.
+
+**Reasoning.** Every sync re-sent the 7 days before the previous run: on
+2026-09-25 a Siri sync posted 7,217 metric values, 0 of them new. A filter on
+sample time instead would drop what HealthKit receives late — Watch transfers,
+Oura writing a night hours later — which is why the 7 days existed. An anchor
+reports additions regardless of their timestamps. Measured on the device the
+same day: once the anchors were set, a sync was 1 ingest call with 0 metric
+values; the run before, which set the last anchors, 51 calls with 1,043 values,
+3 of them new.
+
+Two approaches were tried and dropped the same day. An anchor taken without
+reading — a query whose predicate matches nothing — did not mark the current
+position for every type on iOS 27: Steps then reported 173 added samples,
+Walking+Running Distance 667,204 in 3,650 ranges, its whole history. Taking
+those anchors also held the sync at "Connecting…" for one to two minutes. The
+7-day bound replaces both: a type without an anchor reads that window once.
+The raw-sample fallback for failed hourly statistics was removed because it put
+raw samples next to hourly sums under the same source, which a daily total
+counts twice; summing the samples locally was not used because HealthKit's
+statistics merge iPhone and Watch where both recorded the same steps.
+
+**Trigger to re-open.** A sample arriving more than 7 days after its own time
+matters, or HealthKit starts reporting deletions that the server should apply.
+
+---
+
 ## 2026-09-25 — The iOS app syncs on request only: a Shortcuts action and a widget replace background sync
 
 **Decided:** 2026-09-25

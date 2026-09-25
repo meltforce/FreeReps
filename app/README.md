@@ -146,6 +146,10 @@ The app does not sync in the background on its own. A sync starts from one of:
 
 HealthKit data is readable only while the iPhone is unlocked, so an automation works when its trigger fires while the phone is in use: *Alarm is stopped*, *Apple Watch workout ends*, or *App is closed* for a training or ring app. A time-of-day trigger usually finds the phone locked; the action then reports "iPhone is locked" and skips the sync.
 
+Siri understands "Sync FreeReps", "Sync health data with FreeReps" and "Start a FreeReps sync"; their German translations are in `Sources/FreeReps/Resources/AppShortcuts.xcstrings`.
+
+After the first completed backfill, a sync sends only what HealthKit added since the previous one: the app keeps one `HKAnchoredObjectQuery` anchor per type and re-sends the hours those samples fall into. A sample HealthKit receives more than 7 days after its own time is not sent. Once a day the last 24 hours are re-sent in full. "Reset Sync State" clears the anchors, and the next sync is a backfill again.
+
 ### Location tracking
 
 Enable location tracking in **Settings > Location & Places** to log GPS coordinates. You can also set up geofences around places (home, office, gym, etc.) to log check-in and check-out events.
