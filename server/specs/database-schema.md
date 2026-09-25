@@ -18,6 +18,7 @@ CREATE TABLE health_metrics (
     user_id     INTEGER     NOT NULL DEFAULT 1,
     metric_name TEXT        NOT NULL,
     source      TEXT        NOT NULL DEFAULT '',
+    client      TEXT        NOT NULL DEFAULT '',  -- 'freereps_ios', 'hae' or ''
     units       TEXT        NOT NULL DEFAULT '',
     qty         DOUBLE PRECISION,
     min_val     DOUBLE PRECISION,
@@ -30,8 +31,18 @@ CREATE TABLE health_metrics (
 SELECT create_hypertable('health_metrics', 'time');
 
 CREATE UNIQUE INDEX idx_health_metrics_dedup
-    ON health_metrics (metric_name, source, time, user_id);
+    ON health_metrics (metric_name, source, client, time, user_id);
 ```
+
+`client` names the ingest client of an Apple Health row: `freereps_ios` for
+the iOS app, `hae` for every other Health Auto Export path (REST automation, TCP
+import, uploaded export), `''` for Oura, Withings, derived rows and every row
+stored before migration `000036`. Both Apple Health clients write
+`source = ''`, so `client` is what tells their rows apart. Queries resolve one
+winner per partition by source priority first and then by client —
+`freereps_ios` before `hae` before `''` (`clientRankSQL` in
+`internal/storage/health_metrics.go`) — so where both clients delivered a day,
+only the app's rows count.
 
 **Metric shapes:**
 - Standard (qty): `resting_heart_rate`, `heart_rate_variability`, `blood_oxygen_saturation`, `respiratory_rate`, `vo2_max`, `weight_body_mass`, `body_fat_percentage`, `active_energy`, `basal_energy_burned`, `apple_exercise_time`, `apple_sleeping_wrist_temperature`
@@ -346,7 +357,7 @@ CREATE TABLE user_metric_enabled (
 
 Unique constraints on natural keys prevent duplicate data from repeated syncs.
 
-`health_metrics` upserts: a row whose key (`metric_name, source, time, user_id`)
+`health_metrics` upserts: a row whose key (`metric_name, source, client, time, user_id`)
 exists replaces the stored values when they differ, and an identical row writes
 nothing. A client that aggregates into buckets sends the current bucket while it
 fills and again once it is complete; under `DO NOTHING` the partial value stayed

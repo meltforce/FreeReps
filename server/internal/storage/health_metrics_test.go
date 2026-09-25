@@ -288,9 +288,9 @@ func TestDedupCTEMultiMetricRangeFiltersInsideTheCTE(t *testing.T) {
 func TestLatestMetricsQueryWithoutPrioritiesIsANoOp(t *testing.T) {
 	query := latestMetricsQuery(nil)
 
-	// sourcePriorityCaseSQL collapses to the constant 1, leaving recency as the
-	// only tiebreaker rather than emitting an empty CASE.
-	if !strings.Contains(query, "ORDER BY h.metric_name, 1, h.time DESC") {
+	// sourcePriorityCaseSQL collapses to the constant 1, leaving the client rank
+	// and then recency as the tiebreakers rather than emitting an empty CASE.
+	if !strings.Contains(query, "ORDER BY h.metric_name, 1, "+clientRankSQL+", h.time DESC") {
 		t.Errorf("expected the no-op ordering, got:\n%s", query)
 	}
 }

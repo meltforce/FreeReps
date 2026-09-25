@@ -12,6 +12,9 @@ type HealthMetricRow struct {
 	UserID     int
 	MetricName string
 	Source     string
+	// Client names the ingest client of an Apple Health row, "freereps_ios" or
+	// "hae"; empty for every other path. It is part of the dedup key.
+	Client     string
 	Units      string
 	Qty        *float64
 	MinVal     *float64

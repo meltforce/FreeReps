@@ -51,6 +51,39 @@ iOS 27.
 
 ---
 
+## 2026-09-25 — Where the iOS app and Health Auto Export both deliver Apple Health data, the app wins
+
+**Decided:** 2026-09-25
+
+**Decision.** `health_metrics` has a `client` column (migration `000036`):
+`freereps_ios` for rows from the iOS app, `hae` for every other Health Auto
+Export path, `''` for other providers and every row stored before. It is part of
+the unique key. Every query resolves one winner per day (cumulative metrics) or
+5-minute window (all others) by source priority first and then by client —
+`freereps_ios`, then `hae`, then `''`. The operator decided that the app leads
+over Health Auto Export on a conflict.
+
+**Reasoning.** Both clients write `source = ''`, which several rules depend on
+(the 2026-09-22 entry below), so a different source name for the app was not an
+option. Without a second distinguishing column the app's hourly sums and Health
+Auto Export's minute rows were summed together: every day from 2026-09-19 to
+2026-09-24 held both, 2026-09-19 with 11,628 steps in 17 hourly rows and 12,007
+in 383 minute rows, measured on the deployed instance on 2026-09-25. Off-hour
+rows existed for `active_energy` since 2026-03-27 and `basal_energy_burned` since
+2025-09-02. And since the upsert of the same day, an hourly row and a minute row
+at the full hour shared one key and replaced each other.
+
+**Existing rows.** Rows stored before the migration carry `client = ''` and
+cannot be split between the two clients, because both write rows at the full
+hour. A re-sync from the app writes its rows again under `freereps_ios`, and they
+win for every day they cover; older days keep the double count where both
+clients delivered.
+
+**Trigger to re-open.** Health Auto Export is switched off for good, which makes
+the rank a rule for old rows only; or a second iOS client appears.
+
+---
+
 ## 2026-09-25 — The iOS app syncs by HealthKit anchor after the first backfill
 
 **Decided:** 2026-09-25

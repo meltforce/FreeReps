@@ -32,7 +32,9 @@ Custom headers configured by user (for auth):
 The FreeReps iOS app posts the same payload format to the same endpoint and
 sends `X-FreeReps-Client: freereps-ios`. `import_logs.source` records such a
 call as `freereps_ios`; a call without the header is recorded as `hae_rest`.
-Health Auto Export does not send the header.
+Health Auto Export does not send the header. The same distinction is stored per
+row in `health_metrics.client` (`freereps_ios` or `hae`), and where both
+clients delivered a window the app's rows win.
 
 ## JSON Payload Structure
 

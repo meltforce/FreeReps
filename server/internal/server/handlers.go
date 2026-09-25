@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/claude/freereps/internal/ingest"
+	"github.com/claude/freereps/internal/ingest/health"
 	"github.com/claude/freereps/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -52,8 +53,12 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	source := ingestLogSource(r)
+	ctx := r.Context()
+	if r.Header.Get(ClientHeader) == ClientIOSApp {
+		ctx = health.WithClient(ctx, health.ClientIOSApp)
+	}
 	start := time.Now()
-	result, err := s.health.Ingest(r.Context(), &payload, uid)
+	result, err := s.health.Ingest(ctx, &payload, uid)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		s.log.Error("ingest error", "error", err)

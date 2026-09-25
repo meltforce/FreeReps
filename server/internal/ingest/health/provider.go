@@ -21,6 +21,30 @@ type Provider struct {
 }
 
 // NewProvider creates a new health ingest provider.
+// Client values stored in health_metrics.client. The iOS app and Health Auto
+// Export both deliver Apple Health data with source '', and the dedup ranks
+// the app first (storage.clientRankSQL); this is how their rows are told apart.
+const (
+	ClientIOSApp = "freereps_ios"
+	ClientHAE    = "hae"
+)
+
+type clientKey struct{}
+
+// WithClient marks the ingest in ctx as coming from client. Without it the
+// provider assumes Health Auto Export, whose format every path here speaks:
+// the REST automation, the TCP import and uploaded export files.
+func WithClient(ctx context.Context, client string) context.Context {
+	return context.WithValue(ctx, clientKey{}, client)
+}
+
+func clientFrom(ctx context.Context) string {
+	if c, ok := ctx.Value(clientKey{}).(string); ok {
+		return c
+	}
+	return ClientHAE
+}
+
 func NewProvider(db *storage.DB, log *slog.Logger) *Provider {
 	return &Provider{db: db, log: log}
 }
@@ -172,6 +196,7 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 				p.log.Warn("skipping data point", "metric", m.Name, "error", err)
 				continue
 			}
+			row.Client = clientFrom(ctx)
 			if _, unknown := normalizeUnits(row); unknown {
 				p.log.Warn("storing metric in an unconverted unit",
 					"metric", m.Name, "units", m.Units, "canonical", canonicalUnit[m.Name])
@@ -312,6 +337,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HealthMetric, user
 				UserID:     userID,
 				MetricName: "sleep_analysis",
 				Source:     "Health Auto Export",
+				Client:     clientFrom(ctx),
 				Units:      "hr",
 				Qty:        &qty,
 			}

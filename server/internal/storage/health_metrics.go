@@ -82,8 +82,16 @@ func multiMetricPartition(metricNames []string) string {
 		strings.Join(cumulative, ","), dedupBucket)
 }
 
+// clientRankSQL orders the clients of one source: where the iOS app and Health
+// Auto Export both delivered Apple Health data for a window, the app wins, and
+// both win over rows stored before the client column existed. Both clients
+// write source = '', so without this rank their rows were summed together.
+const clientRankSQL = "CASE client WHEN 'freereps_ios' THEN 0 WHEN 'hae' THEN 1 ELSE 2 END"
+
 // winningSourceRN marks every row of the highest-priority source in its
-// partition with rn = 1, so callers keep filtering on "WHERE rn = 1".
+// partition with rn = 1, so callers keep filtering on "WHERE rn = 1". Within
+// one source the client ranks next (clientRankSQL); source and client together
+// are what wins.
 //
 // The predicate now removes competing sources rather than competing samples of
 // the same source. ROW_NUMBER() kept exactly one row per window, which turned a
@@ -91,10 +99,10 @@ func multiMetricPartition(metricNames []string) string {
 // average depend on which sample happened to sort first.
 func winningSourceRN(priorityExpr, partition string) string {
 	return fmt.Sprintf(
-		`CASE WHEN source = FIRST_VALUE(source) OVER (
-				PARTITION BY %s
-				ORDER BY %s, source
-			) THEN 1 ELSE 2 END AS rn`, partition, priorityExpr)
+		`CASE WHEN (source, client) = (
+				FIRST_VALUE(source) OVER (PARTITION BY %[1]s ORDER BY %[2]s, %[3]s, source, client),
+				FIRST_VALUE(client) OVER (PARTITION BY %[1]s ORDER BY %[2]s, %[3]s, source, client)
+			) THEN 1 ELSE 2 END AS rn`, partition, priorityExpr, clientRankSQL)
 }
 
 // perMetricPriorityExpr nests each metric's category priority inside a CASE over
@@ -196,8 +204,8 @@ var cumulativeMetrics = map[string]bool{
 	TrainingTonnageMetric: true,
 }
 
-// maxParamsPerBatch is the PostgreSQL extended protocol parameter limit (65535)
-// divided by 12 parameters per row, with headroom.
+// maxRowsPerBatch is the PostgreSQL extended protocol parameter limit (65535)
+// divided by 13 parameters per row, with headroom.
 const maxRowsPerBatch = 5000
 
 // InsertHealthMetrics batch-upserts health metric rows and returns the number of rows
@@ -228,23 +236,23 @@ func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetri
 }
 
 func (db *DB) insertHealthMetricsBatch(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
-	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid)
+	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, client, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid)
 VALUES `
-	args := make([]any, 0, len(rows)*12)
+	args := make([]any, 0, len(rows)*13)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 12
+		base := i * 13
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12, base+13,
 		))
-		args = append(args, r.Time, r.UserID, r.MetricName, r.Source, r.Units,
+		args = append(args, r.Time, r.UserID, r.MetricName, r.Source, r.Client, r.Units,
 			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic, r.SourceUUID)
 	}
 
 	query += strings.Join(valueStrings, ",") + `
-ON CONFLICT (metric_name, source, time, user_id) DO UPDATE SET
+ON CONFLICT (metric_name, source, client, time, user_id) DO UPDATE SET
 	units = EXCLUDED.units, qty = EXCLUDED.qty,
 	min_val = EXCLUDED.min_val, avg_val = EXCLUDED.avg_val, max_val = EXCLUDED.max_val,
 	systolic = EXCLUDED.systolic, diastolic = EXCLUDED.diastolic, source_uuid = EXCLUDED.source_uuid
@@ -265,20 +273,20 @@ WHERE (health_metrics.units, health_metrics.qty, health_metrics.min_val, health_
 // one. ON CONFLICT DO UPDATE fails when one statement touches the same row twice.
 func dedupeHealthMetricRows(rows []models.HealthMetricRow) []models.HealthMetricRow {
 	type key struct {
-		metric, source string
-		time           time.Time
-		user           int
+		metric, source, client string
+		time                   time.Time
+		user                   int
 	}
 	last := make(map[key]int, len(rows))
 	for i, r := range rows {
-		last[key{r.MetricName, r.Source, r.Time.UTC(), r.UserID}] = i
+		last[key{r.MetricName, r.Source, r.Client, r.Time.UTC(), r.UserID}] = i
 	}
 	if len(last) == len(rows) {
 		return rows
 	}
 	out := make([]models.HealthMetricRow, 0, len(last))
 	for i, r := range rows {
-		if last[key{r.MetricName, r.Source, r.Time.UTC(), r.UserID}] == i {
+		if last[key{r.MetricName, r.Source, r.Client, r.Time.UTC(), r.UserID}] == i {
 			out = append(out, r)
 		}
 	}
@@ -409,7 +417,7 @@ func latestMetricsQuery(priorities []string) string {
 		  AND h.metric_name = n.metric_name
 		  AND h.time > n.peak - interval '5 minutes'
 		  AND h.time <= n.peak
-		 ORDER BY h.metric_name, %s, h.time DESC`, sourcePriorityCaseSQL(priorities))
+		 ORDER BY h.metric_name, %s, %s, h.time DESC`, sourcePriorityCaseSQL(priorities), clientRankSQL)
 }
 
 // latestMetricsForNamesRecentQuery is latestMetricsForNamesQuery with a lower
@@ -438,8 +446,8 @@ func latestMetricsForNamesRecentQuery(priorities []string, since time.Time) stri
 		  AND h.metric_name = n.metric_name
 		  AND h.time > n.peak - interval '5 minutes'
 		  AND h.time <= n.peak
-		 ORDER BY h.metric_name, %s, h.time DESC`,
-		sqlTimestamp(since), sourcePriorityCaseSQL(priorities))
+		 ORDER BY h.metric_name, %s, %s, h.time DESC`,
+		sqlTimestamp(since), sourcePriorityCaseSQL(priorities), clientRankSQL)
 }
 
 // latestMetricsForNamesQuery is latestMetricsQuery with the metric names given
@@ -467,7 +475,7 @@ func latestMetricsForNamesQuery(priorities []string) string {
 		  AND h.metric_name = n.metric_name
 		  AND h.time > n.peak - interval '5 minutes'
 		  AND h.time <= n.peak
-		 ORDER BY h.metric_name, %s, h.time DESC`, sourcePriorityCaseSQL(priorities))
+		 ORDER BY h.metric_name, %s, %s, h.time DESC`, sourcePriorityCaseSQL(priorities), clientRankSQL)
 }
 
 // timeSeriesSelectSQL returns the aggregation applied to the deduped rows.
