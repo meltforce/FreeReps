@@ -19,6 +19,58 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-25 — The iOS app reads a fixed set of HealthKit types, and the server decides per user which of them it stores
+
+**Decided:** 2026-09-25
+
+**Decision.** Three parts.
+
+1. *Fixed exclusion in the app.* The app no longer requests, reads or sends:
+   nutrition except caffeine and water; lab and clinical types and clinical
+   records (the `health-records` entitlement and its usage string are removed);
+   ECG, AFib burden and every heart event; medications and vision
+   prescriptions; hearing types and audiograms; respiratory function tests,
+   inhaler and UV exposure; all symptoms; reproductive health; gait and running
+   dynamics; toothbrushing, handwashing, wheelchair, underwater, snow sports,
+   BMI, height, waist circumference, basal body temperature, perfusion index,
+   electrodermal activity and stand hours. What remains is 36 quantity and 2
+   category types, listed in `app/Sources/FreeReps/Models/HealthDataType.swift`.
+2. *Server-side switch per user.* For every type the app still reads, it loads
+   `GET /api/v1/allowlist` before a sync and skips metrics whose `enabled` is
+   false for the signed-in user. `user_metric_enabled` holds the override,
+   set in the Ingest settings tab; `metric_allowlist.enabled` stays the
+   server-wide gate. The ingest applies the same check to every client, so a
+   disabled metric is also rejected from Health Auto Export.
+3. *Client identification.* The app sends `X-FreeReps-Client: freereps-ios`;
+   `import_logs.source` records such a call as `freereps_ios`, a call without
+   the header as `hae_rest`.
+
+**Reasoning.** The app sent every HealthKit type it knew, 109 quantity types
+plus 67 category types, while the dashboard, the correlations and the MCP tools
+read about 20. Most of the rest held no data on the server, and a first full
+sync from 2000-01-01 did not complete on iOS 27. What is excluded in the app is
+data the operator does not want on the server at all — diagnoses, prescriptions,
+clinical records — so it is not read, rather than read and then filtered.
+What remains is a choice that can change, and it is made on the server because
+the setting then applies to every client and survives a reinstall of the app.
+Kept beyond the metrics the analyses read today, for correlations not yet
+built: time in daylight, physical effort and both workout effort scores, heart
+rate recovery, walking heart rate average, body temperature, activity summaries,
+cycling cadence, speed, power and threshold power, state of mind, mindful
+sessions, caffeine and water. Cycling power and threshold power have no data
+for the operator and are kept for other users. The switch is per user because
+FreeReps serves several users and `metric_allowlist.enabled` would change the
+ingest for all of them.
+
+Data stored before this change — ECG recordings, audiograms, medications,
+vision prescriptions, symptom samples — stays in the database; nothing deletes
+it.
+
+**Trigger to re-open.** An analysis needs a type from the fixed exclusion list,
+or a second user needs a type the operator excluded.
+
+---
+
 ## 2026-09-22 — Compression stays off, and the measurement is recorded so the decision needs no second one
 
 **Decided:** 2026-09-22
