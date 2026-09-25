@@ -3,67 +3,113 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>FAQ - FreeReps</title>
-<style>
-:root {
-  --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #e5e5e5; --accent: #0071e3;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #111; --fg: #e5e5e5; --muted: #999; --border: #333; --accent: #5ac8fa; }
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  background: var(--bg); color: var(--fg); line-height: 1.6;
-  max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem;
-}
-h1 { font-size: 2rem; font-weight: 700; margin-bottom: 2rem; }
-h2 { font-size: 1.125rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.25rem; }
-p { margin-bottom: 1rem; color: var(--muted); }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-code {
-  font-family: 'SF Mono', Menlo, monospace; font-size: 0.875em;
-  background: var(--border); padding: 0.15em 0.4em; border-radius: 4px;
-}
-.back { display: inline-block; margin-bottom: 2rem; font-size: 0.875rem; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&amp;display=swap">
+<link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
-<a href="/" class="back">&larr; Back to FreeReps</a>
-<h1>FAQ</h1>
 
-<h2>What is FreeReps?</h2>
-<p>FreeReps is a self-hosted server that stores and visualizes your health and training data from Apple Health, Oura, Withings, Hevy and Alpha Progression. It includes a web dashboard, a correlation explorer, and an MCP interface for AI assistants.</p>
+<nav class="site-nav">
+  <a href="/" class="brand">FreeReps</a>
+  <a href="/#dashboard">Dashboard</a>
+  <a href="/#ios">iOS app</a>
+  <a href="/#features">Features</a>
+  <a href="/faq/">FAQ</a>
+  <a href="https://github.com/meltforce/freereps" class="gh">
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
 
-<h2>Where is my data stored?</h2>
-<p>On your own server, in a PostgreSQL database with TimescaleDB. FreeReps never sends data to any third party.</p>
+<header class="page-header">
+  <div class="kicker">Help</div>
+  <h1>FAQ</h1>
+</header>
 
-<h2>What do I need to run FreeReps?</h2>
-<p>A server (Linux or macOS) with Docker, an iPhone running the FreeReps app or <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a>, and a <a href="https://tailscale.com">Tailscale</a> account. Tailscale provides encrypted access and identity-based authentication &mdash; it's how FreeReps handles auth.</p>
+<main class="page-body">
+  <div>
+    <section class="row">
+      <h2>What is FreeReps?</h2>
+      <div>
+        <p>FreeReps is a self-hosted server that stores and visualizes your health and training data from Apple Health, Oura, Withings, Hevy and Alpha Progression. It includes a web dashboard, a correlation explorer, and an MCP interface for AI assistants.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Where is my data stored?</h2>
+      <div>
+        <p>On your own server, in a PostgreSQL database with TimescaleDB. FreeReps never sends data to any third party.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>What do I need to run FreeReps?</h2>
+      <div>
+        <p>A server (Linux or macOS) with Docker, an iPhone running the FreeReps app or <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a>, and a <a href="https://tailscale.com">Tailscale</a> account. Tailscale provides encrypted access and identity-based authentication &mdash; it's how FreeReps handles auth.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>How do I install the server?</h2>
+      <div>
+        <p>Run <code>docker compose up -d</code> with the provided <code>docker-compose.yml</code>. See the <a href="https://github.com/meltforce/freereps">GitHub README</a> for full setup instructions.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Does it work without Tailscale?</h2>
+      <div>
+        <p>No. Tailscale is required &mdash; FreeReps uses it for authentication and encrypted access. There is no built-in username/password login. You can disable Tailscale for local development (<code>tailscale.enabled: false</code>), but this removes all authentication and should never be used in production.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>What health data types are supported?</h2>
+      <div>
+        <p>FreeReps supports 100+ HealthKit data types including heart rate, blood pressure, blood glucose, sleep, workouts with GPS routes, ECG recordings, audiograms, medications, and more.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Does FreeReps support strength training workouts?</h2>
+      <div>
+        <p>Yes. In addition to HealthKit workouts, FreeReps syncs <a href="https://www.hevyapp.com/">Hevy</a> and imports <a href="https://alphaprogression.com">Alpha Progression</a> CSV exports &mdash; exercises, sets, reps, weight and effort ratings. From those it derives volume per muscle group, tonnage and estimated 1RM.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Will other data sources be supported?</h2>
+      <div>
+        <p>Oura, Withings and Hevy are integrated today, alongside Apple Health, and Alpha Progression CSV exports can be imported. If you'd like to see a specific integration, please open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>What is MCP?</h2>
+      <div>
+        <p>Model Context Protocol (MCP) lets AI assistants like Claude query your health data directly. FreeReps exposes your data as MCP tools and resources over stdio and over Streamable HTTP at <code>/mcp</code>.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Is it open source?</h2>
+      <div>
+        <p>Yes. FreeReps is open source under the MIT license. Contributions are welcome on <a href="https://github.com/meltforce/freereps">GitHub</a>.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>I found a bug / have a feature request</h2>
+      <div>
+        <p>Please open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
+      </div>
+    </section>
+  </div>
+</main>
 
-<h2>How do I install the server?</h2>
-<p>Run <code>docker compose up -d</code> with the provided <code>docker-compose.yml</code>. See the <a href="https://github.com/meltforce/freereps">GitHub README</a> for full setup instructions.</p>
+<footer class="site-footer">
+  <span class="org">Meltforce</span>
+  <nav>
+    <a href="/privacy/">Privacy Policy</a>
+    <a href="/terms/">Terms of Service</a>
+    <a href="/faq/">FAQ</a>
+    <a href="https://github.com/meltforce/freereps">GitHub</a>
+    <a href="https://github.com/meltforce/freereps/issues">Support</a>
+  </nav>
+</footer>
 
-<h2>Does it work without Tailscale?</h2>
-<p>No. Tailscale is required &mdash; FreeReps uses it for authentication and encrypted access. There is no built-in username/password login. You can disable Tailscale for local development (<code>tailscale.enabled: false</code>), but this removes all authentication and should never be used in production.</p>
-
-<h2>What health data types are supported?</h2>
-<p>FreeReps supports 100+ HealthKit data types including heart rate, blood pressure, blood glucose, sleep, workouts with GPS routes, ECG recordings, audiograms, medications, and more.</p>
-
-<h2>Does FreeReps support strength training workouts?</h2>
-<p>Yes. In addition to HealthKit workouts, FreeReps syncs <a href="https://www.hevyapp.com/">Hevy</a> and imports <a href="https://alphaprogression.com">Alpha Progression</a> CSV exports &mdash; exercises, sets, reps, weight and effort ratings. From those it derives volume per muscle group, tonnage and estimated 1RM.</p>
-
-<h2>Will other data sources be supported?</h2>
-<p>Oura, Withings and Hevy are integrated today, alongside Apple Health, and Alpha Progression CSV exports can be imported. If you'd like to see a specific integration, please open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
-
-<h2>What is MCP?</h2>
-<p>Model Context Protocol (MCP) lets AI assistants like Claude query your health data directly. FreeReps exposes your data as MCP tools and resources over stdio and over Streamable HTTP at <code>/mcp</code>.</p>
-
-<h2>Is it open source?</h2>
-<p>Yes. FreeReps is open source under the MIT license. Contributions are welcome on <a href="https://github.com/meltforce/freereps">GitHub</a>.</p>
-
-<h2>I found a bug / have a feature request</h2>
-<p>Please open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
 </body>
 </html>

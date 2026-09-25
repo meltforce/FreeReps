@@ -6,237 +6,316 @@
 <meta name="color-scheme" content="light dark">
 <title>FreeReps - Self-Hosted Health Data Server for Apple Watch &amp; Oura Ring</title>
 <meta name="description" content="Self-hosted health data server for Apple Watch and Oura Ring with web dashboard, correlation explorer, source-priority dedup, and MCP interface for AI assistants.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&amp;display=swap">
+<link rel="stylesheet" href="/assets/site.css">
 <style>
-:root {
-  --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #e5e5e5;
-  --accent: #0071e3; --card-bg: #fff; --card-border: #e5e5e5;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0a0a0a; --fg: #e5e5e5; --muted: #999; --border: #222;
-    --accent: #5ac8fa; --card-bg: #161616; --card-border: #2a2a2a;
-  }
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  background: var(--bg); color: var(--fg); line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
 /* Hero */
-.hero {
-  text-align: center; padding: 5rem 1.5rem 3rem;
-  max-width: 720px; margin: 0 auto;
-}
-.hero h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
-.hero .tagline { font-size: 1.25rem; color: var(--muted); max-width: 480px; margin: 0 auto 2rem; }
-.badges { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
-.badge {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
-  background: var(--accent); color: #fff; transition: opacity 0.15s;
-}
-.badge:hover { opacity: 0.85; text-decoration: none; }
-.badge-gh { background: var(--card-bg); color: var(--fg); border: 1px solid var(--card-border); }
-.badge-gh:hover { background: var(--border); }
-.badge svg { width: 20px; height: 20px; }
+.hero { padding: 96px var(--page-x) 64px; display: grid; gap: 20px; max-width: 1100px; }
+.hero .kicker { font-size: 11px; }
+.hero h1 { font-weight: 800; font-size: clamp(56px, 10vw, 128px); line-height: .95; letter-spacing: -.035em; }
+.hero .tagline { font-size: clamp(18px, 2.2vw, 24px); line-height: 1.4; color: var(--n700); max-width: 680px; text-wrap: pretty; }
+.hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 
-/* Screenshots */
-.screenshots {
-  max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;
+/* Stat strip, mirrors server/web/src/components/dashboard/HeroStrip.tsx */
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  border-top: 2px solid var(--text); border-bottom: 2px solid var(--text);
 }
-/* The picture element is the grid item, not the img inside it. Under
-   display:contents the <source> is hoisted into the grid as well and takes a
-   cell of its own, which leaves every second cell empty. */
-.screenshots picture { display: block; }
-.screenshots img {
-  display: block; width: 100%; border-radius: 12px;
-  border: 1px solid var(--card-border);
+.stat { padding: 32px var(--page-x); border-right: 1px solid var(--divider); display: grid; gap: 6px; align-content: start; }
+.stat:last-child { border-right: 0; }
+/* One column: the cells stack, so they are divided by a rule below instead. */
+@media (max-width: 519px) {
+  .stat { border-right: 0; border-bottom: 1px solid var(--divider); }
+  .stat:last-child { border-bottom: 0; }
 }
-.screenshots-ios {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 200px));
-  justify-content: center;
-}
-.screenshots-ios img { border: none; border-radius: 0; }
+.stat .num { font-weight: 800; font-size: 72px; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.stat .caption { font-size: 14px; color: var(--n700); }
 
-/* Lightbox */
-.screenshots img { cursor: zoom-in; }
-.lightbox {
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity 0.2s;
-  cursor: zoom-out;
+/* Web dashboard */
+#dashboard { padding: 96px var(--page-x) 0; display: grid; gap: 32px; }
+.dash-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.tabs { display: flex; flex-wrap: wrap; border: 1px solid var(--divider); }
+.tabs button {
+  font-size: 12px; padding: 7px 13px; white-space: nowrap; cursor: pointer;
+  border: 0; border-right: 1px solid var(--divider);
+  background: transparent; color: var(--text);
 }
-.lightbox.active { opacity: 1; pointer-events: auto; }
-.lightbox img {
-  max-width: 92vw; max-height: 92vh; border-radius: 12px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-  transform: scale(0.95); transition: transform 0.2s;
+.tabs button:last-child { border-right: 0; }
+.tabs button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+.shot { display: grid; gap: 14px; }
+.shot-frame {
+  padding: 0; border: 2px solid var(--text); background: var(--surface);
+  cursor: zoom-in; display: block; width: 100%;
 }
-.lightbox.active img { transform: scale(1); }
+.shot-frame img { width: 100%; }
+.shot figcaption { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: 13px; color: var(--n600); }
+.shot .counter { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+.shot .alt { flex: 1 1 240px; }
+.pager { display: flex; border: 1px solid var(--divider); }
+.pager button {
+  font-size: 13px; font-weight: 600; padding: 8px 14px; white-space: nowrap; cursor: pointer;
+  border: 0; background: transparent; color: var(--text);
+}
+.pager button + button { border-left: 1px solid var(--divider); }
+.pager button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+
+/* iOS app */
+#ios {
+  padding: 112px var(--page-x) 0; display: grid; gap: 48px; align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+}
+.ios-intro { display: grid; gap: 24px; }
+.ios-intro > p { font-size: 17px; line-height: 1.5; color: var(--n700); max-width: 560px; text-wrap: pretty; }
+.store { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.store a { display: inline-flex; flex: none; }
+.store img { height: 44px; width: auto; }
+.store span { font-size: 13px; color: var(--n600); }
+.ios-list { border-top: 2px solid var(--text); }
+.ios-list > div { padding: 16px 0; border-bottom: 1px solid var(--n300); display: grid; gap: 4px; }
+.ios-list h3 { font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.ios-list p { font-size: 14px; color: var(--n700); }
+.phones {
+  grid-column: 1 / -1; display: grid; gap: 32px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  padding-top: 16px; border-top: 2px solid var(--text);
+}
+.phones figure { display: grid; gap: 14px; justify-items: center; }
+.phones picture { display: block; width: 100%; max-width: 300px; }
+.phones img { width: 100%; }
+.phones figcaption {
+  display: flex; gap: 10px; align-items: baseline; max-width: 300px; width: 100%;
+  font-size: 13px; line-height: 1.4; color: var(--n600);
+}
+.phones figcaption span:first-child { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Features */
-.features {
-  max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;
-}
-.feature {
-  background: var(--card-bg); border: 1px solid var(--card-border);
-  border-radius: 12px; padding: 1.5rem;
-}
-.feature-icon { font-size: 1.75rem; margin-bottom: 0.5rem; }
-.feature h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
-.feature p { font-size: 0.875rem; color: var(--muted); }
+#features { padding: 112px var(--page-x) 0; display: grid; gap: 40px; }
+.feature-cols { display: grid; gap: 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.feature-col { border-top: 2px solid var(--text); }
+.feature-col > .kicker { padding: 10px 0; border-bottom: 1px solid var(--n300); }
+.feature { padding: 20px 0; border-bottom: 1px solid var(--n300); display: grid; gap: 6px; }
+.feature h3 { font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+.feature p { font-size: 14px; color: var(--n700); text-wrap: pretty; }
 
-/* Section headings */
-.section-heading {
-  text-align: center; font-size: 1.75rem; font-weight: 700;
-  margin-bottom: 0.5rem; padding-top: 2rem;
+/* CTA band */
+.cta {
+  margin-top: 112px; padding: 64px var(--page-x);
+  background: var(--surface); border-top: 2px solid var(--text);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px;
 }
-.section-sub {
-  text-align: center; color: var(--muted); margin-bottom: 2rem; font-size: 1rem;
-}
+.cta h2 { font-weight: 800; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.1; letter-spacing: -.02em; max-width: 640px; }
 
-/* Footer */
-footer {
-  text-align: center; padding: 3rem 1.5rem; color: var(--muted);
-  font-size: 0.8rem; border-top: 1px solid var(--border);
+/* Lightbox */
+.lightbox {
+  position: fixed; inset: 0; z-index: 1000; padding: 24px;
+  background: rgba(0, 0, 0, .85); cursor: zoom-out;
+  display: none; align-items: center; justify-content: center;
 }
-footer a { color: var(--muted); }
-footer a:hover { color: var(--fg); }
-footer nav { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 0.75rem; }
-
-@media (max-width: 480px) {
-  .hero h1 { font-size: 1.75rem; }
-  .hero .tagline { font-size: 1rem; }
-  .hero { padding: 3rem 1rem 2rem; }
-}
+.lightbox.active { display: flex; }
+.lightbox img { max-width: 94vw; max-height: 92vh; border: 2px solid #e7ebed; }
 </style>
 </head>
 <body>
 
-<section class="hero">
+<nav class="site-nav">
+  <a href="/" class="brand">FreeReps</a>
+  <a href="#dashboard">Dashboard</a>
+  <a href="#ios">iOS app</a>
+  <a href="#features">Features</a>
+  <a href="/faq/">FAQ</a>
+  <a href="https://github.com/meltforce/freereps" class="gh">
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<header class="hero">
+  <div class="kicker">Self-hosted &middot; Open source &middot; MIT</div>
   <h1>FreeReps</h1>
   <p class="tagline">Self-hosted health and training data server for Apple Health, Oura, Withings, Hevy and Alpha Progression &mdash; web dashboard, correlations, and MCP for AI.</p>
-  <div class="badges">
-    <a href="https://github.com/meltforce/freereps" class="badge badge-gh">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-      GitHub
-    </a>
-    <a href="https://apps.apple.com/us/app/freereps/id6760661354" class="badge">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-      App Store
-    </a>
+  <div class="actions">
+    <a href="https://github.com/meltforce/freereps" class="btn btn-primary">View on GitHub</a>
+    <a href="/faq/" class="btn btn-secondary">Read the FAQ</a>
+  </div>
+</header>
+
+<section class="stats" aria-label="FreeReps in numbers">
+  <div class="stat">
+    <div class="kicker">Sources</div>
+    <div class="num">5</div>
+    <div class="caption">Apple Health, Oura, Withings, Hevy, Alpha Progression</div>
+  </div>
+  <div class="stat">
+    <div class="kicker">MCP tools</div>
+    <div class="num">20</div>
+    <div class="caption">Plus 3 resources, over stdio and HTTP</div>
+  </div>
+  <div class="stat">
+    <div class="kicker">Binary</div>
+    <div class="num">1</div>
+    <div class="caption">Go server with the web UI embedded</div>
+  </div>
+  <div class="stat">
+    <div class="kicker">Telemetry</div>
+    <div class="num">0</div>
+    <div class="caption">Measurements stay on your server</div>
   </div>
 </section>
 
-<h2 class="section-heading">Web Dashboard</h2>
-<p class="section-sub">Your health data, beautifully visualized.</p>
-<div class="screenshots">
-  <picture>
-    <source srcset="screenshots/dashboard-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/dashboard.png" alt="Dashboard showing daily health metrics" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/sleep-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/sleep.png" alt="Sleep analysis with stage breakdown" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/workouts-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/workouts.png" alt="Workout list with heart rate zones" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/correlations-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/correlations.png" alt="Correlation explorer with scatter plot and Pearson r" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/metrics-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/metrics.png" alt="Metric explorer with time series charts" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/trends-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/trends.png" alt="Long-term trend analysis" loading="lazy">
-  </picture>
-  <img src="screenshots/claude-mcp.png" alt="Claude analyzing health data via MCP" loading="lazy">
-</div>
+<section id="dashboard">
+  <div class="dash-head">
+    <div class="heading">
+      <div class="kicker">Web Dashboard</div>
+      <h2 class="h2">Your health data, beautifully visualized.</h2>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Dashboard screens" id="tabs"></div>
+  </div>
+  <figure class="shot">
+    <button type="button" class="shot-frame" id="shot-open" aria-label="Enlarge screenshot">
+      <picture>
+        <source id="shot-dark" srcset="screenshots/dashboard-dark.png" media="(prefers-color-scheme: dark)">
+        <img id="shot-img" src="screenshots/dashboard.png" alt="Dashboard showing daily health metrics" width="2880" height="1612">
+      </picture>
+    </button>
+    <figcaption>
+      <span class="counter" id="shot-counter">01 / 07</span>
+      <span class="alt"><span id="shot-alt">Dashboard showing daily health metrics</span> &middot; Click to enlarge</span>
+      <div class="pager">
+        <button type="button" id="shot-prev" aria-label="Previous screen">&larr; Previous</button>
+        <button type="button" id="shot-next" aria-label="Next screen">Next &rarr;</button>
+      </div>
+    </figcaption>
+  </figure>
+</section>
 
-<h2 class="section-heading">iOS App</h2>
-<p class="section-sub">Sync Apple Health to your server from the app, a widget or Siri.</p>
-<div class="screenshots screenshots-ios">
-  <picture>
-    <source srcset="screenshots/ios/framed-dashboard-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/ios/framed-dashboard.png" alt="Sync dashboard with the last sync and every category" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/ios/framed-syncing-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/ios/framed-syncing.png" alt="A sync in progress with its current step" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/ios/framed-widget-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/ios/framed-widget.png" alt="Home Screen widget showing the last sync" loading="lazy">
-  </picture>
-  <picture>
-    <source srcset="screenshots/ios/framed-settings-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="screenshots/ios/framed-settings.png" alt="Settings with the server connection" loading="lazy">
-  </picture>
-</div>
+<section id="ios">
+  <div class="ios-intro">
+    <div class="heading">
+      <div class="kicker">iOS app</div>
+      <h2 class="h2">Sync Apple Health to your server from the app, a widget or Siri.</h2>
+    </div>
+    <p>FreeReps is an iOS companion app that syncs Apple HealthKit data to a FreeReps server via HTTP. Your health data flows from HealthKit on your phone to your self-hosted server &mdash; no cloud services, no third parties.</p>
+    <div class="store">
+      <a href="https://apps.apple.com/us/app/freereps/id6760661354">
+        <img src="assets/app-store-badge.svg" alt="Download on the App Store" width="120" height="40">
+      </a>
+      <span>Requires iOS 27 and a running FreeReps server</span>
+    </div>
+  </div>
+  <div class="ios-list">
+    <div>
+      <h3>Shortcuts action</h3>
+      <p>&ldquo;Sync Health Data&rdquo; for Shortcuts automations, Siri and the Action button.</p>
+    </div>
+    <div>
+      <h3>Widget</h3>
+      <p>Shows when the last sync finished and whether it succeeded; tapping it opens the app and starts a sync.</p>
+    </div>
+    <div>
+      <h3>Full sync with resumable backfill</h3>
+      <p>The first run backfills the configured range; later runs resend the 7 days before the previous run.</p>
+    </div>
+    <div>
+      <h3>Server decides what it accepts</h3>
+      <p>A fixed set of HealthKit types. Per user, the server picks which metrics it takes, and the app skips the rest before reading HealthKit.</p>
+    </div>
+  </div>
+  <div class="phones">
+    <figure>
+      <picture>
+        <source srcset="screenshots/ios/phone-dashboard-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/ios/phone-dashboard.png" alt="Sync dashboard with the last sync and every category" width="857" height="1775" loading="lazy">
+      </picture>
+      <figcaption><span>01</span><span>Sync dashboard with the last sync and every category</span></figcaption>
+    </figure>
+    <figure>
+      <picture>
+        <source srcset="screenshots/ios/phone-syncing-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/ios/phone-syncing.png" alt="A sync in progress with its current step" width="857" height="1775" loading="lazy">
+      </picture>
+      <figcaption><span>02</span><span>A sync in progress with its current step</span></figcaption>
+    </figure>
+    <figure>
+      <picture>
+        <source srcset="screenshots/ios/phone-widget-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/ios/phone-widget.png" alt="Home Screen widget showing the last sync" width="857" height="1775" loading="lazy">
+      </picture>
+      <figcaption><span>03</span><span>Home Screen widget showing the last sync</span></figcaption>
+    </figure>
+    <figure>
+      <picture>
+        <source srcset="screenshots/ios/phone-settings-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/ios/phone-settings.png" alt="Settings with the server connection" width="857" height="1775" loading="lazy">
+      </picture>
+      <figcaption><span>04</span><span>Settings with the server connection</span></figcaption>
+    </figure>
+  </div>
+</section>
 
-<h2 class="section-heading">Features</h2>
-<p class="section-sub">Everything you need, nothing you don't.</p>
-<div class="features">
-  <div class="feature">
-    <div class="feature-icon">&#x1f3e0;</div>
-    <h3>Self-Hosted</h3>
-    <p>Run on your own hardware. Docker Compose gets you running in minutes. Your data never leaves your network.</p>
+<section id="features">
+  <div class="heading">
+    <div class="kicker">Features</div>
+    <h2 class="h2">Five sources in. One database. Dashboard and MCP out.</h2>
   </div>
-  <div class="feature">
-    <div class="feature-icon">&#x2764;&#xfe0f;</div>
-    <h3>Apple Health</h3>
-    <p>The FreeReps iOS app sends only what changed since the last sync &mdash; heart rate, HRV, sleep, activity, workouts with GPS and more. <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> works as well.</p>
+  <div class="feature-cols">
+    <div class="feature-col">
+      <div class="kicker">Sources</div>
+      <div class="feature">
+        <h3>Apple Health</h3>
+        <p>The FreeReps iOS app sends only what changed since the last sync &mdash; heart rate, HRV, sleep, activity, workouts with GPS and more. <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> works as well.</p>
+      </div>
+      <div class="feature">
+        <h3>Oura Ring Integration</h3>
+        <p>Built-in Oura API v2 sync pulls readiness, sleep &amp; activity scores, HR, HRV, SpO2, stress, workouts. Automatic dedup when both sources overlap.</p>
+      </div>
+      <div class="feature">
+        <h3>Withings Integration</h3>
+        <p>Weight, body composition and blood pressure read straight from the Withings API, ahead of the copy that arrives through Apple Health.</p>
+      </div>
+      <div class="feature">
+        <h3>Strength Training</h3>
+        <p>Hevy sessions and Alpha Progression exports become volume per muscle group, tonnage and estimated 1RM &mdash; correlatable against sleep and HRV.</p>
+      </div>
+    </div>
+    <div class="feature-col">
+      <div class="kicker">Analysis</div>
+      <div class="feature">
+        <h3>Correlation Explorer</h3>
+        <p>Discover relationships between any two health metrics. See Pearson correlations with interactive scatter plots.</p>
+      </div>
+      <div class="feature">
+        <h3>MCP for AI</h3>
+        <p>Query your health data from Claude or any MCP-compatible assistant. 20 tools and 3 resources over stdio and Streamable HTTP.</p>
+      </div>
+    </div>
+    <div class="feature-col">
+      <div class="kicker">Operations</div>
+      <div class="feature">
+        <h3>Self-Hosted</h3>
+        <p>Run on your own hardware. Docker Compose gets you running in minutes. Your data never leaves your network.</p>
+      </div>
+      <div class="feature">
+        <h3>Tailscale Auth</h3>
+        <p>Zero-config TLS and identity-based access via Tailscale. No passwords, no exposed ports.</p>
+      </div>
+      <div class="feature">
+        <h3>Open Source</h3>
+        <p>MIT licensed. Go backend, React frontend. Single binary with embedded web UI.</p>
+      </div>
+    </div>
   </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f48d;</div>
-    <h3>Oura Ring Integration</h3>
-    <p>Built-in Oura API v2 sync pulls readiness, sleep &amp; activity scores, HR, HRV, SpO2, stress, workouts. Automatic dedup when both sources overlap.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x2696;&#xfe0f;</div>
-    <h3>Withings Integration</h3>
-    <p>Weight, body composition and blood pressure read straight from the Withings API, ahead of the copy that arrives through Apple Health.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f3cb;&#xfe0f;</div>
-    <h3>Strength Training</h3>
-    <p>Hevy sessions and Alpha Progression exports become volume per muscle group, tonnage and estimated 1RM &mdash; correlatable against sleep and HRV.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f4ca;</div>
-    <h3>Correlation Explorer</h3>
-    <p>Discover relationships between any two health metrics. See Pearson correlations with interactive scatter plots.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f916;</div>
-    <h3>MCP for AI</h3>
-    <p>Query your health data from Claude or any MCP-compatible assistant. 20 tools and 3 resources over stdio and Streamable HTTP.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f512;</div>
-    <h3>Tailscale Auth</h3>
-    <p>Zero-config TLS and identity-based access via Tailscale. No passwords, no exposed ports.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">&#x1f4bb;</div>
-    <h3>Open Source</h3>
-    <p>MIT licensed. Go backend, React frontend. Single binary with embedded web UI.</p>
-  </div>
-</div>
+</section>
 
-<footer>
+<section class="cta">
+  <h2>Run it on your own hardware.</h2>
+  <a href="https://github.com/meltforce/freereps" class="btn btn-primary">Get started on GitHub</a>
+</section>
+
+<footer class="site-footer">
+  <span class="org">Meltforce</span>
   <nav>
     <a href="/privacy/">Privacy Policy</a>
     <a href="/terms/">Terms of Service</a>
@@ -244,28 +323,84 @@ footer nav { display: flex; gap: 1.5rem; justify-content: center; margin-bottom:
     <a href="https://github.com/meltforce/freereps">GitHub</a>
     <a href="https://github.com/meltforce/freereps/issues">Support</a>
   </nav>
-  <p>Meltforce</p>
 </footer>
 
 <div class="lightbox" id="lightbox"><img src="" alt=""></div>
+
 <script>
-(function() {
+(function () {
+  var shots = [
+    { label: 'Today', file: 'dashboard', alt: 'Dashboard showing daily health metrics' },
+    { label: 'Sleep', file: 'sleep', alt: 'Sleep analysis with stage breakdown' },
+    { label: 'Workouts', file: 'workouts', alt: 'Workout list with heart rate zones' },
+    { label: 'Correlations', file: 'correlations', alt: 'Correlation explorer with scatter plot and Pearson r' },
+    { label: 'Metrics', file: 'metrics', alt: 'Metric explorer with time series charts' },
+    { label: 'Trends', file: 'trends', alt: 'Long-term trend analysis' },
+    // No dark capture exists for the MCP screenshot.
+    { label: 'MCP', file: 'claude-mcp', alt: 'Claude analyzing health data via MCP', noDark: true }
+  ];
+  var active = 0;
+  var tabs = document.getElementById('tabs');
+  var img = document.getElementById('shot-img');
+  var dark = document.getElementById('shot-dark');
+  var counter = document.getElementById('shot-counter');
+  var altText = document.getElementById('shot-alt');
   var lb = document.getElementById('lightbox');
   var lbImg = lb.querySelector('img');
-  document.querySelectorAll('.screenshots img').forEach(function(img) {
-    img.addEventListener('click', function() {
-      // currentSrc, not src: inside a <picture> the src attribute always names
-      // the light file, while currentSrc is the variant the browser resolved
-      // for the active colour scheme.
-      lbImg.src = this.currentSrc || this.src;
-      lbImg.alt = this.alt;
-      lb.classList.add('active');
+  var pad = function (n) { return String(n).padStart(2, '0'); };
+
+  var buttons = shots.map(function (s, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.textContent = s.label;
+    b.addEventListener('click', function () { show(i); });
+    tabs.appendChild(b);
+    return b;
+  });
+
+  function show(i) {
+    var n = shots.length;
+    active = (i + n) % n;
+    var s = shots[active];
+    dark.srcset = 'screenshots/' + s.file + (s.noDark ? '' : '-dark') + '.png';
+    img.src = 'screenshots/' + s.file + '.png';
+    img.alt = s.alt;
+    altText.textContent = s.alt;
+    counter.textContent = pad(active + 1) + ' / ' + pad(n);
+    buttons.forEach(function (b, j) {
+      b.setAttribute('aria-selected', j === active ? 'true' : 'false');
+      b.tabIndex = j === active ? 0 : -1;
     });
+    if (lb.classList.contains('active')) openLightbox();
+  }
+
+  function openLightbox() {
+    // currentSrc, not src: inside a <picture> the src attribute always names
+    // the light file, while currentSrc is the variant the browser resolved for
+    // the active colour scheme. Right after a switch currentSrc can still name
+    // the previous image, so wait for the new one to load.
+    var apply = function () {
+      lbImg.src = img.currentSrc || img.src;
+      lbImg.alt = img.alt;
+    };
+    if (img.complete) apply(); else img.addEventListener('load', apply, { once: true });
+    lb.classList.add('active');
+  }
+
+  document.getElementById('shot-prev').addEventListener('click', function () { show(active - 1); });
+  document.getElementById('shot-next').addEventListener('click', function () { show(active + 1); });
+  document.getElementById('shot-open').addEventListener('click', openLightbox);
+  lb.addEventListener('click', function () { lb.classList.remove('active'); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { lb.classList.remove('active'); return; }
+    // Leave arrow keys to text fields, which use them for the caret.
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'ArrowRight') show(active + 1);
+    if (e.key === 'ArrowLeft') show(active - 1);
   });
-  lb.addEventListener('click', function() { lb.classList.remove('active'); });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') lb.classList.remove('active');
-  });
+
+  show(0);
 })();
 </script>
 </body>

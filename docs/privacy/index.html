@@ -3,77 +3,121 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Privacy Policy - FreeReps</title>
-<style>
-:root {
-  --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #e5e5e5; --accent: #0071e3;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #111; --fg: #e5e5e5; --muted: #999; --border: #333; --accent: #5ac8fa; }
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  background: var(--bg); color: var(--fg); line-height: 1.6;
-  max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem;
-}
-h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
-h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.5rem; }
-p, ul { margin-bottom: 1rem; }
-ul { padding-left: 1.5rem; }
-li { margin-bottom: 0.25rem; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-.meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
-.back { display: inline-block; margin-bottom: 2rem; font-size: 0.875rem; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&amp;display=swap">
+<link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
-<a href="/" class="back">&larr; Back to FreeReps</a>
-<h1>Privacy Policy</h1>
-<p class="meta">Last updated: September 25, 2026</p>
 
-<h2>Overview</h2>
-<p>FreeReps is a self-hosted health data server. Your data stays on your own infrastructure &mdash; we never collect, store, or transmit your health data to any third-party service.</p>
+<nav class="site-nav">
+  <a href="/" class="brand">FreeReps</a>
+  <a href="/#dashboard">Dashboard</a>
+  <a href="/#ios">iOS app</a>
+  <a href="/#features">Features</a>
+  <a href="/faq/">FAQ</a>
+  <a href="https://github.com/meltforce/freereps" class="gh">
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
 
-<h2>Data Collection</h2>
-<p>The FreeReps iOS app reads the following data from Apple Health and sends it to your FreeReps server:</p>
-<ul>
-  <li>Activity and energy: steps, distances, active and resting energy, exercise, move and stand time, flights climbed, time in daylight, effort scores</li>
-  <li>Body measurements: weight, body fat, lean body mass</li>
-  <li>Vitals: heart rate, heart rate variability, resting and walking heart rate, heart rate recovery, respiratory rate, blood oxygen, VO2 max, body and wrist temperature</li>
-  <li>Blood pressure</li>
-  <li>Sleep analysis and mindful sessions</li>
-  <li>Workouts (type, duration, distance, heart rate, GPS routes) and activity summaries (Move, Exercise, Stand rings)</li>
-  <li>Caffeine and water intake</li>
-  <li>State of mind entries</li>
-</ul>
-<p>The app does not read clinical records, medications, vision prescriptions, ECG recordings, audiograms, symptoms, reproductive health data or nutrition beyond caffeine and water. In the server's settings you can switch off any of the data above; the app then stops sending it.</p>
-<p>If you use <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> instead, it sends the data types you configure in it to the same server.</p>
-<p>This data is sent exclusively to your self-hosted FreeReps server. No data is sent to Meltforce, Apple (beyond HealthKit), or any other third party.</p>
+<header class="page-header">
+  <div class="kicker">Legal</div>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Last updated: September 25, 2026</p>
+</header>
 
-<h2>Connected Services</h2>
-<p>If you connect them, your server reads data from Oura, Withings and Hevy using credentials you register yourself. Those credentials and the resulting access tokens are stored in your own database. Alpha Progression CSV exports you import from the app or the web interface are stored there as well. The requests go from your server to the provider directly; they do not pass through Meltforce.</p>
+<main class="page-body">
+  <div>
+    <section class="row">
+      <h2>Overview</h2>
+      <div>
+        <p>FreeReps is a self-hosted health data server. Your data stays on your own infrastructure &mdash; we never collect, store, or transmit your health data to any third-party service.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Data Collection</h2>
+      <div>
+        <p>The FreeReps iOS app reads the following data from Apple Health and sends it to your FreeReps server:</p>
+        <ul>
+          <li>Activity and energy: steps, distances, active and resting energy, exercise, move and stand time, flights climbed, time in daylight, effort scores</li>
+          <li>Body measurements: weight, body fat, lean body mass</li>
+          <li>Vitals: heart rate, heart rate variability, resting and walking heart rate, heart rate recovery, respiratory rate, blood oxygen, VO2 max, body and wrist temperature</li>
+          <li>Blood pressure</li>
+          <li>Sleep analysis and mindful sessions</li>
+          <li>Workouts (type, duration, distance, heart rate, GPS routes) and activity summaries (Move, Exercise, Stand rings)</li>
+          <li>Caffeine and water intake</li>
+          <li>State of mind entries</li>
+        </ul>
+        <p>The app does not read clinical records, medications, vision prescriptions, ECG recordings, audiograms, symptoms, reproductive health data or nutrition beyond caffeine and water. In the server's settings you can switch off any of the data above; the app then stops sending it.</p>
+        <p>If you use <a href="https://www.healthyapps.dev/apps/health-auto-export/">Health Auto Export</a> instead, it sends the data types you configure in it to the same server.</p>
+        <p>This data is sent exclusively to your self-hosted FreeReps server. No data is sent to Meltforce, Apple (beyond HealthKit), or any other third party.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Connected Services</h2>
+      <div>
+        <p>If you connect them, your server reads data from Oura, Withings and Hevy using credentials you register yourself. Those credentials and the resulting access tokens are stored in your own database. Alpha Progression CSV exports you import from the app or the web interface are stored there as well. The requests go from your server to the provider directly; they do not pass through Meltforce.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Data Storage</h2>
+      <div>
+        <p>All health data is stored in a PostgreSQL database on your own server. You are responsible for the security and backup of your data. FreeReps supports Tailscale for encrypted, authenticated access.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Tracking</h2>
+      <div>
+        <p>FreeReps does not track you. Neither the app nor the server contains analytics, advertising SDKs or telemetry. There are no third-party tracking domains.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Third-Party Services</h2>
+      <div>
+        <p>FreeReps itself uses no third-party services. Your server talks to the data providers you connect, and to nothing else.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Data Deletion</h2>
+      <div>
+        <p>Since all data is stored on your own server, you have full control over deletion. You can delete data directly from the database at any time. Uninstalling the app removes all local configuration from your device.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Children's Privacy</h2>
+      <div>
+        <p>FreeReps is not directed at children under 13. We do not knowingly collect data from children.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Changes</h2>
+      <div>
+        <p>Updates to this policy will be posted on this page with a revised date.</p>
+      </div>
+    </section>
+    <section class="row">
+      <h2>Contact</h2>
+      <div>
+        <p>For questions about this policy, open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
+      </div>
+    </section>
+  </div>
+</main>
 
-<h2>Data Storage</h2>
-<p>All health data is stored in a PostgreSQL database on your own server. You are responsible for the security and backup of your data. FreeReps supports Tailscale for encrypted, authenticated access.</p>
+<footer class="site-footer">
+  <span class="org">Meltforce</span>
+  <nav>
+    <a href="/privacy/">Privacy Policy</a>
+    <a href="/terms/">Terms of Service</a>
+    <a href="/faq/">FAQ</a>
+    <a href="https://github.com/meltforce/freereps">GitHub</a>
+    <a href="https://github.com/meltforce/freereps/issues">Support</a>
+  </nav>
+</footer>
 
-<h2>Tracking</h2>
-<p>FreeReps does not track you. Neither the app nor the server contains analytics, advertising SDKs or telemetry. There are no third-party tracking domains.</p>
-
-<h2>Third-Party Services</h2>
-<p>FreeReps itself uses no third-party services. Your server talks to the data providers you connect, and to nothing else.</p>
-
-<h2>Data Deletion</h2>
-<p>Since all data is stored on your own server, you have full control over deletion. You can delete data directly from the database at any time. Uninstalling the app removes all local configuration from your device.</p>
-
-<h2>Children's Privacy</h2>
-<p>FreeReps is not directed at children under 13. We do not knowingly collect data from children.</p>
-
-<h2>Changes</h2>
-<p>Updates to this policy will be posted on this page with a revised date.</p>
-
-<h2>Contact</h2>
-<p>For questions about this policy, open an issue on <a href="https://github.com/meltforce/freereps/issues">GitHub</a>.</p>
 </body>
 </html>

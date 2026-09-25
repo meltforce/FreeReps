@@ -5,7 +5,9 @@ Reads release/screenshots/<shot>-<mode>.png (written by prepare-screenshots.py)
 and writes:
 - release/framed/<nn>-<shot>-<mode>.png, the App Store set (6.9", 1320 x 2868)
 - docs/screenshots/ios/framed-<shot>.png and framed-<shot>-dark.png, the same
-  images for the website and the app README
+  images for the app README
+- docs/screenshots/ios/phone-<shot>.png and phone-<shot>-dark.png, the phone
+  alone on a transparent background, for the website
 """
 
 import shutil
@@ -123,6 +125,12 @@ def generate(number, shot, headline_parts, subtext, kind, mode):
     capture = Image.open(source)
     layer, top, bottom = phone_layer(capture.convert("RGB"))
     canvas.alpha_composite(layer)
+
+    # The website shows the phone without headline and canvas, on its own
+    # background in either colour scheme, so it gets the transparent layer
+    # cropped to the device.
+    suffix = "" if mode == "light" else "-dark"
+    layer.crop(layer.getbbox()).save(DOCS / f"phone-{shot}{suffix}.png", "PNG")
 
     draw = ImageDraw.Draw(canvas)
     box = draw.textbbox((0, 0), "Xg", font=headline_font(headline_parts))
