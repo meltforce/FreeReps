@@ -36,9 +36,11 @@ struct FreeRepsShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: SyncHealthDataIntent(),
+            // German variants live in Resources/AppShortcuts.xcstrings, keyed by these phrases.
             phrases: [
                 "Sync \(.applicationName)",
                 "Sync health data with \(.applicationName)",
+                "Start a \(.applicationName) sync",
             ],
             shortTitle: "Sync Health Data",
             systemImageName: "arrow.triangle.2.circlepath"

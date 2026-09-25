@@ -110,7 +110,10 @@ struct SyncDashboardView: View {
         return LastSyncRecord(finishedAt: date, outcome: .succeeded, message: nil)
     }
 
+    // While a sync runs the card shows that run, not the outcome of the previous one.
+
     private var statusColor: Color {
+        if vm.isAnySyncRunning { return Color("Brand") }
         switch lastRecord?.outcome {
         case .succeeded: return Color("Brand")
         case .failed: return Color("StatusWarning")
@@ -119,6 +122,7 @@ struct SyncDashboardView: View {
     }
 
     private var statusSymbol: String {
+        if vm.isAnySyncRunning { return "arrow.triangle.2.circlepath" }
         switch lastRecord?.outcome {
         case .succeeded: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.circle.fill"
@@ -128,6 +132,7 @@ struct SyncDashboardView: View {
     }
 
     private var statusTitle: String {
+        if vm.isAnySyncRunning { return "Syncing\u{2026}" }
         switch lastRecord?.outcome {
         case .succeeded: return "Synced"
         case .failed: return "Sync failed"
@@ -137,6 +142,9 @@ struct SyncDashboardView: View {
     }
 
     private func statusSubtitle(now: Date) -> String {
+        if vm.isAnySyncRunning {
+            return vm.currentOperation.isEmpty ? "Starting\u{2026}" : vm.currentOperation
+        }
         guard let record = lastRecord else { return "Run Full Sync to start" }
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .full
@@ -158,6 +166,10 @@ struct SyncDashboardView: View {
                     Image(systemName: statusSymbol)
                         .font(.system(size: 32))
                         .foregroundStyle(statusColor)
+                        .symbolEffect(.rotate, options: .repeat(.continuous), isActive: vm.isAnySyncRunning)
+                        // A new view per state: otherwise the rotation finishes its turn on
+                        // the outcome symbol after the sync has ended.
+                        .id(vm.isAnySyncRunning)
                 }
                 .frame(width: 52, height: 52)
 
@@ -170,12 +182,6 @@ struct SyncDashboardView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if vm.isAnySyncRunning, !vm.currentOperation.isEmpty {
-                        Text(vm.currentOperation)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
                 }
 
                 Spacer(minLength: 0)
@@ -268,12 +274,14 @@ struct SyncDashboardView: View {
                 )
             }
 
-            if vm.isFullSyncRunning {
+            // With "Keep Screen On" enabled (the default) the app keeps the display awake
+            // itself; the notice is only needed when that is switched off.
+            if vm.isFullSyncRunning && !keepScreenOnDuringSync {
                 noticeBanner(
                     icon: "lock.open.display",
                     color: .blue,
                     title: "Keep Screen On",
-                    message: "Apple HealthKit is not accessible when the device is locked. Keep the screen on until the full sync completes."
+                    message: "Apple HealthKit is not accessible when the device is locked. Keep the screen on until the sync completes, or enable Keep Screen On in Settings."
                 )
             }
 

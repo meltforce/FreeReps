@@ -44,6 +44,8 @@
 		AABB00000000000000020051 /* SyncHealthDataIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010051 /* SyncHealthDataIntent.swift */; };
 		AABB00000000000000020052 /* LastSyncWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010052 /* LastSyncWidget.swift */; };
 		AABB00000000000000020054 /* SyncLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010050 /* SyncLink.swift */; };
+		AABB00000000000000020055 /* SyncAnchors.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010054 /* SyncAnchors.swift */; };
+		AABB00000000000000020057 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010056 /* AppShortcuts.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,6 +113,8 @@
 		AABB00000000000000010050 /* SyncLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLink.swift; sourceTree = "<group>"; };
 		AABB00000000000000010051 /* SyncHealthDataIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncHealthDataIntent.swift; sourceTree = "<group>"; };
 		AABB00000000000000010052 /* LastSyncWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastSyncWidget.swift; sourceTree = "<group>"; };
+		AABB00000000000000010054 /* SyncAnchors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAnchors.swift; sourceTree = "<group>"; };
+		AABB00000000000000010056 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -183,6 +187,7 @@
 				AABB00000000000000010041 /* FreeRepsService.swift */,
 				AABB00000000000000010009 /* HealthKitService.swift */,
 				AABB0000000000000001000A /* SyncService.swift */,
+				AABB00000000000000010054 /* SyncAnchors.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -233,6 +238,7 @@
 				AABB00000000000000010018 /* Info.plist */,
 				AABB00000000000000010019 /* FreeReps.entitlements */,
 				AABB00000000000000010025 /* Assets.xcassets */,
+				AABB00000000000000010056 /* AppShortcuts.xcstrings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -359,6 +365,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				de,
 				Base,
 			);
 			mainGroup = AABB00000000000000030001;
@@ -379,6 +386,7 @@
 			files = (
 				15A72D692F6873AD0027D27A /* PrivacyInfo.xcprivacy in Resources */,
 				AABB00000000000000020026 /* Assets.xcassets in Resources */,
+				AABB00000000000000020057 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +427,7 @@
 				AABB00000000000000020024 /* SyncActivityAttributes.swift in Sources */,
 				AABB00000000000000020050 /* SyncLink.swift in Sources */,
 				AABB00000000000000020051 /* SyncHealthDataIntent.swift in Sources */,
+				AABB00000000000000020055 /* SyncAnchors.swift in Sources */,
 				AABB00000000000000020043 /* ImportState.swift in Sources */,
 				AABB00000000000000020044 /* ImportResultView.swift in Sources */,
 			);

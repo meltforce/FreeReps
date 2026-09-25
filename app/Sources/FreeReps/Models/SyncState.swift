@@ -94,6 +94,7 @@ class SyncState: ObservableObject {
     }
 
     func resetAllLocalState() {
+        SyncAnchors.clear()
         backfillCursors = [:]
         backfillAnchorDate = nil
         hasCompletedFullSync = false

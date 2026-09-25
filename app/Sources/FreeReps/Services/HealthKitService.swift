@@ -563,6 +563,45 @@ final class HealthKitService {
         }
     }
 
+    /// Same buckets as `queryCumulativeStatistics`, one `HKStatisticsQuery` per bucket.
+    /// Fallback for the collection query failing with "Unable to invalidate interval:
+    /// no data source available" (HKError code 3) for some ranges on iOS 27. Summing
+    /// the samples instead would count steps twice where iPhone and Watch both recorded
+    /// them; a statistics query merges overlapping sources the way the collection query
+    /// does.
+    func queryCumulativeStatisticsPerBucket(
+        typeID: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        from startDate: Date,
+        until endDate: Date,
+        interval: TimeInterval
+    ) async throws -> [CumulativeBucket] {
+        guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
+        let dayStart = Calendar.current.startOfDay(for: startDate)
+        var bucketStart = dayStart.addingTimeInterval(floor(startDate.timeIntervalSince(dayStart) / interval) * interval)
+        var buckets: [CumulativeBucket] = []
+        while bucketStart < endDate {
+            try Task.checkCancellation()
+            let bucketEnd = bucketStart.addingTimeInterval(interval)
+            let predicate = HKQuery.predicateForSamples(withStart: bucketStart, end: bucketEnd, options: .strictStartDate)
+            let sum: Double? = try await withCheckedThrowingContinuation { cont in
+                let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, error in
+                    if let error = error as? HKError, error.code == .errorNoData {
+                        cont.resume(returning: nil)
+                    } else if let error {
+                        cont.resume(throwing: error)
+                    } else {
+                        cont.resume(returning: stats?.sumQuantity()?.doubleValue(for: unit))
+                    }
+                }
+                store.execute(query)
+            }
+            if let sum { buckets.append(CumulativeBucket(startDate: bucketStart, sum: sum)) }
+            bucketStart = bucketEnd
+        }
+        return buckets
+    }
+
     /// Lightweight existence check — returns true if at least one sample exists in the date range.
     func sampleExists(for sampleType: HKSampleType, from startDate: Date, to endDate: Date) async -> Bool {
         await withCheckedContinuation { continuation in
@@ -680,21 +719,44 @@ final class HealthKitService {
         }
     }
 
-    // MARK: - Observer Queries
+    // MARK: - Anchored change detection
+    //
+    // The incremental sync asks HealthKit what was added since a stored anchor, not
+    // which samples fall after a date: samples arrive with timestamps before the
+    // previous sync (Watch transfer, Oura writing the night later), and a date filter
+    // on its own would drop them. Only the time spans of the added samples are
+    // returned; the caller re-sends those spans through the date-range sync functions.
 
-    func enableBackgroundDelivery(completion: @escaping (Error?) -> Void) {
-        let readTypes = HealthDataTypes.allReadTypes
-        var remaining = readTypes.count
-        var firstError: Error?
-
-        for type in readTypes {
-            store.enableBackgroundDelivery(for: type, frequency: .immediate) { _, error in
-                if let error = error { firstError = error }
-                remaining -= 1
-                if remaining == 0 { completion(firstError) }
+    /// Time spans of the samples added to `type` since `anchor` whose time lies after
+    /// `notBefore`, and the anchor to store once they have been sent. Without an anchor
+    /// this is every sample after `notBefore`, which is how a type starts being tracked:
+    /// an anchor taken without reading (a query that matches nothing) turned out not to
+    /// mark the current position for every type on iOS 27, and a nil anchor without the
+    /// bound returns the whole history. Deletions are not reported: the server keeps
+    /// rows it has received, whatever happens to the sample in HealthKit afterwards.
+    func addedSampleSpans(
+        for type: HKSampleType, since anchor: HKQueryAnchor?, notBefore: Date
+    ) async throws -> (spans: [DateInterval], newAnchor: HKQueryAnchor?) {
+        let pageSize = 10_000
+        let window = HKQuery.predicateForSamples(withStart: notBefore, end: nil)
+        var spans: [DateInterval] = []
+        var cursor = anchor
+        while true {
+            let (samples, next): ([HKSample], HKQueryAnchor?) = try await withCheckedThrowingContinuation { cont in
+                let query = HKAnchoredObjectQuery(type: type, predicate: window, anchor: cursor, limit: pageSize) { _, added, _, newAnchor, error in
+                    if let error {
+                        cont.resume(throwing: error)
+                    } else {
+                        cont.resume(returning: (added ?? [], newAnchor))
+                    }
+                }
+                store.execute(query)
             }
+            spans.append(contentsOf: samples.map { DateInterval(start: $0.startDate, end: max($0.startDate, $0.endDate)) })
+            cursor = next ?? cursor
+            if samples.count < pageSize { break }
         }
-        if readTypes.isEmpty { completion(nil) }
+        return (spans, cursor)
     }
 
     // MARK: - Sample counts (for status display)

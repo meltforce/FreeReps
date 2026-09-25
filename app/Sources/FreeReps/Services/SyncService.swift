@@ -54,6 +54,12 @@ final class SyncService: ObservableObject {
     /// handler can cancel the Swift Task when iOS reclaims background time.
     var taskForCancellation: Task<Void, Never>?
 
+    /// The "Keep Screen On" setting; on unless switched off. HealthKit rejects reads
+    /// once the device locks, so an awake display keeps a long sync readable.
+    static var keepScreenOn: Bool {
+        UserDefaults.standard.object(forKey: "keepScreenOnDuringSync") as? Bool ?? true
+    }
+
     // Class-level flag: true while any SyncService instance is syncing.
     @MainActor static private(set) var isSyncRunning = false
 
@@ -240,8 +246,15 @@ final class SyncService: ObservableObject {
 
     // MARK: - Full sync
 
+    /// The one entry point for every sync. After a completed backfill only what
+    /// HealthKit reports as added is sent; until then the windowed backfill runs,
+    /// or resumes.
     func runFullSync(config: FreeRepsConfig) async {
-        await runHistoricalBackfill(config: config)
+        if syncState.hasCompletedFullSync {
+            await runAnchoredSync(config: config)
+        } else {
+            await runHistoricalBackfill(config: config)
+        }
     }
 
     // MARK: - Single-category sync
@@ -338,7 +351,7 @@ final class SyncService: ObservableObject {
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: true)
 
-        UIApplication.shared.isIdleTimerDisabled = true
+        UIApplication.shared.isIdleTimerDisabled = Self.keepScreenOn
         defer { UIApplication.shared.isIdleTimerDisabled = false }
 
         // Extra time when the user leaves the app mid-sync. On expiry the sync is cancelled
@@ -359,16 +372,7 @@ final class SyncService: ObservableObject {
         let earliest = config.backfillStartDate
         let historicalStart: Date
 
-        if let previousAnchor = syncState.backfillAnchorDate, syncState.hasCompletedFullSync {
-            // A full backfill previously completed. Re-run with a 7-day lookback so samples
-            // that arrived in HealthKit after the previous anchor (with past startDates) are
-            // captured. FreeReps uses ON CONFLICT DO NOTHING, making this safe.
-            historicalStart = previousAnchor.addingTimeInterval(-7 * 24 * 3600)
-            syncState.backfillAnchorDate = Date()
-            syncState.backfillCursors.removeAll()
-            syncState.hasCompletedFullSync = false
-            syncState.persist()
-        } else if syncState.backfillAnchorDate != nil {
+        if syncState.backfillAnchorDate != nil {
             // Anchor exists but sync hasn't completed — resuming an interrupted backfill.
             // If backfill range was shortened, clear cursors that predate the new start.
             historicalStart = earliest
@@ -528,6 +532,224 @@ final class SyncService: ObservableObject {
                     syncState.categories[i].status = .failed(error.localizedDescription)
                 }
             }
+            syncState.persist()
+        }
+
+        syncState.isFullSyncRunning = false
+    }
+
+    // MARK: - Anchored sync
+
+    /// A HealthKit sample type the anchored sync tracks, and how to re-send a time
+    /// range of it.
+    private struct AnchoredTarget {
+        let id: String
+        let name: String
+        let categoryID: String
+        let type: HKSampleType
+        /// Bucket length the type is aggregated into on the way out; a changed range is
+        /// widened to whole buckets so a bucket is always re-sent complete.
+        let bucket: TimeInterval?
+        /// Metric names the server may have disabled; the target is skipped when all are.
+        let metrics: [String]
+        let sync: (Date, Date) async throws -> Int
+    }
+
+    private func anchoredTargets() -> [AnchoredTarget] {
+        var targets: [AnchoredTarget] = []
+        for desc in HealthDataTypes.allQuantityTypes {
+            guard let type = desc.hkType else { continue }
+            let bucket: TimeInterval?
+            switch desc.syncStrategy {
+            case .individual: bucket = nil
+            case .aggregate(let interval), .aggregateCumulative(let interval): bucket = interval
+            }
+            targets.append(AnchoredTarget(
+                id: desc.id, name: desc.displayName, categoryID: "qty_\(desc.category.rawValue)",
+                type: type, bucket: bucket, metrics: hkToFreeRepsMetricName[desc.id].map { [$0] } ?? [],
+                sync: { [self] start, end in try await syncQuantityType(typeDesc: desc, since: start, until: end) }
+            ))
+        }
+        for desc in HealthDataTypes.allCategoryTypes {
+            guard let type = desc.hkType else { continue }
+            let isSleep = desc.id == HKCategoryTypeIdentifier.sleepAnalysis.rawValue
+            targets.append(AnchoredTarget(
+                id: desc.id, name: desc.displayName, categoryID: "cat_category",
+                type: type, bucket: nil, metrics: isSleep ? ["sleep_analysis"] : [],
+                sync: { [self] start, end in try await syncCategorySamples(since: start, until: end, types: [desc]) }
+            ))
+        }
+        targets.append(AnchoredTarget(
+            id: "workouts", name: "Workouts", categoryID: "cat_workouts",
+            type: HKObjectType.workoutType(), bucket: nil, metrics: [],
+            sync: { [self] start, end in try await syncWorkouts(since: start, until: end) }
+        ))
+        targets.append(AnchoredTarget(
+            id: "workout_routes", name: "Workout Routes", categoryID: "cat_workout_routes",
+            type: HKSeriesType.workoutRoute(), bucket: nil, metrics: [],
+            sync: { [self] start, end in try await syncWorkoutRoutes(since: start, until: end) }
+        ))
+        if let bp = HKObjectType.correlationType(forIdentifier: .bloodPressure) {
+            targets.append(AnchoredTarget(
+                id: "blood_pressure", name: "Blood Pressure", categoryID: "cat_bp",
+                type: bp, bucket: nil, metrics: ["blood_pressure_systolic", "blood_pressure_diastolic"],
+                sync: { [self] start, end in try await syncBloodPressure(since: start, until: end) }
+            ))
+        }
+        if #available(iOS 18, *) {
+            targets.append(AnchoredTarget(
+                id: "state_of_mind", name: "State of Mind", categoryID: "cat_state_of_mind",
+                type: HKObjectType.stateOfMindType(), bucket: nil, metrics: [],
+                sync: { [self] start, end in try await syncStateOfMind(since: start, until: end) }
+            ))
+        }
+        return targets
+    }
+
+    /// Widens each span to whole buckets (aligned to local midnight, as the statistics
+    /// queries are) and merges spans less than an hour apart, so a burst of samples
+    /// becomes one query instead of hundreds.
+    static func mergedRanges(_ spans: [DateInterval], bucket: TimeInterval?) -> [DateInterval] {
+        let calendar = Calendar.current
+        func floorToBucket(_ date: Date) -> Date {
+            guard let bucket else { return date }
+            let day = calendar.startOfDay(for: date)
+            return day.addingTimeInterval(floor(date.timeIntervalSince(day) / bucket) * bucket)
+        }
+        let widened = spans.map { span -> DateInterval in
+            let start = floorToBucket(span.start)
+            // The range end is exclusive; one second past the last start keeps an
+            // individual sample, and a full bucket past the floor keeps an aggregate.
+            let end = bucket.map { floorToBucket(span.end).addingTimeInterval($0) } ?? span.end.addingTimeInterval(1)
+            return DateInterval(start: start, end: max(end, start.addingTimeInterval(1)))
+        }.sorted { $0.start < $1.start }
+
+        var merged: [DateInterval] = []
+        for range in widened {
+            if let last = merged.last, range.start <= last.end.addingTimeInterval(3600) {
+                merged[merged.count - 1] = DateInterval(start: last.start, end: max(last.end, range.end))
+            } else {
+                merged.append(range)
+            }
+        }
+        return merged
+    }
+
+    /// How far back an added sample may be dated and still be sent. A sample HealthKit
+    /// receives later than this after its own time is not sent — the same bound the
+    /// 7-day re-send had. It also bounds the first anchored sync of a type, which has
+    /// no anchor yet and reads this window once.
+    static let anchoredLookback: TimeInterval = 7 * 24 * 3600
+
+    /// Sends what HealthKit added since each type's anchor, then stores the new anchor.
+    /// Once a day the last 24 hours are re-sent in full as well, for changes an anchor
+    /// does not report (a deleted sample, an anchor lost to a crash between send and save).
+    func runAnchoredSync(config: FreeRepsConfig) async {
+        guard !syncState.isAnySyncRunning else { return }
+        syncState.isFullSyncRunning = true
+        SyncService.isSyncRunning = true
+        defer { SyncService.isSyncRunning = false }
+        syncState.errorMessage = nil
+        syncState.currentOperation = "Connecting\u{2026}"
+        startLiveActivity(isFullSync: false)
+
+        UIApplication.shared.isIdleTimerDisabled = Self.keepScreenOn
+        defer { UIApplication.shared.isIdleTimerDisabled = false }
+
+        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+        bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "health-anchored-sync") {
+            self.taskForCancellation?.cancel()
+            UIApplication.shared.endBackgroundTask(bgTaskID)
+            bgTaskID = .invalid
+        }
+        defer {
+            if bgTaskID != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTaskID)
+            }
+        }
+
+        let now = Date()
+        let dailyWindow: DateInterval? = {
+            if let last = SyncAnchors.lastDailyResend, now.timeIntervalSince(last) < 24 * 3600 { return nil }
+            return DateInterval(start: now.addingTimeInterval(-24 * 3600), end: now)
+        }()
+        let anchors = SyncAnchors.load()
+
+        do {
+            connectFreeReps(config: config)
+            guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
+            try await loadDisabledMetrics()
+
+            var failed: [String] = []
+            var total = 0
+            for target in anchoredTargets() {
+                try Task.checkCancellation()
+                // A disabled type keeps its anchor, so re-enabling it sends what was
+                // added in the meantime.
+                if !target.metrics.isEmpty, target.metrics.allSatisfy({ disabledMetrics.contains($0) }) { continue }
+                syncState.currentOperation = "Syncing \(target.name)\u{2026}"
+                do {
+                    let (spans, newAnchor) = try await healthKit.addedSampleSpans(
+                        for: target.type, since: anchors[target.id],
+                        notBefore: now.addingTimeInterval(-Self.anchoredLookback)
+                    )
+                    let ranges = Self.mergedRanges(spans + (dailyWindow.map { [$0] } ?? []), bucket: target.bucket)
+                    if !spans.isEmpty {
+                        print("Anchored sync: \(target.name): \(spans.count) added samples, \(ranges.count) range(s)")
+                    }
+                    var count = 0
+                    for range in ranges {
+                        try Task.checkCancellation()
+                        count += try await target.sync(range.start, range.end)
+                    }
+                    if let newAnchor { SyncAnchors.save(newAnchor, for: target.id) }
+                    total += count
+                    if count > 0 {
+                        let existing = syncState.categories.first(where: { $0.id == target.categoryID })?.recordCount ?? 0
+                        syncState.updateCategory(target.categoryID, status: .completed, recordCount: existing + count, lastSyncDate: now)
+                        updateLiveActivity(phase: target.name, operation: "Synced \(target.name)", records: total)
+                    }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    failed.append(target.name)
+                    syncState.updateCategory(target.categoryID, status: .failed(error.localizedDescription))
+                    print("Anchored sync failed for \(target.name): \(error.localizedDescription)")
+                }
+            }
+
+            // Activity summaries are not samples and have no anchor; today and
+            // yesterday are two rows.
+            do {
+                let yesterday = Calendar.current.startOfDay(for: now.addingTimeInterval(-24 * 3600))
+                total += try await syncActivitySummaries(since: yesterday, until: now)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failed.append("Activity Rings")
+            }
+
+            if failed.isEmpty, dailyWindow != nil { SyncAnchors.lastDailyResend = now }
+            syncState.lastSyncDate = now
+            if failed.isEmpty {
+                syncState.currentOperation = "Synced \(total.formatted()) records"
+            } else {
+                syncState.errorMessage = "Sync failed for: \(failed.joined(separator: ", ")). They are retried on the next sync."
+                syncState.currentOperation = ""
+            }
+            syncState.persist()
+            endLiveActivity(totalRecords: total)
+            disconnectFreeReps()
+        } catch is CancellationError {
+            disconnectFreeReps()
+            endLiveActivity(totalRecords: 0)
+            syncState.currentOperation = "Sync cancelled"
+            syncState.persist()
+        } catch {
+            disconnectFreeReps()
+            endLiveActivity(totalRecords: 0)
+            syncState.errorMessage = error.localizedDescription
+            syncState.currentOperation = ""
             syncState.persist()
         }
 
@@ -768,16 +990,14 @@ final class SyncService: ObservableObject {
         }
 
         // Use cumulative SUM aggregation for step/energy/distance types.
+        // No fallback to individual samples here: the server would then hold hourly
+        // sums and raw samples under the same source, and a daily total counts both.
         if case .aggregateCumulative(let interval) = typeDesc.syncStrategy {
-            do {
-                return try await syncQuantityTypeCumulative(
-                    typeDesc: typeDesc, metricName: metricName, interval: interval,
-                    since: since, until: until, insertBatchSize: insertBatchSize,
-                    onBatchInserted: onBatchInserted
-                )
-            } catch {
-                print("Cumulative agg failed for \(metricName), falling back to individual samples: \(error.localizedDescription)")
-            }
+            return try await syncQuantityTypeCumulative(
+                typeDesc: typeDesc, metricName: metricName, interval: interval,
+                since: since, until: until, insertBatchSize: insertBatchSize,
+                onBatchInserted: onBatchInserted
+            )
         }
 
         // Individual samples path — skip empty windows to avoid unnecessary streaming.
@@ -855,12 +1075,23 @@ final class SyncService: ObservableObject {
         let start = since ?? Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
         let end = until ?? Date()
 
-        let buckets = try await healthKit.queryCumulativeStatistics(
-            typeID: typeDesc.hkIdentifier,
-            unit: typeDesc.unit,
-            from: start, until: end,
-            interval: interval
-        )
+        let buckets: [HealthKitService.CumulativeBucket]
+        do {
+            buckets = try await healthKit.queryCumulativeStatistics(
+                typeID: typeDesc.hkIdentifier,
+                unit: typeDesc.unit,
+                from: start, until: end,
+                interval: interval
+            )
+        } catch {
+            print("Cumulative statistics failed for \(metricName), querying per bucket: \(error.localizedDescription)")
+            buckets = try await healthKit.queryCumulativeStatisticsPerBucket(
+                typeID: typeDesc.hkIdentifier,
+                unit: typeDesc.unit,
+                from: start, until: end,
+                interval: interval
+            )
+        }
 
         var total = 0
         for batch in buckets.chunked(into: insertBatchSize) {
@@ -882,9 +1113,12 @@ final class SyncService: ObservableObject {
 
     // MARK: - Category sync
 
-    private func syncCategorySamples(since: Date?, until: Date? = nil, insertBatchSize: Int = batchSize) async throws -> Int {
+    private func syncCategorySamples(
+        since: Date?, until: Date? = nil, insertBatchSize: Int = batchSize,
+        types: [CategoryTypeDescriptor] = HealthDataTypes.allCategoryTypes
+    ) async throws -> Int {
         var total = 0
-        for typeDesc in HealthDataTypes.allCategoryTypes {
+        for typeDesc in types {
             // Sleep stages arrive as category samples but are governed by the sleep_analysis metric.
             if typeDesc.id == HKCategoryTypeIdentifier.sleepAnalysis.rawValue,
                disabledMetrics.contains("sleep_analysis") { continue }
