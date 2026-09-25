@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import HealthKit
 import SwiftUI
+import WidgetKit
 
 @MainActor
 final class SyncViewModel: ObservableObject {
@@ -14,7 +15,12 @@ final class SyncViewModel: ObservableObject {
     @Published var prerequisiteIssues: [SyncPrerequisiteIssue] = []
     @Published var showPrerequisiteAlert = false
 
-    init() {
+    /// One instance for the UI, the widget's deep link and the Shortcuts intent, so a
+    /// sync started from any of them is the one the dashboard shows and a second start
+    /// is refused while it runs.
+    static let shared = SyncViewModel()
+
+    private init() {
         let state = SyncState()
         self.syncState = state
         self.syncService = SyncService(syncState: state)
@@ -61,11 +67,46 @@ final class SyncViewModel: ObservableObject {
             }
         }
         let task = Task {
-            await syncService.runFullSync(config: config)
-            refreshLatestHealthKitDates()
+            _ = await runSyncBody(config: config)
         }
         syncTask = task
         syncService.taskForCancellation = task
+    }
+
+    /// Runs a sync to completion and returns its outcome; used by the Shortcuts intent,
+    /// which has to report a result. The caller checks `isAnySyncRunning` first.
+    func runSync() async -> LastSyncRecord {
+        let config = FreeRepsConfig.load()
+        let task = Task { _ = await runSyncBody(config: config) }
+        syncTask = task
+        syncService.taskForCancellation = task
+        await task.value
+        return lastRecord ?? LastSyncRecord(finishedAt: Date(), outcome: .cancelled, message: nil)
+    }
+
+    /// Outcome of the most recent run started from this instance.
+    private(set) var lastRecord: LastSyncRecord?
+
+    private func runSyncBody(config: FreeRepsConfig) async -> LastSyncRecord {
+        await syncService.runFullSync(config: config)
+        refreshLatestHealthKitDates()
+        let outcome: LastSyncRecord.Outcome
+        if syncState.errorMessage != nil {
+            outcome = .failed
+        } else if syncState.currentOperation == "Sync cancelled" {
+            outcome = .cancelled
+        } else {
+            outcome = .succeeded
+        }
+        let record = LastSyncRecord(
+            finishedAt: Date(),
+            outcome: outcome,
+            message: outcome == .failed ? syncState.errorMessage : nil
+        )
+        record.save()
+        lastRecord = record
+        WidgetCenter.shared.reloadAllTimelines()
+        return record
     }
 
     func cancelSync() {

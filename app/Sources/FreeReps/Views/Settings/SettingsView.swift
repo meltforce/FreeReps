@@ -4,7 +4,6 @@ struct SettingsView: View {
     let syncViewModel: SyncViewModel
     @StateObject private var vm = SettingsViewModel()
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
-    @AppStorage("backgroundSyncEnabled") private var backgroundSyncEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -45,21 +44,6 @@ struct SettingsView: View {
                 }
 
                 Section("Sync") {
-                    Toggle(isOn: $backgroundSyncEnabled) {
-                        HStack(spacing: 12) {
-                            iconBox("arrow.triangle.2.circlepath", color: backgroundSyncEnabled ? .blue : .secondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Background Sync")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(backgroundSyncEnabled
-                                    ? "Health data syncs automatically via FreeReps"
-                                    : "No data is synced in the background")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
                     Toggle(isOn: $keepScreenOnDuringSync) {
                         HStack(spacing: 12) {
                             iconBox("sun.max.fill", color: .yellow)

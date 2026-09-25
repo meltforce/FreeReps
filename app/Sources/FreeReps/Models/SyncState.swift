@@ -69,7 +69,6 @@ struct CategorySyncState: Identifiable {
 @MainActor
 class SyncState: ObservableObject {
     @Published var isFullSyncRunning = false
-    @Published var isIncrementalSyncRunning = false
     @Published var categories: [CategorySyncState] = []
     @Published var totalRecords: Int = 0
     @Published var lastSyncDate: Date?
@@ -80,7 +79,7 @@ class SyncState: ObservableObject {
     @Published var backfillCursors: [String: Date] = [:]
     @Published var backfillAnchorDate: Date?
 
-    var isAnySyncRunning: Bool { isFullSyncRunning || isIncrementalSyncRunning }
+    var isAnySyncRunning: Bool { isFullSyncRunning }
 
     func updateCategory(_ id: String, status: SyncStatus? = nil, recordCount: Int? = nil,
                         lastSyncDate: Date? = nil, progress: Int? = nil, total: Int? = nil) {

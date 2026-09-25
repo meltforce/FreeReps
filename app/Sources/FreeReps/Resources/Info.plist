@@ -17,9 +17,16 @@
 			</array>
 		</dict>
 	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<key>CFBundleURLTypes</key>
 	<array>
-		<string>com.meltforce.freereps.sync</string>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.meltforce.freereps</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>freereps</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleDisplayName</key>
 	<string>FreeReps</string>
@@ -60,11 +67,6 @@
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>processing</string>
-		<string>fetch</string>
-	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UILaunchScreen</key>

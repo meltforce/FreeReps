@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var syncViewModel = SyncViewModel()
+    @ObservedObject private var syncViewModel = SyncViewModel.shared
     @EnvironmentObject var importState: ImportState
 
     var body: some View {

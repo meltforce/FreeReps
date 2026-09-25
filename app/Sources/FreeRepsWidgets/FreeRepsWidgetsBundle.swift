@@ -5,5 +5,6 @@ import SwiftUI
 struct FreeRepsWidgetsBundle: WidgetBundle {
     var body: some Widget {
         SyncLiveActivityWidget()
+        LastSyncWidget()
     }
 }

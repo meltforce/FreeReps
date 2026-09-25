@@ -1,5 +1,4 @@
 import ActivityKit
-import BackgroundTasks
 import CoreLocation
 import Foundation
 import HealthKit
@@ -51,18 +50,11 @@ final class SyncService: ObservableObject {
         "cat_state_of_mind"
     ]
 
-    // When true, skip live activity and allow resumable sync across background task invocations
-    var isBackgroundSync = false
-
-    // When true, never create or update a Live Activity (used for observer-triggered real-time syncs)
-    var suppressLiveActivity = false
-
     /// Set by the caller before `runHistoricalBackfill` so the background-task expiry
     /// handler can cancel the Swift Task when iOS reclaims background time.
     var taskForCancellation: Task<Void, Never>?
 
-    // Class-level flag so BackgroundSyncManager can check whether ANY SyncService instance
-    // (foreground or background) is currently running, preventing concurrent syncs.
+    // Class-level flag: true while any SyncService instance is syncing.
     @MainActor static private(set) var isSyncRunning = false
 
     // Live Activity
@@ -119,16 +111,6 @@ final class SyncService: ObservableObject {
     // MARK: - Live Activity
 
     private func startLiveActivity(isFullSync: Bool) {
-        guard !suppressLiveActivity else { return }
-        if isBackgroundSync {
-            liveActivity = Activity<SyncActivityAttributes>.activities.first
-            if liveActivity != nil { return }
-            // No existing activity — only create one if the app is currently active.
-            // BGProcessingTask keeps the app in .background state, so this only fires when
-            // the user has the app open (e.g. they opened the app mid-background-sync).
-            guard UIApplication.shared.applicationState == .active else { return }
-            // Fall through to create a new activity
-        }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let initial = SyncActivityAttributes.ContentState(
             phase: "Connecting",
@@ -148,7 +130,6 @@ final class SyncService: ObservableObject {
     }
 
     private func updateLiveActivity(phase: String, operation: String, records: Int) {
-        guard !suppressLiveActivity else { return }
         // If no activity yet and we're now in the foreground, try to create one.
         // This covers the case where the user opens the app mid-background-sync.
         if liveActivity == nil {
@@ -173,7 +154,6 @@ final class SyncService: ObservableObject {
     }
 
     private func endLiveActivity(totalRecords: Int) {
-        guard !suppressLiveActivity else { return }
         let activity = liveActivity ?? Activity<SyncActivityAttributes>.activities.first
         guard let activity else { return }
         let isFullSync = syncState.isFullSyncRunning
@@ -358,29 +338,17 @@ final class SyncService: ObservableObject {
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: true)
 
-        if !isBackgroundSync {
-            UIApplication.shared.isIdleTimerDisabled = true
-        }
-        defer {
-            if !isBackgroundSync {
-                UIApplication.shared.isIdleTimerDisabled = false
-            }
-        }
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = false }
 
+        // Extra time when the user leaves the app mid-sync. On expiry the sync is cancelled
+        // and its cursors persisted; the next run resumes from them.
         var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-        if !isBackgroundSync {
-            bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "health-full-sync") {
-                self.taskForCancellation?.cancel()
-                self.syncState.persist()
-                UserDefaults.standard.set(true, forKey: "pendingFullSyncResume")
-                let req = BGProcessingTaskRequest(identifier: "com.meltforce.freereps.sync")
-                req.requiresNetworkConnectivity = true
-                req.requiresExternalPower = false
-                req.earliestBeginDate = nil
-                try? BGTaskScheduler.shared.submit(req)
-                UIApplication.shared.endBackgroundTask(bgTaskID)
-                bgTaskID = .invalid
-            }
+        bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "health-full-sync") {
+            self.taskForCancellation?.cancel()
+            self.syncState.persist()
+            UIApplication.shared.endBackgroundTask(bgTaskID)
+            bgTaskID = .invalid
         }
         defer {
             if bgTaskID != .invalid {
@@ -683,238 +651,6 @@ final class SyncService: ObservableObject {
             updateLiveActivity(phase: displayName, operation: op, records: total)
         }
         return total
-    }
-
-    // MARK: - Incremental sync
-
-    func runIncrementalSync(config: FreeRepsConfig) async {
-        guard !syncState.isAnySyncRunning else { return }
-        syncState.isIncrementalSyncRunning = true
-        SyncService.isSyncRunning = true
-        defer { SyncService.isSyncRunning = false }
-        syncState.errorMessage = nil
-        startLiveActivity(isFullSync: false)
-
-        // Keep screen awake during foreground sync to prevent auto-lock killing HealthKit access
-        if !isBackgroundSync {
-            UIApplication.shared.isIdleTimerDisabled = true
-        }
-        defer {
-            if !isBackgroundSync {
-                UIApplication.shared.isIdleTimerDisabled = false
-            }
-        }
-
-        // Request extra background execution time if user switches away during sync
-        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-        if !isBackgroundSync {
-            bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "health-incremental-sync") {
-                self.syncState.persist()
-                let req = BGProcessingTaskRequest(identifier: "com.meltforce.freereps.sync")
-                req.requiresNetworkConnectivity = true
-                req.earliestBeginDate = nil
-                try? BGTaskScheduler.shared.submit(req)
-                UIApplication.shared.endBackgroundTask(bgTaskID)
-                bgTaskID = .invalid
-            }
-        }
-        defer {
-            if bgTaskID != .invalid {
-                UIApplication.shared.endBackgroundTask(bgTaskID)
-            }
-        }
-
-        do {
-            // Pre-first-unlock guard: isProtectedDataAvailable is false only before the very
-            // first unlock after boot. The errorDatabaseInaccessible suppression below handles
-            // the common screen-locked case (device unlocked at least once since boot).
-            if isBackgroundSync {
-                guard UIApplication.shared.isProtectedDataAvailable else {
-                    syncState.isIncrementalSyncRunning = false
-                    return
-                }
-            }
-
-            connectFreeReps(config: config)
-            guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
-            try await loadDisabledMetrics()
-
-            // Find last sync date from UserDefaults-backed syncState.
-            let distantPast = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
-            let since = syncState.lastSyncDate ?? distantPast
-            // Apply a 7-day lookback for HealthKit queries so late-arriving samples (e.g. apps
-            // that backfill historical entries into HealthKit after the fact) are captured.
-            // FreeReps uses ON CONFLICT DO NOTHING, making re-syncing the overlap window safe.
-            let querySince = syncState.lastSyncDate.map { $0.addingTimeInterval(-7 * 24 * 3600) } ?? distantPast
-
-            let opLabel = syncState.lastSyncDate != nil
-                ? "Incremental sync from \(since.formatted(date: .abbreviated, time: .shortened))\u{2026}"
-                : "Full historical sync (fetching all data since 2000)\u{2026}"
-            syncState.currentOperation = opLabel
-
-            var total = 0
-            var failedCategories: [String] = []
-
-            for (cat, types) in HealthDataTypes.quantityTypesByCategory {
-                let catID = "qty_\(cat.rawValue)"
-                try Task.checkCancellation()
-
-                syncState.updateCategory(catID, status: .syncing)
-                var catDelta = 0
-                var failedTypes: [String] = []
-                for typeDesc in types {
-                    try Task.checkCancellation()
-                    do {
-                        catDelta += try await syncQuantityType(typeDesc: typeDesc, since: querySince)
-                    } catch is CancellationError {
-                        throw CancellationError()
-                    } catch {
-                        if isBackgroundSync, (error as? HKError)?.code == .errorDatabaseInaccessible {
-                            // Device is locked — silently skip this type, don't mark category as failed
-                        } else {
-                            failedTypes.append(typeDesc.displayName)
-                        }
-                    }
-                }
-                let existing = syncState.categories.first(where: { $0.id == catID })?.recordCount ?? 0
-                if failedTypes.isEmpty {
-                    syncState.updateCategory(catID, status: .completed, recordCount: existing + catDelta, lastSyncDate: Date())
-                } else {
-                    failedCategories.append(cat.rawValue)
-                    syncState.updateCategory(catID,
-                        status: .failed("Failed types: \(failedTypes.joined(separator: ", "))"),
-                        recordCount: existing + catDelta, lastSyncDate: Date())
-                }
-                total += catDelta
-                updateLiveActivity(phase: cat.rawValue, operation: "Synced \(cat.rawValue) (\(catDelta) records)", records: total)
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_category", status: .syncing)
-            do {
-                let catCount = try await syncCategorySamples(since: querySince)
-                let existingCat = syncState.categories.first(where: { $0.id == "cat_category" })?.recordCount ?? 0
-                syncState.updateCategory("cat_category", status: .completed, recordCount: existingCat + catCount, lastSyncDate: Date())
-                total += catCount
-                updateLiveActivity(phase: "Health Events", operation: "Synced Health Events (\(catCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Category Samples")
-                    syncState.updateCategory("cat_category", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_workouts", status: .syncing)
-            do {
-                let workoutCount = try await syncWorkouts(since: querySince)
-                let existingWorkouts = syncState.categories.first(where: { $0.id == "cat_workouts" })?.recordCount ?? 0
-                syncState.updateCategory("cat_workouts", status: .completed, recordCount: existingWorkouts + workoutCount, lastSyncDate: Date())
-                total += workoutCount
-                updateLiveActivity(phase: "Workouts", operation: "Synced Workouts (\(workoutCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Workouts")
-                    syncState.updateCategory("cat_workouts", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_bp", status: .syncing)
-            do {
-                let bpCount = try await syncBloodPressure(since: querySince)
-                let existingBP = syncState.categories.first(where: { $0.id == "cat_bp" })?.recordCount ?? 0
-                syncState.updateCategory("cat_bp", status: .completed, recordCount: existingBP + bpCount, lastSyncDate: Date())
-                total += bpCount
-                updateLiveActivity(phase: "Blood Pressure", operation: "Synced Blood Pressure (\(bpCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Blood Pressure")
-                    syncState.updateCategory("cat_bp", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_activity_summaries", status: .syncing)
-            do {
-                let activityCount = try await syncActivitySummaries(since: querySince)
-                let existingActivity = syncState.categories.first(where: { $0.id == "cat_activity_summaries" })?.recordCount ?? 0
-                syncState.updateCategory("cat_activity_summaries", status: .completed, recordCount: existingActivity + activityCount, lastSyncDate: Date())
-                total += activityCount
-                updateLiveActivity(phase: "Activity Rings", operation: "Synced Activity Rings (\(activityCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Activity Summaries")
-                    syncState.updateCategory("cat_activity_summaries", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_workout_routes", status: .syncing)
-            do {
-                let routeCount = try await syncWorkoutRoutes(since: querySince)
-                let existingRoutes = syncState.categories.first(where: { $0.id == "cat_workout_routes" })?.recordCount ?? 0
-                syncState.updateCategory("cat_workout_routes", status: .completed, recordCount: existingRoutes + routeCount, lastSyncDate: Date())
-                total += routeCount
-                updateLiveActivity(phase: "Workout Routes", operation: "Synced Workout Routes (\(routeCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("Workout Routes")
-                    syncState.updateCategory("cat_workout_routes", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            try Task.checkCancellation()
-            syncState.updateCategory("cat_state_of_mind", status: .syncing)
-            do {
-                let somCount = try await syncStateOfMind(since: querySince)
-                let existingSOM = syncState.categories.first(where: { $0.id == "cat_state_of_mind" })?.recordCount ?? 0
-                syncState.updateCategory("cat_state_of_mind", status: .completed, recordCount: existingSOM + somCount, lastSyncDate: Date())
-                total += somCount
-                updateLiveActivity(phase: "State of Mind", operation: "Synced State of Mind (\(somCount) records)", records: total)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                if !(isBackgroundSync && (error as? HKError)?.code == .errorDatabaseInaccessible) {
-                    failedCategories.append("State of Mind")
-                    syncState.updateCategory("cat_state_of_mind", status: .failed(error.localizedDescription), lastSyncDate: Date())
-                }
-            }
-
-            if !failedCategories.isEmpty {
-                syncState.errorMessage = "Sync completed with errors in: \(failedCategories.joined(separator: ", "))"
-            }
-
-            syncState.lastSyncDate = Date()
-            syncState.currentOperation = "Incremental sync done (\(total) records)"
-            if !isBackgroundSync { syncState.persist() }
-            endLiveActivity(totalRecords: total)
-            disconnectFreeReps()
-
-        } catch is CancellationError {
-            disconnectFreeReps()
-            endLiveActivity(totalRecords: 0)
-            syncState.currentOperation = "Sync cancelled"
-            if !isBackgroundSync { syncState.persist() }
-        } catch {
-            disconnectFreeReps()
-            endLiveActivity(totalRecords: 0)
-            syncState.errorMessage = error.localizedDescription
-            syncState.currentOperation = ""
-            if !isBackgroundSync { syncState.persist() }
-        }
-
-        syncState.isIncrementalSyncRunning = false
     }
 
     // MARK: - Ingest helper
