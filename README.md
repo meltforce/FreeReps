@@ -3,9 +3,9 @@
 **F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
 
 A self-hosted server that collects health and training data from Apple Health,
-Oura, Withings and Hevy, stores it persistently, visualizes it through a web
-dashboard with freely configurable correlations, and exposes it as an MCP server
-for LLMs.
+Oura, Withings, Hevy and Alpha Progression, stores it persistently, visualizes
+it through a web dashboard with freely configurable correlations, and exposes it
+as an MCP server for LLMs.
 
 > **FreeReps for iOS 2.1 is coming to the App Store soon.** The version in the
 > App Store today, 1.0, stopped syncing on iOS 27. Version 2.1 syncs on iOS 27,
