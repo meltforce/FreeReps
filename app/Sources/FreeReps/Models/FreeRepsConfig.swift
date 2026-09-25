@@ -7,24 +7,18 @@ struct FreeRepsConfig: Codable, Equatable {
     var testMode: Bool = false
     var testHost: String = ""
     var testPort: UInt16 = 443
-    /// Max months of HealthKit history to backfill. nil = all data (back to 2000).
-    /// Legacy: `backfillYears` is decoded and converted to months for backward compatibility.
-    var backfillMonths: Int? = 24
+    /// Max days of HealthKit history to backfill. nil = all data (back to 2000).
+    /// Legacy: `backfillMonths` and `backfillYears` are decoded and converted to days.
+    var backfillDays: Int? = 730
 
-    /// Backward-compatible computed property. Setting this updates backfillMonths.
-    var backfillYears: Int? {
-        get { backfillMonths.map { $0 / 12 } }
-        set { backfillMonths = newValue.map { $0 * 12 } }
-    }
-
-    init(host: String, port: UInt16, useHTTPS: Bool = true, testMode: Bool = false, testHost: String = "", testPort: UInt16 = 443, backfillMonths: Int? = 24) {
+    init(host: String, port: UInt16, useHTTPS: Bool = true, testMode: Bool = false, testHost: String = "", testPort: UInt16 = 443, backfillDays: Int? = 730) {
         self.host = host
         self.port = port
         self.useHTTPS = useHTTPS
         self.testMode = testMode
         self.testHost = testHost
         self.testPort = testPort
-        self.backfillMonths = backfillMonths
+        self.backfillDays = backfillDays
     }
 
     static let `default` = FreeRepsConfig(
@@ -34,7 +28,7 @@ struct FreeRepsConfig: Codable, Equatable {
         testMode: false,
         testHost: "",
         testPort: 443,
-        backfillMonths: 24
+        backfillDays: 730
     )
 
     var baseURL: URL {
@@ -51,16 +45,16 @@ struct FreeRepsConfig: Codable, Equatable {
         return URL(string: "\(scheme)://\(effectiveHost):\(effectivePort)")!
     }
 
-    /// Earliest date to backfill from, based on `backfillMonths`.
+    /// Earliest date to backfill from, based on `backfillDays`.
     var backfillStartDate: Date {
-        if let months = backfillMonths {
-            return Calendar.current.date(byAdding: .month, value: -months, to: Date()) ?? Date()
+        if let days = backfillDays {
+            return Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
         }
         return Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
     }
 
     private enum CodingKeys: String, CodingKey {
-        case host, port, useHTTPS, testMode, testHost, testPort, backfillMonths, backfillYears
+        case host, port, useHTTPS, testMode, testHost, testPort, backfillDays, backfillMonths, backfillYears
     }
 
     init(from decoder: Decoder) throws {
@@ -72,13 +66,16 @@ struct FreeRepsConfig: Codable, Equatable {
         testHost = try c.decodeIfPresent(String.self, forKey: .testHost) ?? ""
         testPort = try c.decodeIfPresent(UInt16.self, forKey: .testPort) ?? 443
 
-        // Migrate: prefer backfillMonths, fall back to backfillYears * 12
-        if let months = try c.decodeIfPresent(Int.self, forKey: .backfillMonths) {
-            backfillMonths = months
+        // Migrate: prefer backfillDays, fall back to backfillMonths, then backfillYears.
+        // A stored nil (all data) decodes as absent under every key and stays nil.
+        if let days = try c.decodeIfPresent(Int.self, forKey: .backfillDays) {
+            backfillDays = days
+        } else if let months = try c.decodeIfPresent(Int.self, forKey: .backfillMonths) {
+            backfillDays = months * 365 / 12
         } else if let years = try c.decodeIfPresent(Int.self, forKey: .backfillYears) {
-            backfillMonths = years * 12
+            backfillDays = years * 365
         } else {
-            backfillMonths = nil
+            backfillDays = nil
         }
     }
 
@@ -90,7 +87,7 @@ struct FreeRepsConfig: Codable, Equatable {
         try c.encode(testMode, forKey: .testMode)
         try c.encode(testHost, forKey: .testHost)
         try c.encode(testPort, forKey: .testPort)
-        try c.encode(backfillMonths, forKey: .backfillMonths)
+        try c.encode(backfillDays, forKey: .backfillDays)
     }
 
     private static let userDefaultsKey = "freerepsConfig_v1"
