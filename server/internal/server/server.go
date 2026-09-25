@@ -224,6 +224,7 @@ func (s *Server) routes() {
 		r.Get("/api/v1/allowlist", s.handleAllowlist)
 		r.Get("/api/v1/metrics/available", s.handleAvailableMetrics)
 		r.Put("/api/v1/metrics/visibility", s.handleSaveMetricVisibility)
+		r.Put("/api/v1/metrics/enabled", s.handleSaveMetricEnabled)
 		r.Put("/api/v1/preferences/front-page-heroes", s.handleSaveFrontPageHeroes)
 		r.Get("/api/v1/preferences/max-heart-rate", s.handleMaxHeartRate)
 		r.Put("/api/v1/preferences/max-heart-rate", s.handleSaveMaxHeartRate)

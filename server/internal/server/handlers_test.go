@@ -83,3 +83,26 @@ func TestHandleMeTailscaleUser(t *testing.T) {
 		t.Errorf("display_name = %q, want %q", info.DisplayName, "Alice")
 	}
 }
+
+// TestIngestLogSource covers the only signal that tells the iOS app from
+// Health Auto Export in import_logs: both post the same payload to the same
+// endpoint, so a wrong mapping files one client's calls under the other.
+func TestIngestLogSource(t *testing.T) {
+	cases := []struct {
+		header string
+		want   string
+	}{
+		{"", "hae_rest"},
+		{ClientIOSApp, "freereps_ios"},
+		{"something-else", "hae_rest"},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", nil)
+		if c.header != "" {
+			r.Header.Set(ClientHeader, c.header)
+		}
+		if got := ingestLogSource(r); got != c.want {
+			t.Errorf("header %q: got %q, want %q", c.header, got, c.want)
+		}
+	}
+}

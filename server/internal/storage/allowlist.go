@@ -2,23 +2,30 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
-// IsMetricAllowed checks if a metric name is in the allowlist and enabled.
-func (db *DB) IsMetricAllowed(ctx context.Context, metricName string) (bool, error) {
-	var enabled bool
+// IsMetricAllowed reports whether a metric is accepted for a user: it must be
+// in the allowlist, enabled server-wide, and not disabled by the user.
+func (db *DB) IsMetricAllowed(ctx context.Context, userID int, metricName string) (bool, error) {
+	var allowed bool
 	err := db.Pool.QueryRow(ctx,
-		`SELECT enabled FROM metric_allowlist WHERE metric_name = $1`,
-		metricName).Scan(&enabled)
+		`SELECT a.enabled AND COALESCE(u.enabled, true)
+		 FROM metric_allowlist a
+		 LEFT JOIN user_metric_enabled u ON u.metric_name = a.metric_name AND u.user_id = $1
+		 WHERE a.metric_name = $2`,
+		userID, metricName).Scan(&allowed)
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
 		}
 		return false, fmt.Errorf("checking metric allowlist: %w", err)
 	}
-	return enabled, nil
+	return allowed, nil
 }
 
 // AllowedMetric represents an entry in the metric allowlist with display metadata.
@@ -79,6 +86,49 @@ func (db *DB) GetAllowedMetrics(ctx context.Context) ([]AllowedMetric, error) {
 		result = append(result, m)
 	}
 	return result, rows.Err()
+}
+
+// GetUserAllowlist returns every allowlist entry with Enabled resolved for one
+// user: server-wide enabled and not disabled by the user. Clients read it to
+// skip metrics the server would reject.
+func (db *DB) GetUserAllowlist(ctx context.Context, userID int) ([]AllowedMetric, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT a.metric_name, a.category, a.enabled AND COALESCE(u.enabled, true),
+		        a.display_label, a.display_unit, a.is_cumulative, a.display_multiplier
+		 FROM metric_allowlist a
+		 LEFT JOIN user_metric_enabled u ON u.metric_name = a.metric_name AND u.user_id = $1
+		 ORDER BY a.category, a.metric_name`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("querying user allowlist: %w", err)
+	}
+	defer rows.Close()
+
+	var result []AllowedMetric
+	for rows.Next() {
+		var m AllowedMetric
+		if err := rows.Scan(&m.MetricName, &m.Category, &m.Enabled,
+			&m.DisplayLabel, &m.DisplayUnit, &m.IsCumulative, &m.DisplayMultiplier); err != nil {
+			return nil, fmt.Errorf("scanning user allowlist: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}
+
+// SaveMetricEnabled saves per-user ingest enablement overrides.
+func (db *DB) SaveMetricEnabled(ctx context.Context, userID int, enabled map[string]bool) error {
+	for name, on := range enabled {
+		_, err := db.Pool.Exec(ctx,
+			`INSERT INTO user_metric_enabled (user_id, metric_name, enabled)
+			 VALUES ($1, $2, $3)
+			 ON CONFLICT (user_id, metric_name) DO UPDATE SET enabled = EXCLUDED.enabled`,
+			userID, name, on)
+		if err != nil {
+			return fmt.Errorf("saving metric enablement: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetAvailableMetrics returns allowlist entries for metrics the user actually has data for,

@@ -27,6 +27,13 @@ Automatic headers included in every request:
 Custom headers configured by user (for auth):
 - `X-API-Key: <key>` — FreeReps API key
 
+### Client identification
+
+The FreeReps iOS app posts the same payload format to the same endpoint and
+sends `X-FreeReps-Client: freereps-ios`. `import_logs.source` records such a
+call as `freereps_ios`; a call without the header is recorded as `hae_rest`.
+Health Auto Export does not send the header.
+
 ## JSON Payload Structure
 
 ```json

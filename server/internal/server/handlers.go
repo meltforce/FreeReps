@@ -23,6 +23,22 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 
+// ClientHeader names the client that posts to /api/v1/ingest. The FreeReps iOS
+// app sends ClientIOSApp; a request without the header is Health Auto Export,
+// which shares the endpoint and payload format.
+const (
+	ClientHeader = "X-FreeReps-Client"
+	ClientIOSApp = "freereps-ios"
+)
+
+// ingestLogSource returns the import_logs source for an ingest request.
+func ingestLogSource(r *http.Request) string {
+	if r.Header.Get(ClientHeader) == ClientIOSApp {
+		return "freereps_ios"
+	}
+	return "hae_rest"
+}
+
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	var payload models.HealthPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -35,13 +51,14 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	source := ingestLogSource(r)
 	start := time.Now()
 	result, err := s.health.Ingest(r.Context(), &payload, uid)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		s.log.Error("ingest error", "error", err)
 		if result != nil {
-			go s.logImport(uid, "hae_rest", result, err, durationMs)
+			go s.logImport(uid, source, result, err, durationMs)
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -54,7 +71,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.db.InvalidateAllAvailableMetrics()
-	go s.logImport(uid, "hae_rest", result, nil, durationMs)
+	go s.logImport(uid, source, result, nil, durationMs)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -398,8 +415,14 @@ func (s *Server) handleWorkoutSets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sets)
 }
 
+// handleAllowlist returns the allowlist with enabled resolved for the calling
+// user, so a client can skip metrics the ingest would reject.
 func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {
-	metrics, err := s.db.GetAllowedMetrics(r.Context())
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+	metrics, err := s.db.GetUserAllowlist(r.Context(), uid)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -438,6 +461,25 @@ func (s *Server) handleSaveMetricVisibility(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	s.db.InvalidateAvailableMetrics(uid)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleSaveMetricEnabled(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var body map[string]bool
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+
+	if err := s.db.SaveMetricEnabled(r.Context(), uid, body); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 

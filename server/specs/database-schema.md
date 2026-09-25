@@ -323,6 +323,25 @@ CREATE TABLE metric_allowlist (
 | basal_energy_burned | activity |
 | apple_exercise_time | activity |
 
+`enabled` is the server-wide gate. A metric is stored for a user only when it is
+enabled here and not disabled in `user_metric_enabled`.
+
+### `user_metric_enabled` (Regular)
+
+Per-user override of `metric_allowlist.enabled`; a missing row means enabled.
+Set from the Ingest settings tab via `PUT /api/v1/metrics/enabled`, read by
+`GET /api/v1/allowlist`, which returns `enabled` resolved for the calling user.
+Disabling a metric rejects new rows from every client and keeps stored rows.
+
+```sql
+CREATE TABLE user_metric_enabled (
+    user_id     INTEGER NOT NULL,
+    metric_name TEXT    NOT NULL,
+    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (user_id, metric_name)
+);
+```
+
 ## Deduplication Strategy
 
 All tables use `INSERT ... ON CONFLICT DO NOTHING`.

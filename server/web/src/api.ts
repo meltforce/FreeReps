@@ -502,6 +502,31 @@ export async function saveMetricVisibility(visibility: Record<string, boolean>):
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
 }
 
+// --- Ingest enablement ---
+
+export interface AllowlistEntry {
+  metric_name: string;
+  category: string;
+  enabled: boolean;
+  display_label: string;
+}
+
+/** The allowlist with `enabled` resolved for the signed-in user. */
+export async function fetchAllowlist(): Promise<AllowlistEntry[]> {
+  const res = await fetch(`${BASE}/allowlist`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function saveMetricEnabled(enabled: Record<string, boolean>): Promise<void> {
+  const res = await fetch(`${BASE}/metrics/enabled`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(enabled),
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
 // --- Source Priority ---
 
 export interface SourcePriorityRule {

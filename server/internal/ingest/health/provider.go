@@ -142,7 +142,7 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 
 	for _, m := range metrics {
 		// Check allowlist
-		allowed, err := p.db.IsMetricAllowed(ctx, m.Name)
+		allowed, err := p.db.IsMetricAllowed(ctx, userID, m.Name)
 		if err != nil {
 			return fmt.Errorf("checking allowlist for %s: %w", m.Name, err)
 		}
