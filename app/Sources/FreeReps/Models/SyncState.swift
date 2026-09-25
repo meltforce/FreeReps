@@ -130,8 +130,9 @@ class SyncState: ObservableObject {
         let completedCount = Double(categories.filter { $0.status == .completed }.count)
         let syncingProgress = categories.filter { $0.status.isActive }.map { $0.progressFraction }.reduce(0, +)
         overallProgress = (completedCount + syncingProgress) / total
-        // totalRecords is not summed from per-category session counts here —
-        // it is set directly from actual DB COUNT(*) queries in refreshRecordCounts().
+        // The total is the sum of the categories. It used to be set from a local
+        // database count, which the app no longer has, and stayed at 0.
+        totalRecords = categories.map(\.recordCount).reduce(0, +)
     }
 
     // MARK: - Persistence

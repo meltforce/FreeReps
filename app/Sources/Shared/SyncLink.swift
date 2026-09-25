@@ -18,6 +18,11 @@ enum RelativeTime {
         if now.timeIntervalSince(date) < 60 { return "just now" }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = style
+        // English, as the whole interface is: Locale.current follows the device
+        // region and rendered "vor 10 m" on a German device. The bundle's preferred
+        // localization is no help, it reports German because de.lproj exists for
+        // the Siri phrases and no en.lproj does.
+        formatter.locale = Locale(identifier: "en")
         return formatter.localizedString(for: date, relativeTo: now)
     }
 }
