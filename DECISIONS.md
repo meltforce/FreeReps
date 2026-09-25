@@ -19,6 +19,38 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-25 — The iOS app follows design 1c and requires iOS 27
+
+**Decided:** 2026-09-25
+
+**Decision.** The iOS app takes direction 1c of the design handoff
+`design_handoff_freereps_1c`: a status card for the last sync at the top of the
+Sync tab, the categories as a two-column tile grid below it, and turquoise from
+`new_logo.png` as the one brand colour (`Brand`, `BrandFill` and the status
+colours are colour sets in both asset catalogs). Each category keeps an Apple
+Health colour for its symbol and name only. The Settings tab takes the look of
+direction 1a. The small widget shows the age of the last sync as a number and a
+unit. `IPHONEOS_DEPLOYMENT_TARGET` is raised from 17.6 to 27.0 for both targets.
+
+**Reasoning.** The design uses Liquid Glass through the native APIs
+(`.buttonStyle(.glass)`, `.glassProminent`, the glass toolbar and tab bar),
+which exist from iOS 26. With 27.0 as the minimum, the views carry no
+`#available` branches and no second layout for older systems. The device the
+app is developed and used on runs iOS 27. The raise removes the App Store
+version for devices below iOS 27.
+
+Two behaviours changed with the layout. Swipe actions do not exist in a grid,
+so Sync and Reset… on a category moved into its context menu (long press), and
+the reset keeps its confirmation dialog. A live `Text(_:style: .relative)`
+cannot be split into a number and a unit, so the widget timeline holds one
+entry per change of that text: per minute for the first hour, per hour for the
+first day, per day for the first week, then one reload per day.
+
+**Trigger to re-open.** A user who needs the app on a device that cannot run
+iOS 27.
+
+---
+
 ## 2026-09-25 — The iOS app syncs on request only: a Shortcuts action and a widget replace background sync
 
 **Decided:** 2026-09-25

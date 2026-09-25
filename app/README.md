@@ -53,7 +53,7 @@ The app uses `FreeRepsService` (a lightweight `URLSession` HTTP wrapper) to POST
 
 ## Requirements
 
-- iOS 16.2+
+- iOS 27 or later ([`DECISIONS.md`](../DECISIONS.md), 2026-09-25)
 - Physical device (HealthKit is not available in the Simulator)
 - A running FreeReps server (see the [main README](../README.md))
 - Apple Developer account (for HealthKit entitlement and code signing)

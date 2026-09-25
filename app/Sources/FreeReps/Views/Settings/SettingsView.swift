@@ -8,68 +8,56 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Connection") {
+                Section {
                     NavigationLink {
                         FreeRepsSettingsView(vm: vm)
                     } label: {
                         HStack(spacing: 12) {
-                            iconBox("server.rack", color: .orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("FreeReps Connection")
-                                    .font(.subheadline.weight(.semibold))
+                            Image("Logo")
+                                .resizable()
+                                .frame(width: 52, height: 52)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
                                 Text(verbatim: vm.config.host)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.headline)
                                     .lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(connectionColor)
+                                        .frame(width: 7, height: 7)
+                                    Text(connectionLabel)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
-                    }
-
-                    NavigationLink {
-                        HealthPermissionsView(vm: vm)
-                    } label: {
-                        HStack(spacing: 12) {
-                            iconBox("heart.fill", color: .red)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Apple Health Permissions")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(vm.permissionsRequested
-                     ? (vm.deniedTypes.isEmpty ? "All permissions granted" : "\(vm.deniedTypes.count) permission(s) missing")
-                     : "Tap to request permissions")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        .padding(.vertical, 2)
                     }
                 }
 
-                Section("Sync") {
-                    Toggle(isOn: $keepScreenOnDuringSync) {
-                        HStack(spacing: 12) {
-                            iconBox("sun.max.fill", color: .yellow)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Keep Screen On")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Prevent display sleep during full sync")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                Section("Health & Sync") {
+                    NavigationLink {
+                        HealthPermissionsView(vm: vm)
+                    } label: {
+                        settingsRow(
+                            "heart.fill",
+                            title: "Apple Health Permissions",
+                            subtitle: vm.permissionsRequested
+                                ? (vm.deniedTypes.isEmpty ? "All permissions granted" : "\(vm.deniedTypes.count) permission(s) missing")
+                                : "Tap to request permissions"
+                        )
                     }
+
+                    Toggle(isOn: $keepScreenOnDuringSync) {
+                        settingsRow("sun.max.fill", title: "Keep Screen On", subtitle: "Prevent display sleep during full sync")
+                    }
+                    .tint(Color("Brand"))
 
                     NavigationLink {
                         SyncAdvancedView(vm: vm, syncViewModel: syncViewModel)
                     } label: {
-                        HStack(spacing: 12) {
-                            iconBox("gearshape.fill", color: .gray)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Advanced")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Backfill settings, reset sync state")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        settingsRow("slider.horizontal.3", title: "Advanced", subtitle: "Backfill settings, reset sync state")
                     }
                 }
 
@@ -84,32 +72,14 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         }
                     }
-                    if let serverVersion = vm.serverVersion {
-                        Link(destination: URL(string: "https://github.com/meltforce/FreeReps/releases/tag/\(serverVersion)")!) {
-                            LabeledContent("Server Version") {
-                                HStack(spacing: 4) {
-                                    Text(serverVersion)
-                                    Image(systemName: "arrow.up.right.square")
-                                        .font(.caption2)
-                                }
-                                .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                    .foregroundStyle(.primary)
                     LabeledContent("HealthKit Types", value: "\(HealthDataTypes.allQuantityTypes.count + HealthDataTypes.allCategoryTypes.count)")
-                    NavigationLink {
+                    NavigationLink("Acknowledgements") {
                         AcknowledgementsView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            iconBox("doc.text.fill", color: .indigo)
-                            Text("Acknowledgements")
-                                .font(.subheadline.weight(.semibold))
-                        }
                     }
                 }
-
-                BrandFooter()
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Settings")
             .safeAreaInset(edge: .top) {
                 if vm.config.testMode {
@@ -124,7 +94,10 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
                 }
             }
-            .onAppear { vm.refreshPermissionsState() }
+            .onAppear {
+                vm.refreshPermissionsState()
+                if vm.connectionTestState == .idle { vm.testConnection() }
+            }
             .onChange(of: vm.config) { vm.saveConfig() }
         }
     }
@@ -133,14 +106,42 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
-    private func iconBox(_ systemName: String, color: Color) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(color)
-                .frame(width: 36, height: 36)
-            Image(systemName: systemName)
-                .font(.system(size: 18))
-                .foregroundStyle(.white)
+    private var connectionColor: Color {
+        switch vm.connectionTestState {
+        case .success: return .green
+        case .failure: return .red
+        case .idle, .testing: return .secondary
         }
+    }
+
+    private var connectionLabel: String {
+        switch vm.connectionTestState {
+        case .success:
+            if let serverVersion = vm.serverVersion { return "Connected · Server \(serverVersion)" }
+            return "Connected"
+        case .failure: return "Not reachable"
+        case .testing: return "Connecting…"
+        case .idle: return "Not checked"
+        }
+    }
+
+    private func settingsRow(_ systemName: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            iconBox(systemName)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func iconBox(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 19))
+            .foregroundStyle(Color("Brand"))
+            .frame(width: 30, height: 30)
+            .background(Color("Brand").opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

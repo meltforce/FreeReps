@@ -84,8 +84,9 @@ final class SyncViewModel: ObservableObject {
         return lastRecord ?? LastSyncRecord(finishedAt: Date(), outcome: .cancelled, message: nil)
     }
 
-    /// Outcome of the most recent run started from this instance.
-    private(set) var lastRecord: LastSyncRecord?
+    /// Outcome of the most recent run; starts from the one persisted for the widget,
+    /// so the dashboard shows it after a relaunch.
+    @Published private(set) var lastRecord: LastSyncRecord? = LastSyncRecord.load()
 
     private func runSyncBody(config: FreeRepsConfig) async -> LastSyncRecord {
         await syncService.runFullSync(config: config)
