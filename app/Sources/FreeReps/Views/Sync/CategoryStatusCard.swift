@@ -91,9 +91,7 @@ struct CategoryStatusCard: View {
 
     private var syncedText: String {
         guard let date = state.lastSyncDate else { return "Synced" }
-        let rel = RelativeDateTimeFormatter()
-        rel.unitsStyle = .abbreviated
-        return "Synced \(rel.localizedString(for: date, relativeTo: max(now, date)))"
+        return "Synced \(RelativeTime.describe(date, now: now, style: .abbreviated))"
     }
 
     private func statusLabel(_ symbol: String, _ text: String, color: Color) -> some View {

@@ -557,7 +557,7 @@ final class SyncService: ObservableObject {
 
     private func anchoredTargets() -> [AnchoredTarget] {
         var targets: [AnchoredTarget] = []
-        for desc in HealthDataTypes.allQuantityTypes {
+        for desc in HealthDataTypes.allQuantityTypes where desc.category != .bloodPressure {
             guard let type = desc.hkType else { continue }
             let bucket: TimeInterval?
             switch desc.syncStrategy {

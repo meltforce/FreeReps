@@ -110,9 +110,7 @@ struct SyncDashboardView: View {
             return vm.currentOperation.isEmpty ? "Starting\u{2026}" : vm.currentOperation
         }
         guard let record = lastRecord else { return "Run Full Sync to start" }
-        let rel = RelativeDateTimeFormatter()
-        rel.unitsStyle = .full
-        let when = rel.localizedString(for: record.finishedAt, relativeTo: max(now, record.finishedAt))
+        let when = RelativeTime.describe(record.finishedAt, now: now, style: .full)
         return record.outcome == .succeeded ? when.prefix(1).uppercased() + when.dropFirst() : "Attempted \(when)"
     }
 

@@ -9,6 +9,19 @@ enum SyncLink {
     static let url = URL(string: "\(scheme)://\(syncHost)")!
 }
 
+/// "3 minutes ago" for a past date, and "just now" within the first minute:
+/// RelativeDateTimeFormatter renders a zero interval as "in 0 seconds", and the
+/// dashboard's clock ticks once a minute, so a sync that just ended would read
+/// as lying in the future.
+enum RelativeTime {
+    static func describe(_ date: Date, now: Date, style: RelativeDateTimeFormatter.UnitsStyle) -> String {
+        if now.timeIntervalSince(date) < 60 { return "just now" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = style
+        return formatter.localizedString(for: date, relativeTo: now)
+    }
+}
+
 /// Outcome of the most recent sync, written by the app and read by the widget.
 /// Lives in the App Group's UserDefaults because the widget runs in its own process.
 struct LastSyncRecord: Codable, Equatable {

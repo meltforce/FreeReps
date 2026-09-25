@@ -210,9 +210,13 @@ enum HealthDataTypes {
 
     // MARK: Grouping
 
+    /// Quantity types grouped for sync and display. Systolic and diastolic are left
+    /// out: they stay in allQuantityTypes because reading the blood pressure
+    /// correlation needs their permission, but the correlation sync ("cat_bp")
+    /// sends them, and a second path showed Blood Pressure twice on the dashboard.
     static var quantityTypesByCategory: [(HealthCategory, [QuantityTypeDescriptor])] {
         var map: [HealthCategory: [QuantityTypeDescriptor]] = [:]
-        for t in allQuantityTypes {
+        for t in allQuantityTypes where t.category != .bloodPressure {
             map[t.category, default: []].append(t)
         }
         return HealthCategory.allCases.compactMap { cat in
