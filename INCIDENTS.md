@@ -39,6 +39,21 @@ row at 12:00 of that day and updates it every 30 minutes. That row also kept its
 first delivery: on 2026-09-25 it held 8 steps until the fix, and 1,716 after the
 next Oura sync.
 
+Measured over the 90 days the Oura sync re-fetched after `oura_sync_state` of
+user 2 was deleted on 2026-09-25 (sync at 12:57Z, 171,538 values received,
+2,490 written or changed), comparing every Oura row before and after:
+`step_count` and `active_energy` changed on 67 of 92 days, `oura_recovery_high`
+on 83, `oura_stress_high` on 79, `oura_activity_score` on 32,
+`heart_rate_variability`, `resting_heart_rate` and `oura_readiness_score` on 5,
+`oura_sleep_score` and `sleep_analysis` on 1; SpO2, respiratory rate,
+temperature deviation, resilience and cardiovascular age were unchanged.
+`heart_rate` was not compared. Most step corrections are small (6,097 to 6,165
+on 2026-07-07), but 2026-07-10 to 2026-07-31 held near-zero values for 22 days —
+14 steps and 2 kcal on 2026-07-11, now 18,492 and 822 — and 2026-09-22 held
+966 steps, now 12,367. Every dashboard figure, correlation and MCP answer over
+Oura steps or active energy in that period was wrong. Oura data older than the
+90 days was not re-fetched and remains as stored.
+
 **Fix.** `InsertHealthMetrics` upserts: `ON CONFLICT … DO UPDATE` with a
 `WHERE … IS DISTINCT FROM` guard, so a changed bucket replaces the stored one and
 an identical one writes nothing. Rows repeating a key within one call are
