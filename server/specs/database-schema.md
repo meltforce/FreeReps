@@ -365,7 +365,11 @@ fills and again once it is complete; under `DO NOTHING` the partial value stayed
 within one call keep the last occurrence. The count returned to the client as
 `metrics_inserted` includes changed rows.
 
-The other tables use `INSERT ... ON CONFLICT DO NOTHING`.
+`activity_summaries` upserts on `(user_id, date)` the same way: a day's
+summary grows until the day ends and is sent on every sync.
+
+The other tables use `INSERT ... ON CONFLICT DO NOTHING`; their keys are the
+UUIDs of HealthKit samples, which do not change once written.
 
 ## TimescaleDB Features Used
 

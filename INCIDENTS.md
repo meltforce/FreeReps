@@ -66,6 +66,18 @@ from 4 to 121. Past hours are corrected by re-sending them from the app; the
 upsert does not repair them on its own, and each sync re-sends only the 7 days
 before the previous one.
 
+**The same defect in `activity_summaries`.** Found on 2026-09-25 when the
+`active_energy` mismatch from the roadmap (measured 2026-09-23) was measured
+again after the fix. Per UTC day from 2026-09-10 to 2026-09-24, the sum over
+`health_metrics` and the activity summary agreed within 8 % on 12 of 15 days.
+The outliers were the summaries: 2026-09-18 held 6 kcal against 1,287 summed
+from the app's hourly rows, 2026-09-14 475 against 1,029 (Oura: 1,153), and
+2026-09-13 389 against 612. `InsertActivitySummaries` wrote with
+`ON CONFLICT DO NOTHING` on `(user_id, date)`, and the app sends the current
+day's summary on every sync, so the first sync of a day fixed the day's rings.
+It upserts since the same day; stored summaries are corrected when the app
+sends them again, which an anchored sync does for today and yesterday only.
+
 **Lesson.** A key that identifies a bucket rather than a measurement needs an
 upsert; insert-or-skip keeps whichever version of the bucket arrived first.
 
