@@ -38,6 +38,7 @@ final class SyncViewModel: ObservableObject {
     var lastSyncDate: Date? { syncState.lastSyncDate }
     var overallProgress: Double { syncState.overallProgress }
     var currentOperation: String { syncState.currentOperation }
+    var healthKitWait: String? { syncState.healthKitWait }
     var errorMessage: String? { syncState.errorMessage }
     var hasCompletedFullSync: Bool { syncState.hasCompletedFullSync }
 

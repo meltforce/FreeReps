@@ -107,6 +107,7 @@ struct SyncDashboardView: View {
 
     private func statusSubtitle(now: Date) -> String {
         if vm.isAnySyncRunning {
+            if let wait = vm.healthKitWait { return wait }
             return vm.currentOperation.isEmpty ? "Starting\u{2026}" : vm.currentOperation
         }
         guard let record = lastRecord else { return "Run Full Sync to start" }

@@ -60,6 +60,32 @@ final class SyncService: ObservableObject {
         UserDefaults.standard.object(forKey: "keepScreenOnDuringSync") as? Bool ?? true
     }
 
+    // MARK: - HealthKit wait display
+
+    /// How long a HealthKit query may take before the status card names it. Normal
+    /// queries return within seconds; a statistics query of a long backfill window
+    /// can take a minute when healthd is busy (INCIDENTS.md, 2026-09-25).
+    static let waitNotice: TimeInterval = 30
+
+    /// Updates `syncState.healthKitWait` every 5 s until cancelled.
+    private func watchHealthKitWaits() -> Task<Void, Never> {
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                self.syncState.healthKitWait = Self.waitText(self.healthKit.longestPendingQuery(), now: Date())
+            }
+        }
+    }
+
+    static func waitText(_ query: HealthKitService.PendingQuery?, now: Date) -> String? {
+        guard let query else { return nil }
+        let waited = now.timeIntervalSince(query.started)
+        guard waited >= waitNotice else { return nil }
+        let duration = waited < 120 ? "\(Int(waited)) s" : "\(Int(waited / 60)) min"
+        return "Waiting for HealthKit: \(query.label), \(duration)\u{2026}"
+    }
+
     // Class-level flag: true while any SyncService instance is syncing.
     @MainActor static private(set) var isSyncRunning = false
 
@@ -267,6 +293,11 @@ final class SyncService: ObservableObject {
         syncState.errorMessage = nil
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: false)
+        let waitWatcher = watchHealthKitWaits()
+        defer {
+            waitWatcher.cancel()
+            syncState.healthKitWait = nil
+        }
 
         let anchor = Date()
         let epoch = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
@@ -350,6 +381,11 @@ final class SyncService: ObservableObject {
         syncState.errorMessage = nil
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: true)
+        let waitWatcher = watchHealthKitWaits()
+        defer {
+            waitWatcher.cancel()
+            syncState.healthKitWait = nil
+        }
 
         UIApplication.shared.isIdleTimerDisabled = Self.keepScreenOn
         defer { UIApplication.shared.isIdleTimerDisabled = false }
@@ -411,6 +447,8 @@ final class SyncService: ObservableObject {
                     updateLiveActivity(phase: cat.rawValue, operation: "Backfilled \(cat.rawValue) (\(count.formatted()) records)", records: count)
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
                 } catch {
                     syncState.updateCategory(catID, status: .failed(error.localizedDescription))
                     failedCategories.append(cat.rawValue)
@@ -455,6 +493,8 @@ final class SyncService: ObservableObject {
                     updateLiveActivity(phase: displayName, operation: "Backfilled \(displayName) (\(count.formatted()) records)", records: count)
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
                 } catch {
                     syncState.updateCategory(catID, status: .failed(error.localizedDescription))
                     failedCategories.append(displayName)
@@ -491,6 +531,8 @@ final class SyncService: ObservableObject {
                 }
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let timeout as HealthKitService.QueryTimeout {
+                throw timeout
             } catch {
                 // Individual sparse category failures are caught within the task group
                 failedCategories.append("Sparse categories")
@@ -652,6 +694,11 @@ final class SyncService: ObservableObject {
         syncState.errorMessage = nil
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: false)
+        let waitWatcher = watchHealthKitWaits()
+        defer {
+            waitWatcher.cancel()
+            syncState.healthKitWait = nil
+        }
 
         UIApplication.shared.isIdleTimerDisabled = Self.keepScreenOn
         defer { UIApplication.shared.isIdleTimerDisabled = false }
@@ -711,6 +758,8 @@ final class SyncService: ObservableObject {
                     }
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
                 } catch {
                     failed.append(target.name)
                     syncState.updateCategory(target.categoryID, status: .failed(error.localizedDescription))
@@ -725,6 +774,8 @@ final class SyncService: ObservableObject {
                 total += try await syncActivitySummaries(since: yesterday, until: now)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let timeout as HealthKitService.QueryTimeout {
+                throw timeout
             } catch {
                 failed.append("Activity Rings")
             }
@@ -805,6 +856,8 @@ final class SyncService: ObservableObject {
                     break
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
                 } catch where retries < 3 {
                     // Generic retry with backoff
                     retries += 1
@@ -854,6 +907,8 @@ final class SyncService: ObservableObject {
                     break
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
                 } catch where retries < 3 {
                     // Generic retry with backoff
                     retries += 1
@@ -922,11 +977,19 @@ final class SyncService: ObservableObject {
         try await healthKit.streamWorkouts(from: since, until: until) { [self] workouts in
             for workout in workouts {
                 let routes: [HKWorkoutRoute]
-                do { routes = try await healthKit.fetchWorkoutRoutes(for: workout) } catch { continue }
+                do {
+                    routes = try await healthKit.fetchWorkoutRoutes(for: workout)
+                } catch let timeout as HealthKitService.QueryTimeout {
+                    throw timeout
+                } catch { continue }
                 for route in routes {
                     try Task.checkCancellation()
                     let locations: [CLLocation]
-                    do { locations = try await healthKit.fetchRouteLocations(for: route) } catch { continue }
+                    do {
+                        locations = try await healthKit.fetchRouteLocations(for: route)
+                    } catch let timeout as HealthKitService.QueryTimeout {
+                        throw timeout
+                    } catch { continue }
                     guard !locations.isEmpty else { continue }
 
                     let routePoints = locations.map { loc in
@@ -984,6 +1047,8 @@ final class SyncService: ObservableObject {
                     since: since, until: until, insertBatchSize: insertBatchSize,
                     onBatchInserted: onBatchInserted
                 )
+            } catch let timeout as HealthKitService.QueryTimeout {
+                throw timeout
             } catch {
                 print("Aggregation failed for \(metricName), falling back to individual samples: \(error.localizedDescription)")
             }
@@ -1083,6 +1148,8 @@ final class SyncService: ObservableObject {
                 from: start, until: end,
                 interval: interval
             )
+        } catch let timeout as HealthKitService.QueryTimeout {
+            throw timeout
         } catch {
             print("Cumulative statistics failed for \(metricName), querying per bucket: \(error.localizedDescription)")
             buckets = try await healthKit.queryCumulativeStatisticsPerBucket(
@@ -1164,6 +1231,8 @@ final class SyncService: ObservableObject {
                                 from: w.startDate, until: w.endDate,
                                 interval: 60 // 1-minute buckets, matching HAE format
                             )
+                        } catch let timeout as HealthKitService.QueryTimeout {
+                            throw timeout
                         } catch {
                             print("HR statistics failed for workout \(w.uuid), aggregating samples: \(error.localizedDescription)")
                             buckets = try await self.healthKit.aggregateSamples(

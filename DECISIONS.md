@@ -19,6 +19,44 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-26 — Every HealthKit query of the iOS app is bounded at 10 minutes; the backfill keeps its parallel 90-day queries
+
+**Decided:** 2026-09-26
+
+**Decision.** Every HealthKit query runs through `HealthKitService.run`, which
+stops it with `store.stop` and throws `QueryTimeout` after
+`queryTimeLimit` (600 s), and throws `CancellationError` when the task is
+cancelled. A `QueryTimeout` is neither retried nor answered with a fallback
+query (per-sample aggregation, per-bucket statistics, the next workout route);
+it ends the sync with its message, and the next sync continues from the stored
+cursors and anchors. While a query has waited longer than
+`SyncService.waitNotice` (30 s), the status card shows "Waiting for HealthKit:
+<type>, <duration>…" instead of the sync step. The quantity backfill keeps five
+parallel `HKStatisticsCollectionQuery` over 90-day windows.
+
+**Reasoning.** On 2026-09-25 healthd answered no query of the app for 19 hours
+and the sync waited on the first one without an error
+([`INCIDENTS.md`](INCIDENTS.md), 2026-09-25). A fixed 60 s limit was rejected:
+statistics queries that completed took up to 1 min 19 s inside healthd on
+2026-09-26, and 600 s leaves that margin several times over. Ending the whole
+sync on the first time limit, not only the category, follows from the same
+incident: a blocked healthd blocks every query, and continuing would wait the
+limit once per remaining type. Serial queries in 30-day windows were not taken:
+they lengthen every normal backfill (a one-month backfill took two minutes with
+five in parallel), and during the incident a single `HKSampleQuery` did not
+return either, so shorter transactions would not have ended that wait.
+
+Verified on the device on 2026-09-26 with test builds: a 0.05 s limit ended the
+sync at once with "HealthKit did not answer for Resting Energy …"; a 40 s delay
+before each query showed "Waiting for HealthKit: Steps, 41 s…". A normal sync
+with the final build sent 6 calls, all `success`.
+
+**Trigger to re-open.** A `QueryTimeout` on a sync that would have completed —
+a query legitimately longer than 10 minutes — or a backfill whose parallel
+statistics queries are measured to cause the healthd stall.
+
+---
+
 ## 2026-09-25 — The iOS app follows design 1c and requires iOS 27
 
 **Decided:** 2026-09-25

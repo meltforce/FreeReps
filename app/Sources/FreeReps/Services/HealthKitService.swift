@@ -9,6 +9,144 @@ final class HealthKitService {
 
     private init() {}
 
+    // MARK: - Bounded query execution
+    //
+    // Every query runs through `run`. HealthKit gives no guarantee that a query's
+    // handler is called: from 2026-09-25 16:05Z healthd answered none of this app's
+    // queries for 19 hours, and the sync waited on the first one without an error
+    // (INCIDENTS.md, 2026-09-25). A query that returns nothing within
+    // `queryTimeLimit` is stopped and throws `QueryTimeout`.
+
+    /// Measured on 2026-09-26: statistics queries that did complete took up to
+    /// 1 min 19 s inside healthd. Ten minutes leaves that margin several times over
+    /// and still ends a blocked query.
+    static let queryTimeLimit: TimeInterval = 600
+
+    struct QueryTimeout: LocalizedError {
+        let label: String
+        var errorDescription: String? {
+            "HealthKit did not answer for \(label) within \(Int(HealthKitService.queryTimeLimit / 60)) min. The next sync continues from here."
+        }
+    }
+
+    /// A query that has not returned yet, as shown while the sync waits on it.
+    struct PendingQuery {
+        let label: String
+        let started: Date
+    }
+
+    private let pendingLock = NSLock()
+    private var pending: [UUID: PendingQuery] = [:]
+
+    /// The query that has waited longest, or nil when none is running.
+    func longestPendingQuery() -> PendingQuery? {
+        pendingLock.withLock { pending.values.min { $0.started < $1.started } }
+    }
+
+    /// Resumes a continuation once, whichever of query handler and time limit comes first.
+    private final class ResumeOnce<T>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<T, Error>?
+        private let onResume: () -> Void
+
+        init(_ continuation: CheckedContinuation<T, Error>, onResume: @escaping () -> Void) {
+            self.continuation = continuation
+            self.onResume = onResume
+        }
+
+        func resume(with result: Result<T, Error>) {
+            lock.lock()
+            let waiting = continuation
+            continuation = nil
+            lock.unlock()
+            guard let waiting else { return }
+            onResume()
+            waiting.resume(with: result)
+        }
+    }
+
+    /// Runs the cancellation of a query once, whether the task is cancelled before or
+    /// after the query has been created.
+    private final class CancelHook: @unchecked Sendable {
+        private let lock = NSLock()
+        private var action: (() -> Void)?
+        private var fired = false
+
+        func set(_ newAction: @escaping () -> Void) {
+            lock.lock()
+            if fired {
+                lock.unlock()
+                newAction()
+                return
+            }
+            action = newAction
+            lock.unlock()
+        }
+
+        func fire() {
+            lock.lock()
+            fired = true
+            let pendingAction = action
+            action = nil
+            lock.unlock()
+            pendingAction?()
+        }
+    }
+
+    /// Executes the query `makeQuery` builds and returns what its handler passes to
+    /// `finish`; the handler may call `finish` more than once, only the first counts.
+    /// Throws `QueryTimeout` after `queryTimeLimit` and `CancellationError` when the
+    /// task is cancelled, having stopped the query in both cases. Without the
+    /// cancellation, the tasks of a group that failed on a time limit would each
+    /// start their next query and wait the full limit again.
+    private func run<T>(
+        _ label: String,
+        _ makeQuery: (_ finish: @escaping (Result<T, Error>) -> Void) -> HKQuery
+    ) async throws -> T {
+        try Task.checkCancellation()
+        let id = UUID()
+        pendingLock.withLock { pending[id] = PendingQuery(label: label, started: Date()) }
+
+        let cancelHook = CancelHook()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                // A cancelled timer source releases its handler, and with it the query;
+                // an asyncAfter block would hold every query for the full time limit.
+                let timer = DispatchSource.makeTimerSource(queue: .global())
+                let once = ResumeOnce(cont) { [self] in
+                    timer.cancel()
+                    pendingLock.withLock { pending[id] = nil }
+                }
+                let query = makeQuery { once.resume(with: $0) }
+                timer.schedule(deadline: .now() + Self.queryTimeLimit)
+                timer.setEventHandler { [store] in
+                    store.stop(query)
+                    once.resume(with: .failure(QueryTimeout(label: label)))
+                }
+                timer.resume()
+                store.execute(query)
+                // After execute: a cancellation that arrived earlier stops the query
+                // it has just started instead of one that never ran.
+                cancelHook.set { [store] in
+                    store.stop(query)
+                    once.resume(with: .failure(CancellationError()))
+                }
+            }
+        } onCancel: {
+            cancelHook.fire()
+        }
+    }
+
+    /// The name a type is shown under while the sync waits on it.
+    static func label(for type: HKObjectType) -> String {
+        let id = type.identifier
+        if let desc = HealthDataTypes.allQuantityTypes.first(where: { $0.id == id }) { return desc.displayName }
+        if let desc = HealthDataTypes.allCategoryTypes.first(where: { $0.id == id }) { return desc.displayName }
+        if type == HKObjectType.workoutType() { return "Workouts" }
+        if type == HKSeriesType.workoutRoute() { return "Workout Routes" }
+        return id
+    }
+
     // MARK: - Availability
 
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
@@ -84,20 +222,19 @@ final class HealthKitService {
             ascending: ascending
         )
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
+        return try await run(Self.label(for: type)) { finish in
+            HKSampleQuery(
                 sampleType: type,
                 predicate: predicate,
                 limit: limit,
                 sortDescriptors: [sortDesc]
             ) { _, samples, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
+                    finish(.success((samples as? [HKQuantitySample]) ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
@@ -120,20 +257,19 @@ final class HealthKitService {
 
         let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: ascending)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
+        return try await run(Self.label(for: type)) { finish in
+            HKSampleQuery(
                 sampleType: type,
                 predicate: predicate,
                 limit: limit,
                 sortDescriptors: [sortDesc]
             ) { _, samples, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: (samples as? [HKCategorySample]) ?? [])
+                    finish(.success((samples as? [HKCategorySample]) ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
@@ -149,20 +285,19 @@ final class HealthKitService {
 
         let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
+        return try await run("Workouts") { finish in
+            HKSampleQuery(
                 sampleType: .workoutType(),
                 predicate: predicate,
                 limit: limit,
                 sortDescriptors: [sortDesc]
             ) { _, samples, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
+                    finish(.success((samples as? [HKWorkout]) ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
@@ -178,19 +313,18 @@ final class HealthKitService {
             predicate = nil
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKCorrelationQuery(
+        return try await run("Blood Pressure") { finish in
+            HKCorrelationQuery(
                 type: type,
                 predicate: predicate,
                 samplePredicates: nil
             ) { _, correlations, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: correlations ?? [])
+                    finish(.success(correlations ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
@@ -208,15 +342,14 @@ final class HealthKitService {
         } else {
             predicate = nil
         }
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKActivitySummaryQuery(predicate: predicate) { _, summaries, error in
+        return try await run("Activity Rings") { finish in
+            HKActivitySummaryQuery(predicate: predicate) { _, summaries, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: summaries ?? [])
+                    finish(.success(summaries ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
@@ -224,35 +357,33 @@ final class HealthKitService {
 
     func fetchWorkoutRoutes(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
         let predicate = HKQuery.predicateForObjects(from: workout)
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
+        return try await run("Workout Routes") { finish in
+            HKSampleQuery(
                 sampleType: HKSeriesType.workoutRoute(),
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
             ) { _, samples, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: (samples as? [HKWorkoutRoute]) ?? [])
+                    finish(.success((samples as? [HKWorkoutRoute]) ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
     func fetchRouteLocations(for route: HKWorkoutRoute) async throws -> [CLLocation] {
-        try await withCheckedThrowingContinuation { continuation in
-            var locations: [CLLocation] = []
-            let query = HKWorkoutRouteQuery(route: route) { _, newLocations, done, error in
+        var locations: [CLLocation] = []
+        return try await run("Workout Routes") { finish in
+            HKWorkoutRouteQuery(route: route) { _, newLocations, done, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                     return
                 }
                 if let locs = newLocations { locations.append(contentsOf: locs) }
-                if done { continuation.resume(returning: locations) }
+                if done { finish(.success(locations)) }
             }
-            store.execute(query)
         }
     }
 
@@ -266,59 +397,55 @@ final class HealthKitService {
             : nil
         let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
+        return try await run("State of Mind") { finish in
+            HKSampleQuery(
                 sampleType: type,
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sortDesc]
             ) { _, samples, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    continuation.resume(returning: (samples as? [HKStateOfMind]) ?? [])
+                    finish(.success((samples as? [HKStateOfMind]) ?? []))
                 }
             }
-            store.execute(query)
         }
     }
 
     // MARK: - Count queries (sync validation)
 
     func countSamples(type: HKSampleType) async -> Int {
-        await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(
+        (try? await run(Self.label(for: type)) { finish in
+            HKSampleQuery(
                 sampleType: type, predicate: nil,
                 limit: HKObjectQueryNoLimit, sortDescriptors: nil
             ) { _, samples, _ in
-                continuation.resume(returning: samples?.count ?? 0)
+                finish(.success(samples?.count ?? 0))
             }
-            store.execute(query)
-        }
+        }) ?? 0
     }
 
     func countActivitySummaries() async -> Int {
-        await withCheckedContinuation { continuation in
-            let query = HKActivitySummaryQuery(predicate: nil) { _, summaries, _ in
-                continuation.resume(returning: summaries?.count ?? 0)
+        (try? await run("Activity Rings") { finish in
+            HKActivitySummaryQuery(predicate: nil) { _, summaries, _ in
+                finish(.success(summaries?.count ?? 0))
             }
-            store.execute(query)
-        }
+        }) ?? 0
     }
 
     func latestSampleDate(for sampleType: HKSampleType) async -> Date? {
-        await withCheckedContinuation { continuation in
-            let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-            let query = HKSampleQuery(
+        let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+        return (try? await run(Self.label(for: sampleType)) { finish in
+            HKSampleQuery(
                 sampleType: sampleType,
                 predicate: nil,
                 limit: 1,
                 sortDescriptors: [sortDesc]
             ) { _, samples, _ in
-                continuation.resume(returning: samples?.first?.startDate)
+                finish(.success(samples?.first?.startDate))
             }
-            store.execute(query)
-        }
+        }) ?? nil
     }
 
     // MARK: - Streaming queries (memory-efficient paged reads)
@@ -334,7 +461,7 @@ final class HealthKitService {
         limit: Int,
         offset: Int
     ) async throws -> [T] {
-        try await withCheckedThrowingContinuation { cont in
+        try await run(Self.label(for: type)) { finish in
             // HKSampleQuery does not support offset directly, so we use
             // limit + sort + date-based cursor. For simplicity and reliability,
             // fetch in pages using limit with ascending sort.
@@ -346,12 +473,12 @@ final class HealthKitService {
                 sortDescriptors: [sortDesc]
             ) { _, samples, error in
                 if let error = error {
-                    cont.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    cont.resume(returning: (samples as? [T]) ?? [])
+                    finish(.success((samples as? [T]) ?? []))
                 }
             }
-            store.execute(query)
+            return query
         }
     }
 
@@ -381,7 +508,7 @@ final class HealthKitService {
             }
             let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-            let samples: [HKQuantitySample] = try await withCheckedThrowingContinuation { cont in
+            let samples: [HKQuantitySample] = try await run(Self.label(for: type)) { finish in
                 let query = HKSampleQuery(
                     sampleType: type,
                     predicate: predicate,
@@ -389,12 +516,12 @@ final class HealthKitService {
                     sortDescriptors: [sortDesc]
                 ) { _, results, error in
                     if let error = error {
-                        cont.resume(throwing: error)
+                        finish(.failure(error))
                     } else {
-                        cont.resume(returning: (results as? [HKQuantitySample]) ?? [])
+                        finish(.success((results as? [HKQuantitySample]) ?? []))
                     }
                 }
-                store.execute(query)
+                return query
             }
 
             guard !samples.isEmpty else { break }
@@ -436,7 +563,7 @@ final class HealthKitService {
         // Anchor to midnight so buckets align to clock boundaries
         let anchor = Calendar.current.startOfDay(for: startDate)
 
-        return try await withCheckedThrowingContinuation { cont in
+        return try await run(Self.label(for: type)) { finish in
             let query = HKStatisticsCollectionQuery(
                 quantityType: type,
                 quantitySamplePredicate: predicate,
@@ -446,11 +573,11 @@ final class HealthKitService {
             )
             query.initialResultsHandler = { _, collection, error in
                 if let error = error {
-                    cont.resume(throwing: error)
+                    finish(.failure(error))
                     return
                 }
                 guard let collection = collection else {
-                    cont.resume(returning: [])
+                    finish(.success([]))
                     return
                 }
                 var buckets: [AggregatedBucket] = []
@@ -460,9 +587,9 @@ final class HealthKitService {
                           let max = stats.maximumQuantity()?.doubleValue(for: unit) else { return }
                     buckets.append(AggregatedBucket(startDate: stats.startDate, min: min, avg: avg, max: max))
                 }
-                cont.resume(returning: buckets)
+                finish(.success(buckets))
             }
-            store.execute(query)
+            return query
         }
     }
 
@@ -480,7 +607,7 @@ final class HealthKitService {
         guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-        let samples: [HKQuantitySample] = try await withCheckedThrowingContinuation { cont in
+        let samples: [HKQuantitySample] = try await run(Self.label(for: type)) { finish in
             let query = HKSampleQuery(
                 sampleType: type,
                 predicate: predicate,
@@ -488,12 +615,12 @@ final class HealthKitService {
                 sortDescriptors: nil
             ) { _, results, error in
                 if let error = error {
-                    cont.resume(throwing: error)
+                    finish(.failure(error))
                 } else {
-                    cont.resume(returning: (results as? [HKQuantitySample]) ?? [])
+                    finish(.success((results as? [HKQuantitySample]) ?? []))
                 }
             }
-            store.execute(query)
+            return query
         }
 
         // Buckets are aligned to midnight, matching the anchor of queryAggregatedStatistics.
@@ -535,7 +662,7 @@ final class HealthKitService {
         dateComponents.second = Int(interval)
         let anchor = Calendar.current.startOfDay(for: startDate)
 
-        return try await withCheckedThrowingContinuation { cont in
+        return try await run(Self.label(for: type)) { finish in
             let query = HKStatisticsCollectionQuery(
                 quantityType: type,
                 quantitySamplePredicate: predicate,
@@ -545,11 +672,11 @@ final class HealthKitService {
             )
             query.initialResultsHandler = { _, collection, error in
                 if let error = error {
-                    cont.resume(throwing: error)
+                    finish(.failure(error))
                     return
                 }
                 guard let collection = collection else {
-                    cont.resume(returning: [])
+                    finish(.success([]))
                     return
                 }
                 var buckets: [CumulativeBucket] = []
@@ -557,9 +684,9 @@ final class HealthKitService {
                     guard let sum = stats.sumQuantity()?.doubleValue(for: unit) else { return }
                     buckets.append(CumulativeBucket(startDate: stats.startDate, sum: sum))
                 }
-                cont.resume(returning: buckets)
+                finish(.success(buckets))
             }
-            store.execute(query)
+            return query
         }
     }
 
@@ -584,17 +711,17 @@ final class HealthKitService {
             try Task.checkCancellation()
             let bucketEnd = bucketStart.addingTimeInterval(interval)
             let predicate = HKQuery.predicateForSamples(withStart: bucketStart, end: bucketEnd, options: .strictStartDate)
-            let sum: Double? = try await withCheckedThrowingContinuation { cont in
+            let sum: Double? = try await run(Self.label(for: type)) { finish in
                 let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, error in
                     if let error = error as? HKError, error.code == .errorNoData {
-                        cont.resume(returning: nil)
+                        finish(.success(nil))
                     } else if let error {
-                        cont.resume(throwing: error)
+                        finish(.failure(error))
                     } else {
-                        cont.resume(returning: stats?.sumQuantity()?.doubleValue(for: unit))
+                        finish(.success(stats?.sumQuantity()?.doubleValue(for: unit)))
                     }
                 }
-                store.execute(query)
+                return query
             }
             if let sum { buckets.append(CumulativeBucket(startDate: bucketStart, sum: sum)) }
             bucketStart = bucketEnd
@@ -604,18 +731,17 @@ final class HealthKitService {
 
     /// Lightweight existence check — returns true if at least one sample exists in the date range.
     func sampleExists(for sampleType: HKSampleType, from startDate: Date, to endDate: Date) async -> Bool {
-        await withCheckedContinuation { continuation in
-            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-            let query = HKSampleQuery(
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        return (try? await run(Self.label(for: sampleType)) { finish in
+            HKSampleQuery(
                 sampleType: sampleType,
                 predicate: predicate,
                 limit: 1,
                 sortDescriptors: nil
             ) { _, samples, _ in
-                continuation.resume(returning: (samples?.count ?? 0) > 0)
+                finish(.success((samples?.count ?? 0) > 0))
             }
-            store.execute(query)
-        }
+        }) ?? false
     }
 
     func streamCategorySamples(
@@ -641,7 +767,7 @@ final class HealthKitService {
             }
             let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-            let samples: [HKCategorySample] = try await withCheckedThrowingContinuation { cont in
+            let samples: [HKCategorySample] = try await run(Self.label(for: type)) { finish in
                 let query = HKSampleQuery(
                     sampleType: type,
                     predicate: predicate,
@@ -649,12 +775,12 @@ final class HealthKitService {
                     sortDescriptors: [sortDesc]
                 ) { _, results, error in
                     if let error = error {
-                        cont.resume(throwing: error)
+                        finish(.failure(error))
                     } else {
-                        cont.resume(returning: (results as? [HKCategorySample]) ?? [])
+                        finish(.success((results as? [HKCategorySample]) ?? []))
                     }
                 }
-                store.execute(query)
+                return query
             }
 
             guard !samples.isEmpty else { break }
@@ -690,7 +816,7 @@ final class HealthKitService {
             }
             let sortDesc = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
-            let samples: [HKWorkout] = try await withCheckedThrowingContinuation { cont in
+            let samples: [HKWorkout] = try await run("Workouts") { finish in
                 let query = HKSampleQuery(
                     sampleType: .workoutType(),
                     predicate: predicate,
@@ -698,12 +824,12 @@ final class HealthKitService {
                     sortDescriptors: [sortDesc]
                 ) { _, results, error in
                     if let error = error {
-                        cont.resume(throwing: error)
+                        finish(.failure(error))
                     } else {
-                        cont.resume(returning: (results as? [HKWorkout]) ?? [])
+                        finish(.success((results as? [HKWorkout]) ?? []))
                     }
                 }
-                store.execute(query)
+                return query
             }
 
             guard !samples.isEmpty else { break }
@@ -742,15 +868,15 @@ final class HealthKitService {
         var spans: [DateInterval] = []
         var cursor = anchor
         while true {
-            let (samples, next): ([HKSample], HKQueryAnchor?) = try await withCheckedThrowingContinuation { cont in
+            let (samples, next): ([HKSample], HKQueryAnchor?) = try await run(Self.label(for: type)) { finish in
                 let query = HKAnchoredObjectQuery(type: type, predicate: window, anchor: cursor, limit: pageSize) { _, added, _, newAnchor, error in
                     if let error {
-                        cont.resume(throwing: error)
+                        finish(.failure(error))
                     } else {
-                        cont.resume(returning: (added ?? [], newAnchor))
+                        finish(.success((added ?? [], newAnchor)))
                     }
                 }
-                store.execute(query)
+                return query
             }
             spans.append(contentsOf: samples.map { DateInterval(start: $0.startDate, end: max($0.startDate, $0.endDate)) })
             cursor = next ?? cursor
@@ -762,17 +888,16 @@ final class HealthKitService {
     // MARK: - Sample counts (for status display)
 
     func sampleCount(for type: HKSampleType) async -> Int {
-        await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(
+        (try? await run(Self.label(for: type)) { finish in
+            HKSampleQuery(
                 sampleType: type,
                 predicate: nil,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
             ) { _, samples, _ in
-                continuation.resume(returning: samples?.count ?? 0)
+                finish(.success(samples?.count ?? 0))
             }
-            store.execute(query)
-        }
+        }) ?? 0
     }
 }
 

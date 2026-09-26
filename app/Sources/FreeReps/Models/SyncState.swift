@@ -74,6 +74,9 @@ class SyncState: ObservableObject {
     @Published var lastSyncDate: Date?
     @Published var overallProgress: Double = 0.0
     @Published var currentOperation: String = ""
+    /// The HealthKit query the running sync has waited on longest, once that wait
+    /// passes `SyncService.waitNotice`; nil otherwise. Not persisted.
+    @Published var healthKitWait: String?
     @Published var errorMessage: String?
     @Published var hasCompletedFullSync: Bool = false
     @Published var backfillCursors: [String: Date] = [:]

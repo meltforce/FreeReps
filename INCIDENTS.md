@@ -57,12 +57,13 @@ finished its cache or iCloud work in the meantime. The Oura app was last updated
 on 2026-09-23, and Oura workouts arrive on alternate days throughout the two
 weeks before, so neither explains a start on 2026-09-25.
 
-**Fix.** None in code. Oura's write access to Apple Health stays off: FreeReps
-takes Oura data from the Oura API, and the Oura-written workouts arrive twice
-otherwise (2026-09-25 13:12Z and 16:25Z exist once with `source = 'Oura'` and
-once from Apple Health). A bound on the HealthKit waits is an open item in
-[`ROADMAP.md`](ROADMAP.md); a fixed 60 s timeout was rejected because single
-statistics queries took 79 s and completed.
+**Fix.** The cause is not fixed. Oura's write access to Apple Health stays off:
+FreeReps takes Oura data from the Oura API, and the Oura-written workouts arrive
+twice otherwise (2026-09-25 13:12Z and 16:25Z exist once with `source = 'Oura'`
+and once from Apple Health). Since 2026-09-26 every HealthKit query is bounded
+at 10 minutes and the status card names a query that has waited more than 30 s,
+so a repeat ends with an error instead of waiting without end
+([`DECISIONS.md`](DECISIONS.md), 2026-09-26).
 
 **Lesson.** A sync that sends nothing is diagnosed in the `healthd` log
 (`sudo log collect --device-name <iphone> --last 10m`) before app builds are
