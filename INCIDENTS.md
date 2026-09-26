@@ -16,6 +16,60 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-09-25 — The iOS app sync waited on HealthKit for 19 hours and sent nothing
+
+**Symptoms.** From 2026-09-25 16:05:12Z to 2026-09-26 11:16Z the server received
+no ingest call from the iOS app (`import_logs.source = 'freereps_ios'`); each
+sync requested only `/api/v1/me` and `/api/v1/allowlist`. The status card showed
+"Backfilling Workouts…" without progress, after a backfill reset "Backfilling
+Activity…". The backfill started at 16:04:59Z had sent the quantity categories
+(369 calls) and stopped at the workouts. The last workouts had arrived at
+15:00–15:01Z, in a backfill with the same code up to build 2.1.0.
+
+**Root cause.** Not determined. What was measured:
+
+- With the debugger attached (2026-09-26), the workout sync reached the
+  heart-rate query at `SyncService.swift:1162`; neither its fallback at `:1169`
+  nor the next line at `:1187` was reached, so the
+  `HKStatisticsCollectionQuery` in `HealthKitService.queryAggregatedStatistics`
+  never called its `initialResultsHandler`. In a later run the preceding
+  `HKSampleQuery` in `streamWorkouts` did not return either. The continuations
+  have no time bound, so the sync waits without end.
+- App code is excluded: the build of `6005433^` (version 1.0) with the
+  `RelativeTime` locale change — the build that completed the 15:00Z backfill —
+  stopped the same way, at the first statistics query of "Backfilling Activity".
+- The `healthd` log (`log collect --device-name`, 10:41–11:01Z) shows each of
+  the app's statistics queries as a write transaction
+  (`HDStatisticsCollectionQueryServer…FreeReps`, `write=YES`) of 18 s to
+  1 min 19 s, interleaved with `com.apple.healthd.cache-eviction` transactions of
+  9 to 21 s. Queries of the Health app and Withings also waited 5 to 13 s.
+- In the same log the Oura app deleted and rewrote Apple Health data between
+  10:49:48Z and 10:49:58Z — 9 delete calls, 3,640 saved objects, samples added
+  to three workouts — and all 2,570 `sync.cloud.rebase-trigger.deletion` events
+  of `healthd` in that log fall between 10:49:50Z and 10:49:58Z.
+- An iPhone restart alone did not change the behaviour. After Oura's write
+  access to Apple Health was switched off and the iPhone restarted, the next
+  sync (11:16:04Z) completed in about two minutes: 1,461 calls, 69,797 metric
+  values, 158 workouts.
+
+The Oura correlation rests on that one comparison; `healthd` may equally have
+finished its cache or iCloud work in the meantime. The Oura app was last updated
+on 2026-09-23, and Oura workouts arrive on alternate days throughout the two
+weeks before, so neither explains a start on 2026-09-25.
+
+**Fix.** None in code. Oura's write access to Apple Health stays off: FreeReps
+takes Oura data from the Oura API, and the Oura-written workouts arrive twice
+otherwise (2026-09-25 13:12Z and 16:25Z exist once with `source = 'Oura'` and
+once from Apple Health). A bound on the HealthKit waits is an open item in
+[`ROADMAP.md`](ROADMAP.md); a fixed 60 s timeout was rejected because single
+statistics queries took 79 s and completed.
+
+**Lesson.** A sync that sends nothing is diagnosed in the `healthd` log
+(`sudo log collect --device-name <iphone> --last 10m`) before app builds are
+bisected.
+
+---
+
 ## 2026-09-25 — Hourly sums stayed at the value of the first sync inside the hour
 
 **Symptoms.** The 12:00Z `step_count` bucket of 2026-09-25 (source `''`, written
