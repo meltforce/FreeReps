@@ -1,36 +1,49 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "Sync ${applicationName}": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "${applicationName} synchronisieren"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Start a ${applicationName} sync" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starte ${applicationName} Sync"
           }
         }
       }
     },
-    "Sync health data with ${applicationName}": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gesundheitsdaten mit ${applicationName} synchronisieren"
+    "Sync ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "${applicationName} synchronisieren"
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Sync ${applicationName}",
+              "Sync health data with ${applicationName}",
+              "Start a ${applicationName} sync"
+            ]
           }
         }
       }
     },
-    "Start a ${applicationName} sync": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Starte ${applicationName} Sync"
+    "Sync health data with ${applicationName}" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesundheitsdaten mit ${applicationName} synchronisieren"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }
