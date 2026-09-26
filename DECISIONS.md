@@ -596,14 +596,16 @@ tailnet. App Store approval removed the reason for it. Neither
 as of 2026-09-20, while `https://freereps.coydog-fence.ts.net/api/v1/version`
 answers, which is the check the Uptime Kuma row in the homelab repo performs.
 
-**Residual.** `configuration/nihilist/roles/caddy/files/Caddyfile:140` in the
-homelab repo notes that per-site configs on that host are managed outside the
-repo and names `freereps-testserver` as the example. Whether a site file for it
-remains on `nihilist` is not visible from this repo. DNS does not resolve, so a
-remaining file serves nothing.
+**Residual, resolved 2026-09-26.** Whether a site file for the old instance
+remained on `nihilist` was open. `ls -la /srv` on nihilist listed only
+`auth-meltforce/` on 2026-09-26, so none remained.
 
 **Trigger to re-open.** A further App Store submission whose review requires a
-server the reviewer can reach.
+server the reviewer can reach. For that case the instance is a bounded
+exception again, not a reversal of this decision: the homelab tool
+`tools/review-server` deploys it at the same name and removes it, and was run
+through deploy, check and destroy on 2026-09-26 (see
+[`app/CLAUDE.md`](app/CLAUDE.md)).
 
 ---
 
@@ -1188,8 +1190,10 @@ moves a secret onto the phone, which the current design avoids entirely.
 
 **Where it does not hold.** The app accepts an arbitrary host/port/HTTPS
 configuration for local development and App Store review. There, securing the
-endpoint is the operator's responsibility — see the open row about the review
-test server in [`ROADMAP.md`](ROADMAP.md).
+endpoint is the operator's responsibility. The review instance is deployed by
+the homelab tool `tools/review-server` (see [`app/CLAUDE.md`](app/CLAUDE.md)),
+which closes the app port to everything but the reverse proxy and serves demo
+data only.
 
 **Trigger to re-open.** A deployment that cannot use a tailnet, or multi-user
 support, which is a v1 non-goal below.
