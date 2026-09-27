@@ -407,6 +407,7 @@ final class SyncService: ObservableObject {
 
         let earliest = config.backfillStartDate
         let historicalStart: Date
+        let isFirstBackfill = syncState.backfillAnchorDate == nil && syncState.backfillCursors.isEmpty
 
         if syncState.backfillAnchorDate != nil {
             // Anchor exists but sync hasn't completed — resuming an interrupted backfill.
@@ -427,6 +428,9 @@ final class SyncService: ObservableObject {
             connectFreeReps(config: config)
             guard freereps != nil else { throw FreeRepsError.connectionFailed("FreeReps not initialized") }
             try await loadDisabledMetrics()
+            if isFirstBackfill {
+                await seedCursorsFromServer(historicalStart: historicalStart, anchor: anchor)
+            }
 
             var failedCategories: [String] = []
 
@@ -811,6 +815,52 @@ final class SyncService: ObservableObject {
 
     /// Backfills a quantity category in 90-day windows from `historicalStart` to `anchor`,
     /// resuming from `syncState.backfillCursors[catID]` if set.
+    /// How far before the server's newest stored sample a seeded cursor starts,
+    /// the same margin the anchored sync reads for samples HealthKit receives late.
+    private static let seedLookback: TimeInterval = 7 * 24 * 60 * 60
+
+    /// Starts each backfill category where this app's data on the server ends,
+    /// when the local sync state is empty — after a reinstall or on a new phone.
+    /// Without it the first sync re-sends the whole `backfillDays` window.
+    ///
+    /// A quantity category starts at the oldest of its metrics' checkpoints: a
+    /// category's types are read in the same windows, so a metric that is further
+    /// behind marks where the previous backfill stopped. A category without any
+    /// checkpoint, or a server that cannot answer, keeps the configured start.
+    /// State of Mind is read over the full range in one query and is not seeded.
+    private func seedCursorsFromServer(historicalStart: Date, anchor: Date) async {
+        guard let freereps else { return }
+        let state: ServerSyncState
+        do {
+            state = try await freereps.fetchSyncState()
+        } catch {
+            print("Sync state unavailable, backfilling from the configured start: \(error.localizedDescription)")
+            return
+        }
+
+        func seed(_ catID: String, _ newest: Date?) {
+            guard let newest else { return }
+            let cursor = min(max(newest.addingTimeInterval(-Self.seedLookback), historicalStart), anchor)
+            guard cursor > historicalStart else { return }
+            syncState.backfillCursors[catID] = cursor
+            print("Seeded \(catID) at \(cursor) from the server's sync state")
+        }
+
+        for (cat, types) in HealthDataTypes.quantityTypesByCategory {
+            let dates = types.compactMap { hkToFreeRepsMetricName[$0.id] }
+                .compactMap { state.newestSample(domain: "metrics", item: $0) }
+            seed("qty_\(cat.rawValue)", dates.min())
+        }
+        let bp = ["blood_pressure_systolic", "blood_pressure_diastolic"]
+            .compactMap { state.newestSample(domain: "metrics", item: $0) }
+        seed("cat_bp", bp.min())
+        seed("cat_category", state.newestSample(domain: "category_samples"))
+        seed("cat_workouts", state.newestSample(domain: "workouts"))
+        seed("cat_activity_summaries", state.newestSample(domain: "activity_summaries"))
+        seed("cat_workout_routes", state.newestSample(domain: "workout_routes"))
+        syncState.persist()
+    }
+
     private func backfillQuantityCategory(
         catID: String,
         cat: HealthCategory,

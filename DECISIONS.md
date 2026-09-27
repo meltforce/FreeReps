@@ -19,6 +19,68 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-27 — The server keeps an ingest checkpoint per client, and the iOS app seeds its first backfill from it
+
+**Decided:** 2026-09-27
+
+**Decision.** `ingest_checkpoints` (migration `000037`) holds, per user, client
+(`freereps_ios`, `hae`) and domain, the newest sample time of the data stored
+from that client — per metric name for `metrics`, one row each for `workouts`,
+`workout_routes`, `activity_summaries`, `state_of_mind` and `category_samples`.
+The ingest provider advances a row after the insert of that payload section
+returned without error, and `newest_sample` only moves forward.
+`GET /api/v1/sync-state` returns the caller's rows and `server_now`, and never
+writes. When the app starts a backfill with empty local state
+(`backfillAnchorDate` and every cursor unset), `seedCursorsFromServer` sets each
+backfill category's cursor to its checkpoint minus 7 days — for a quantity
+category the oldest checkpoint of its metrics. A category without a checkpoint,
+State of Mind, and a server that does not answer keep the configured start.
+
+**Reasoning.** The app's sync state lives in `UserDefaults` and is lost on
+reinstall, after which the first sync read HealthKit from `backfillDays` ago —
+on 2026-09-25 the first iOS 27 full sync ran from 2000-01-01. No existing
+endpoint could answer: `GET /api/v1/import-logs` has no client filter, and
+`GET /api/v1/metrics/latest` reports the winning source across clients, which on
+2026-09-25 named Oura for `active_energy`.
+
+Three properties come from HealthLog (`github.com/MBombeck/HealthLog` at
+`69ddcc2`, `src/app/api/sync/state/route.ts`, `src/lib/sync/checkpoint.ts`; an
+approach, not code, since HealthLog is PolyForm Noncommercial): the checkpoint
+is written by the ingest path and never by the endpoint that reports it, a
+checkpoint that trails the data costs one redundant fetch while one ahead of the
+data skips rows permanently, and the response carries the server's time.
+
+Where this differs from the approach recorded on the ROADMAP row:
+
+- **Written after the insert, not in its transaction.** `Provider.Ingest` runs
+  every insert autocommit on the pool and no storage function takes a
+  transaction. Writing the checkpoint after the insert returned keeps the
+  property the transaction was for: when the insert fails the checkpoint stays
+  behind. Every row of a batch that inserted without error is on the server,
+  inserted or already present, so the batch's newest sample is a safe value
+  even when the batch stored no new row.
+- **Per metric name, not per domain.** The backfill runs its categories one
+  after another. After an interrupted backfill one category's metrics reach the
+  present while the next category's have not started, and a single `metrics`
+  checkpoint would seed the second category at the present and skip its
+  history. Workout routes are their own domain for the same reason: the app
+  sends them in a pass after the workouts.
+- **No row count.** A per-name count is not available from the batch insert,
+  and the app needs the time only.
+- **`server_now` is returned but not used.** The seed compares sample times,
+  which HealthKit stamps, with each other, so the phone's clock does not enter.
+
+The tests in `server/internal/ingest/health/checkpoint_integration_test.go`
+cover the forward-only rule and the separation by client and metric. A failed
+insert leaving the checkpoint behind follows from the call order and is not
+covered by a test. The seed on the device was built but not run on 2026-09-27.
+
+**Trigger to re-open.** A reinstall whose first sync misses data the previous
+install had not delivered, or a backfill order that no longer runs its
+categories one after another.
+
+---
+
 ## 2026-09-27 — A polled source that succeeds without storing rows has its own alert, with a fixed threshold per source
 
 **Decided:** 2026-09-27

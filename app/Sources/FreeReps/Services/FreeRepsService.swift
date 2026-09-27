@@ -45,6 +45,24 @@ struct IngestResult: Codable {
     }
 }
 
+/// Where this client's stored data ends on the server, from `GET /api/v1/sync-state`.
+struct ServerSyncState: Decodable {
+    struct Checkpoint: Decodable {
+        let domain: String
+        let item: String?
+        let newest_sample: Date
+    }
+
+    let client: String
+    let server_now: Date
+    let checkpoints: [Checkpoint]
+
+    /// The newest stored sample of one domain, and for `metrics` of one metric name.
+    func newestSample(domain: String, item: String = "") -> Date? {
+        checkpoints.first { $0.domain == domain && ($0.item ?? "") == item }?.newest_sample
+    }
+}
+
 /// Result from the unified import endpoint (CSV uploads).
 struct ImportResult: Codable {
     var sets_received: Int
@@ -56,7 +74,8 @@ struct ImportResult: Codable {
 actor FreeRepsService {
 
     /// Identifies this app to `/api/v1/ingest`, which Health Auto Export posts to as
-    /// well. The server records calls carrying it as `freereps_ios` in import_logs.
+    /// well. The server records calls carrying it as `freereps_ios` in import_logs,
+    /// and `/api/v1/sync-state` answers for the client it names.
     static let clientHeader = "X-FreeReps-Client"
     static let clientID = "freereps-ios"
 
@@ -110,6 +129,29 @@ actor FreeRepsService {
         do {
             let entries = try JSONDecoder().decode([AllowlistEntry].self, from: data)
             return Set(entries.filter { !$0.enabled }.map(\.metric_name))
+        } catch {
+            throw FreeRepsError.decodingError(error.localizedDescription)
+        }
+    }
+
+    /// Where this client's data stored on the server ends. The server resolves the
+    /// client from the header `get` sends, so the answer covers the app's own
+    /// deliveries and not Health Auto Export's.
+    func fetchSyncState() async throws -> ServerSyncState {
+        let data = try await get(path: "api/v1/sync-state")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            // Go writes RFC 3339 with a fractional part of varying length, or none.
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
+                return date
+            }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "not an RFC 3339 date: \(raw)"))
+        }
+        do {
+            return try decoder.decode(ServerSyncState.self, from: data)
         } catch {
             throw FreeRepsError.decodingError(error.localizedDescription)
         }
@@ -171,6 +213,7 @@ actor FreeRepsService {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.setValue(Self.clientID, forHTTPHeaderField: Self.clientHeader)
 
         let (data, response) = try await performRequest(request)
 
