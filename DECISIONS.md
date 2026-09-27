@@ -77,10 +77,10 @@ the workout's own source only, so samples a ring app writes for the same
 minutes do not enter a Watch workout's buckets. When the sources cannot be
 listed, the app sends unmarked buckets over every source, as before.
 
-The bundle identifiers in `knownBundles` (`com.ouraring.oura`,
-`com.withings.wiScaleNG`) are not yet confirmed from a payload; the display
-names `Oura` and `Withings`, which `category_samples` already holds, match as a
-fallback.
+`com.ouraring.oura` in `knownBundles` is confirmed: the sync of 2026-09-27
+13:52:18Z logged `sources="com.ouraring.oura (Oura)=6"` for the dropped items.
+`com.withings.wiScaleNG` is not yet confirmed from a payload; the display name
+`Withings`, which `category_samples` already holds, matches as a fallback.
 
 **Trigger to re-open.** A further provider with a direct sync, a provider that
 changes its bundle identifier, or a need to tell Watch and iPhone apart.
