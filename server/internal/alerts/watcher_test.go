@@ -467,3 +467,22 @@ func TestAppleWorkoutChannelAlertsOnItsOwn(t *testing.T) {
 		t.Fatal("the workout channel did not alert after 40 hours, threshold is 36")
 	}
 }
+
+// TestAppleIOSAppCountsAsDelivery is the regression test for 2026-09-26: Health
+// Auto Export had gone quiet for 38 hours while the FreeReps iOS app kept
+// delivering, and both Apple conditions fired on data that was arriving.
+func TestAppleIOSAppCountsAsDelivery(t *testing.T) {
+	store := newFakeStore()
+	store.last["hae_rest"] = time.Now().Add(-38 * time.Hour)
+	store.lastWork["hae_rest"] = time.Now().Add(-38 * time.Hour)
+	store.last["freereps_ios"] = time.Now().Add(-1 * time.Hour)
+	store.lastWork["freereps_ios"] = time.Now().Add(-5 * time.Hour)
+	rec := &recorder{}
+	testWatcher(store, rec).Check(context.Background())
+
+	for _, p := range rec.sent {
+		if (p.MonitorID == MonitorAppleIngest || p.MonitorID == MonitorAppleWorkouts) && p.Status == notify.StatusProblem {
+			t.Errorf("monitor %d alerted although the iOS app delivered within the threshold: %q", p.MonitorID, p.Msg)
+		}
+	}
+}

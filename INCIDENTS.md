@@ -16,6 +16,25 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-09-26 — both Apple Health alerts fired while the iOS app was delivering
+
+**Symptoms.** Monitors 9204 (`apple health metrics`) and 9205 (`apple health
+workouts`) fired at 2026-09-26 22:04 with "last stored export
+2026-09-25T08:02:30Z". Workouts and heart-rate samples through 2026-09-26 17:00Z
+were in the database.
+
+**Root cause.** `server/internal/alerts/watcher.go` read `import_logs` for
+`source = 'hae_rest'` only. The iOS app posts to the same endpoint with
+`X-FreeReps-Client: freereps-ios` and logs as `freereps_ios`, so its deliveries
+were invisible to both rules once Health Auto Export stopped posting.
+
+**Fix.** Both rules take the newest run across `hae_rest` and `freereps_ios`.
+`TestAppleIOSAppCountsAsDelivery` reproduces the state; it reports both monitors
+as firing against the previous `watcher.go` and neither against the new one.
+
+**Lesson.** A second client on an existing ingest path belongs in every rule
+that filters on that path's source.
+
 ## 2026-09-25 — The iOS app sync waited on HealthKit for 19 hours and sent nothing
 
 **Symptoms.** From 2026-09-25 16:05:12Z to 2026-09-26 11:16Z the server received

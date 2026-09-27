@@ -57,10 +57,33 @@ var sourceConditions = []sourceCondition{
 	{source: "hevy_sync", monitorID: MonitorHevySync, service: ServiceNames[MonitorHevySync]},
 }
 
-// appleIngestSource is the source the Health Auto Export REST path logs under.
-// It is not polled by this server: the iPhone posts when its automation runs, so
-// the condition is silence rather than a failed run.
-const appleIngestSource = "hae_rest"
+// appleIngestSources are the sources the Apple Health ingest path logs under:
+// Health Auto Export as `hae_rest`, the FreeReps iOS app as `freereps_ios`. Both
+// post to /api/v1/ingest. They are not polled by this server: the iPhone posts
+// when its client runs, so the condition is silence rather than a failed run.
+//
+// The rules take the newest run across both. Counting `hae_rest` alone fired
+// both Apple conditions on 2026-09-26 while the iOS app was delivering workouts
+// and heart-rate samples through 17:00Z: Health Auto Export had gone quiet, and
+// the data had not.
+var appleIngestSources = []string{"hae_rest", "freereps_ios"}
+
+// latestAcross returns the newest of lookup over every Apple ingest source, and
+// false when none has a run.
+func latestAcross(ctx context.Context, lookup func(context.Context, string) (time.Time, bool, error)) (time.Time, bool, error) {
+	var latest time.Time
+	found := false
+	for _, src := range appleIngestSources {
+		t, ok, err := lookup(ctx, src)
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		if ok && t.After(latest) {
+			latest, found = t, true
+		}
+	}
+	return latest, found, nil
+}
 
 // Store is the part of storage the rules read and write.
 type Store interface {
@@ -140,10 +163,10 @@ func (w *Watcher) Check(ctx context.Context) time.Duration {
 		}
 	}
 	if err := w.checkAppleIngest(ctx, st); err != nil {
-		w.log.Warn("alert rule failed", "source", appleIngestSource, "channel", "metrics", "error", err)
+		w.log.Warn("alert rule failed", "sources", appleIngestSources, "channel", "metrics", "error", err)
 	}
 	if err := w.checkAppleWorkouts(ctx, st); err != nil {
-		w.log.Warn("alert rule failed", "source", appleIngestSource, "channel", "workouts", "error", err)
+		w.log.Warn("alert rule failed", "sources", appleIngestSources, "channel", "workouts", "error", err)
 	}
 	return w.interval(st)
 }
@@ -238,7 +261,7 @@ func (w *Watcher) checkSource(ctx context.Context, st storage.AlertSettings, c s
 // that is the expected state, and an alert for it would arrive before the
 // automation has been configured at all.
 func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings) error {
-	last, ok, err := w.store.LastStoredMetricRunAt(ctx, appleIngestSource)
+	last, ok, err := latestAcross(ctx, w.store.LastStoredMetricRunAt)
 	if err != nil {
 		return err
 	}
@@ -267,7 +290,7 @@ func (w *Watcher) checkAppleIngest(ctx context.Context, st storage.AlertSettings
 // nothing and a stored-row rule would fire through every quiet week. What is
 // observable here is whether the automation still posts.
 func (w *Watcher) checkAppleWorkouts(ctx context.Context, st storage.AlertSettings) error {
-	last, ok, err := w.store.LastWorkoutDeliveryAt(ctx, appleIngestSource)
+	last, ok, err := latestAcross(ctx, w.store.LastWorkoutDeliveryAt)
 	if err != nil {
 		return err
 	}
