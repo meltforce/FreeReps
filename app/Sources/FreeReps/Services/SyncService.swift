@@ -1281,6 +1281,7 @@ final class SyncService: ObservableObject {
                     var hrData: [FreeRepsWorkoutHRPoint]?
                     if w.duration > 0 {
                         let buckets: [HealthKitService.AggregatedBucket]
+                        let statsStart = Date()
                         do {
                             buckets = try await self.healthKit.queryAggregatedStatistics(
                                 typeID: .heartRate, unit: hrUnit,
@@ -1290,12 +1291,14 @@ final class SyncService: ObservableObject {
                         } catch let timeout as HealthKitService.QueryTimeout {
                             throw timeout
                         } catch {
-                            print("HR statistics failed for workout \(w.uuid), aggregating samples: \(error.localizedDescription)")
+                            print("HR statistics failed for workout \(w.uuid) after \(Int(Date().timeIntervalSince(statsStart))) s, aggregating samples: \(error.localizedDescription)")
+                            let fallbackStart = Date()
                             buckets = try await self.healthKit.aggregateSamples(
                                 typeID: .heartRate, unit: hrUnit,
                                 from: w.startDate, until: w.endDate,
                                 interval: 60
                             )
+                            print("HR fallback for workout \(w.uuid): \(buckets.count) minute bucket(s) in \(Int(Date().timeIntervalSince(fallbackStart))) s")
                         }
                         if !buckets.isEmpty {
                             hrData = buckets.map { b in
