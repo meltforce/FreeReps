@@ -118,6 +118,10 @@ export interface MaxHeartRate {
   estimated: number;
   /** Completed years, 0 when no birth date is stored. */
   age: number;
+  /** Median resting heart rate of the last 30 days, 0 when none is stored. */
+  resting: number;
+  /** The four bpm edges between the five zones, from the heart rate reserve. */
+  zone_edges: number[] | null;
 }
 
 export interface BirthDate {
@@ -311,8 +315,12 @@ export interface WorkoutZones {
 }
 
 export interface WorkoutZonesResponse {
-  /** The highest heart rate ever recorded; the zone bands derive from it. */
+  /** The maximum the zone bands derive from, together with the resting rate. */
   max_heart_rate: number;
+  /** Median resting heart rate of the last 30 days, 0 when none is stored. */
+  resting_heart_rate: number;
+  /** The four bpm edges between the five zones. */
+  zone_edges: number[] | null;
   zones: WorkoutZones[] | null;
 }
 

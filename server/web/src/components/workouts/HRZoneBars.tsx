@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import type { WorkoutHR } from "../../api";
-import { ZONE_BOUNDS, ZONE_COLORS, zoneBands } from "../../utils/stageColors";
+import { ZONE_COLORS, resolveZoneEdges, zoneBands, zoneOf } from "../../utils/stageColors";
 
 interface Props {
   hrData: WorkoutHR[];
-  /** Falls back to the session's own peak when the user's maximum is unknown. */
-  maxHR?: number;
+  /** The server's zone edges; without them the session's own peak stands in. */
+  zoneEdges?: number[] | null;
 }
 
 /**
@@ -13,7 +13,7 @@ interface Props {
  * counting them — a strength session's rest periods would otherwise inflate
  * the low zones.
  */
-export default function HRZoneBars({ hrData, maxHR }: Props) {
+export default function HRZoneBars({ hrData, zoneEdges }: Props) {
   if (!hrData || hrData.length < 5) {
     return (
       <Section>
@@ -24,13 +24,9 @@ export default function HRZoneBars({ hrData, maxHR }: Props) {
     );
   }
 
-  const peak = Math.max(
-    ...hrData.map((d) => d.MaxBPM ?? d.AvgBPM ?? 0),
-    maxHR ?? 0,
-  );
-  if (peak <= 0) return null;
-
-  const edges = ZONE_BOUNDS.map((f) => f * peak);
+  const peak = Math.max(...hrData.map((d) => d.MaxBPM ?? d.AvgBPM ?? 0));
+  const edges = resolveZoneEdges(zoneEdges ?? undefined, peak);
+  if (edges[0] <= 0) return null;
   const zoneSecs: number[] = new Array(ZONE_COLORS.length).fill(0);
 
   for (let i = 1; i < hrData.length; i++) {
@@ -42,14 +38,7 @@ export default function HRZoneBars({ hrData, maxHR }: Props) {
       1000;
     // Skip gaps over ten minutes: those are rests, not time in a zone.
     if (dt <= 0 || dt > 600) continue;
-    let zone = edges.length;
-    for (let z = 0; z < edges.length; z++) {
-      if (bpm < edges[z]) {
-        zone = z;
-        break;
-      }
-    }
-    zoneSecs[zone] += dt;
+    zoneSecs[zoneOf(bpm, edges)] += dt;
   }
 
   const total = zoneSecs.reduce((a, b) => a + b, 0);
@@ -63,7 +52,7 @@ export default function HRZoneBars({ hrData, maxHR }: Props) {
     );
   }
 
-  const bands = zoneBands(peak);
+  const bands = zoneBands(edges);
 
   return (
     <Section>

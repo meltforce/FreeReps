@@ -19,6 +19,49 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-27 — Heart rate zones are shares of the heart rate reserve, and the server computes their edges
+
+**Decided:** 2026-09-27
+
+**Decision.** The four zone edges are `resting + f × (max − resting)` for
+`f` = 0.6, 0.7, 0.8, 0.9 (Karvonen), computed once in `storage.ZoneEdges` and
+returned as `zone_edges` by `GET /api/v1/preferences/max-heart-rate` and
+`GET /api/v1/workouts/zones`. The workout list, the workout detail page and the
+heart rate chart all read those edges. The resting rate is the median of the
+daily `resting_heart_rate` over the last 30 days, with one source per day chosen
+by the user's source priority for the metric. Without a resting rate the
+formula reduces to fractions of the maximum.
+
+**Reasoning.** The outdoor run of 2026-09-27 (average 134 bpm, maximum 146) was
+in zones 1 to 3 on the Apple Watch. FreeReps showed it in zones 4 and 5 on the
+detail page and in zones 3 and 4 in the list, for two separate reasons:
+
+- The detail page passed no maximum to `HRZoneBars`, so its zones were
+  fractions of the session's own peak of 146 bpm. Any session then puts its
+  hardest minutes in zone 5, whatever their intensity.
+- Fractions of the maximum put the lower edges close to a trained resting
+  rate: at a maximum of 168, zone 2 starts at 101 bpm. The Apple Watch derives
+  its zones from the heart rate reserve. With the reserve and a resting rate of
+  60 the same run splits 8 % / 46 % / 46 % over zones 1 to 3.
+
+Computing the edges on the server leaves one formula in the code. Before this
+change the frontend held its own copy of the fractions next to the server's.
+
+**The resting rate depends on the source.** Apple Health estimates a daytime
+resting rate, Oura reports the lowest rate of the night. From 2026-09-14 to
+2026-09-27 the two differed by a median of 8 bpm per day. A median over both
+would sit between two definitions, which is why one source wins per day. With
+the configured default priority Oura wins, which moves the edges down by 1 to
+3 bpm against the Apple Health figure of 68. The run of 2026-09-27 stays in zones 1
+to 3 either way.
+
+**Trigger to re-open.** Zones that still disagree with the Apple Watch after a
+configured maximum, or a need to set the resting rate by hand. A configured
+resting rate would take the place of the median the same way a configured
+maximum takes the place of the estimate.
+
+---
+
 ## 2026-09-27 — The server keeps an ingest checkpoint per client, and the iOS app seeds its first backfill from it
 
 **Decided:** 2026-09-27

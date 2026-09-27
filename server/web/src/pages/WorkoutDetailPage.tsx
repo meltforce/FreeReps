@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { fetchWorkoutDetail, type Workout } from "../api";
+import { fetchMaxHeartRate, fetchWorkoutDetail, type Workout } from "../api";
 import PageHeader from "../components/PageHeader";
 import HRTimelineChart from "../components/workouts/HRTimelineChart";
 import HRZoneBars from "../components/workouts/HRZoneBars";
@@ -25,6 +25,15 @@ export default function WorkoutDetailPage() {
     queryFn: () => fetchWorkoutDetail(id!),
     enabled: !!id && !isSynthetic,
   });
+  // The same edges the workout list colours its bars with. Without them the
+  // zones were fractions of this session's own peak, which puts an easy run
+  // in the top zones.
+  const zonesQuery = useQuery({
+    queryKey: ["max-heart-rate"],
+    queryFn: fetchMaxHeartRate,
+    enabled: !isSynthetic,
+  });
+  const zoneEdges = zonesQuery.data?.zone_edges;
 
   const w = isSynthetic ? routeWorkout! : data;
 
@@ -165,8 +174,8 @@ export default function WorkoutDetailPage() {
           workoutEnd={isSynthetic ? w.EndTime : undefined}
         />
 
-        {hasHR ? <HRTimelineChart hrData={data!.HeartRateData!} /> : null}
-        {hasHR ? <HRZoneBars hrData={data!.HeartRateData!} /> : null}
+        {hasHR ? <HRTimelineChart hrData={data!.HeartRateData!} zoneEdges={zoneEdges} /> : null}
+        {hasHR ? <HRZoneBars hrData={data!.HeartRateData!} zoneEdges={zoneEdges} /> : null}
 
         {/* Hidden for indoor or zero-distance workouts: there is no track. */}
         {hasRoute && !w.IsIndoor && (distanceKm(w.Distance, w.DistanceUnits) ?? 0) > 0.1 ? (

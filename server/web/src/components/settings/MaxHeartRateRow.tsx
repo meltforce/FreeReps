@@ -138,6 +138,19 @@ export default function MaxHeartRateRow() {
             with it. A date of birth above gives a steadier estimate.
           </>
         )}
+        {data && !error ? (
+          data.resting > 0 ? (
+            <>
+              {" "}
+              Each zone is a share of the reserve between this maximum and your
+              resting rate of{" "}
+              <span className="num">{formatNumber(data.resting, 0)}</span> bpm,
+              the median of the last 30 days.
+            </>
+          ) : (
+            " No resting heart rate from the last 30 days, so each zone is a share of the maximum alone."
+          )
+        ) : null}
       </p>
     </Row>
   );

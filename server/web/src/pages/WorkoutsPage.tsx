@@ -100,6 +100,8 @@ export default function WorkoutsPage() {
   };
 
   const maxHR = zonesQuery.data?.max_heart_rate ?? 0;
+  const restingHR = zonesQuery.data?.resting_heart_rate ?? 0;
+  const zoneEdges = zonesQuery.data?.zone_edges ?? [];
 
   return (
     <>
@@ -284,7 +286,7 @@ export default function WorkoutsPage() {
         </button>
       </div>
 
-      {isDesktop && maxHR > 0 ? (
+      {isDesktop && zoneEdges.length > 0 ? (
         <div
           className="page-x flex items-center gap-6 flex-wrap"
           style={{
@@ -293,7 +295,7 @@ export default function WorkoutsPage() {
             paddingBottom: 40,
           }}
         >
-          {zoneBands(maxHR).map((band, i) => (
+          {zoneBands(zoneEdges).map((band, i) => (
             <span
               key={i}
               style={{
@@ -320,7 +322,9 @@ export default function WorkoutsPage() {
               color: "var(--color-neutral-600)",
             }}
           >
-            Bands from a maximum of {formatNumber(maxHR)} bpm
+            {restingHR > 0
+              ? `Bands from the reserve between ${formatNumber(restingHR, 0)} and ${formatNumber(maxHR)} bpm`
+              : `Bands from a maximum of ${formatNumber(maxHR)} bpm`}
           </span>
         </div>
       ) : null}

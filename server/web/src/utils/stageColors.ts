@@ -35,13 +35,20 @@ export const ZONE_COLORS = [
 ];
 
 /**
- * Zone boundaries as fractions of max heart rate. The screen states the bpm
- * bands computed from the user's own maximum rather than hardcoding them.
+ * Zone boundaries as fractions of max heart rate. The server derives the real
+ * edges from the heart rate reserve (storage.ZoneEdges); these fractions only
+ * serve a session viewed before the server has reported its edges.
  */
 export const ZONE_BOUNDS = [0.6, 0.7, 0.8, 0.9];
 
-export function zoneBands(maxHR: number): string[] {
-  const edges = ZONE_BOUNDS.map((f) => Math.round(maxHR * f));
+/** The four bpm edges from the server, or fractions of `peak` without them. */
+export function resolveZoneEdges(edges: number[] | undefined, peak: number): number[] {
+  if (edges && edges.length === ZONE_BOUNDS.length) return edges;
+  return ZONE_BOUNDS.map((f) => f * peak);
+}
+
+export function zoneBands(zoneEdges: number[]): string[] {
+  const edges = zoneEdges.map((e) => Math.round(e));
   return [
     `< ${edges[0]}`,
     `${edges[0]}–${edges[1]}`,
@@ -52,10 +59,9 @@ export function zoneBands(maxHR: number): string[] {
 }
 
 /** Which zone a heart rate lands in, 0-indexed. */
-export function zoneOf(bpm: number, maxHR: number): number {
-  const f = bpm / maxHR;
-  for (let i = 0; i < ZONE_BOUNDS.length; i++) {
-    if (f < ZONE_BOUNDS[i]) return i;
+export function zoneOf(bpm: number, edges: number[]): number {
+  for (let i = 0; i < edges.length; i++) {
+    if (bpm < edges[i]) return i;
   }
-  return ZONE_BOUNDS.length;
+  return edges.length;
 }

@@ -5,16 +5,16 @@ import type { WorkoutHR } from "../../api";
 import AutoSizeUplot from "../AutoSizeUplot";
 import { axisValues24h } from "../../utils/chartFormat";
 import { useTheme } from "../../theme";
-import { ZONE_BOUNDS } from "../../utils/stageColors";
+import { resolveZoneEdges } from "../../utils/stageColors";
 import { tokenColor, tokenColorAlpha } from "../../utils/tokenColor";
 
 interface Props {
   hrData: WorkoutHR[];
-  /** Falls back to the session's own peak when the user's maximum is unknown. */
-  maxHR?: number;
+  /** The server's zone edges; without them the session's own peak stands in. */
+  zoneEdges?: number[] | null;
 }
 
-export default function HRTimelineChart({ hrData, maxHR }: Props) {
+export default function HRTimelineChart({ hrData, zoneEdges }: Props) {
   // The theme decides what the resolved token values are, so the chart is
   // rebuilt when it changes.
   const { theme } = useTheme();
@@ -25,11 +25,8 @@ export default function HRTimelineChart({ hrData, maxHR }: Props) {
     const times = hrData.map((p) => Math.floor(new Date(p.Time).getTime() / 1000));
     const bpms = hrData.map((p) => p.AvgBPM ?? p.MaxBPM ?? p.MinBPM ?? null);
 
-    const peak = Math.max(
-      ...bpms.map((b) => b ?? 0),
-      maxHR ?? 0,
-    );
-    const edges = ZONE_BOUNDS.map((f) => f * peak);
+    const peak = Math.max(...bpms.map((b) => b ?? 0));
+    const edges = resolveZoneEdges(zoneEdges ?? undefined, peak);
 
     const axis = tokenColor("--color-neutral-600", "#79848c");
     const grid = tokenColor("--color-neutral-300", "#cfd4d6");
@@ -87,7 +84,7 @@ export default function HRTimelineChart({ hrData, maxHR }: Props) {
       plotData: [new Float64Array(times), bpms] as uPlot.AlignedData,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hrData, maxHR, theme]);
+  }, [hrData, zoneEdges, theme]);
 
   if (!opts || !plotData) {
     return (

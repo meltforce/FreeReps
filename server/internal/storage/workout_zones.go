@@ -10,8 +10,36 @@ import (
 // only one drawn in the accent.
 const ZoneCount = 5
 
-// zoneBounds are the zone edges as fractions of the user's maximum heart rate.
+// zoneBounds are the zone edges as fractions of the heart rate reserve, the
+// span between resting and maximum heart rate (Karvonen). Zone 1 holds
+// everything below the first edge.
+//
+// The reserve replaced fractions of the maximum on 2026-09-27: an easy run the
+// Apple Watch placed in zones 1 to 3 landed in zones 3 and 4 here, because a
+// fraction of the maximum puts the lower edges close to a trained resting
+// rate. The watch computes its zones from the reserve as well.
 var zoneBounds = []float64{0.6, 0.7, 0.8, 0.9}
+
+// restingWindow is the span the resting heart rate is taken from. A month
+// smooths out a night of illness or alcohol without lagging a training block.
+const restingWindow = 30 * 24 * time.Hour
+
+// ZoneEdges returns the four bpm edges between the five zones. A resting rate
+// of 0 means none is known; the edges then reduce to fractions of the maximum,
+// which is the reserve formula with a resting rate of zero.
+func ZoneEdges(maxHR, restingHR float64) []float64 {
+	if maxHR <= 0 {
+		return nil
+	}
+	if restingHR < 0 || restingHR >= maxHR {
+		restingHR = 0
+	}
+	edges := make([]float64, len(zoneBounds))
+	for i, f := range zoneBounds {
+		edges[i] = restingHR + f*(maxHR-restingHR)
+	}
+	return edges
+}
 
 // WorkoutZones holds one session's share of time per zone, as fractions summing
 // to 1. Empty when the session has no heart rate samples.
@@ -20,8 +48,9 @@ type WorkoutZones struct {
 	Shares    []float64 `json:"shares"`
 }
 
-// MaxHeartRate carries the figure the zone bands derive from, and where it came
-// from — the screen states the source, because the three differ in kind.
+// MaxHeartRate carries the figures the zone bands derive from, and where the
+// maximum came from — the screen states the source, because the three differ
+// in kind.
 type MaxHeartRate struct {
 	BPM float64 `json:"bpm"`
 	// "configured" when the user set it, "estimated" when derived from age,
@@ -34,6 +63,11 @@ type MaxHeartRate struct {
 	Estimated float64 `json:"estimated"`
 	// Completed years, 0 when no birth date is stored.
 	Age int `json:"age"`
+	// Median resting heart rate of the last 30 days, 0 when none is stored.
+	Resting float64 `json:"resting"`
+	// The four bpm edges between the five zones, from BPM and Resting. Empty
+	// when BPM is 0.
+	ZoneEdges []float64 `json:"zone_edges"`
 }
 
 // GetMaxHeartRate returns the heart rate the zone bands are computed from.
@@ -71,18 +105,55 @@ func (db *DB) GetMaxHeartRate(ctx context.Context, userID int) (MaxHeartRate, er
 	if err != nil {
 		return MaxHeartRate{}, err
 	}
-	if found && configured > 0 {
+	switch {
+	case found && configured > 0:
 		result.BPM, result.Origin = configured, "configured"
-		return result, nil
-	}
-
-	if result.Estimated > 0 && result.Estimated >= observed {
+	case result.Estimated > 0 && result.Estimated >= observed:
 		result.BPM, result.Origin = result.Estimated, "estimated"
-		return result, nil
+	default:
+		result.BPM, result.Origin = observed, "observed"
 	}
 
-	result.BPM, result.Origin = observed, "observed"
+	result.Resting, err = db.restingHeartRate(ctx, userID, time.Now())
+	if err != nil {
+		return MaxHeartRate{}, err
+	}
+	result.ZoneEdges = ZoneEdges(result.BPM, result.Resting)
 	return result, nil
+}
+
+// restingHeartRate is the median of the daily resting heart rate over the
+// restingWindow before now, 0 when none is stored.
+//
+// Apple Health and Oura both report the metric; from 2026-09-14 to 2026-09-27
+// the two differed by a median of 8 bpm per day.
+// Apple Health estimates a daytime resting
+// rate, Oura reports the lowest rate of the night. One source wins per day by the user's priority for the metric,
+// so a day never contributes both figures. The median keeps one feverish day
+// from moving every zone edge.
+func (db *DB) restingHeartRate(ctx context.Context, userID int, now time.Time) (float64, error) {
+	const metric = "resting_heart_rate"
+	priorities := db.ResolveSourcePriorityForMetric(ctx, userID, metric)
+	rn := winningSourceRN(sourcePriorityCaseSQL(priorities), "time_bucket('1 day', time)")
+
+	var median *float64
+	err := db.Pool.QueryRow(ctx, fmt.Sprintf(
+		`WITH deduped AS (
+			SELECT qty, %s
+			FROM health_metrics
+			WHERE user_id = $1 AND metric_name = $2
+			  AND time >= $3 AND time < $4 AND qty > 0
+		)
+		SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY qty)
+		FROM deduped WHERE rn = 1`, rn),
+		userID, metric, now.Add(-restingWindow), now).Scan(&median)
+	if err != nil {
+		return 0, fmt.Errorf("querying resting heart rate: %w", err)
+	}
+	if median == nil {
+		return 0, nil
+	}
+	return *median, nil
 }
 
 // observedMaxHeartRate is the 99.9th percentile, not the maximum. A single
@@ -112,14 +183,11 @@ func (db *DB) observedMaxHeartRate(ctx context.Context, userID int) (float64, er
 // near-constant cadence within a session, so the two agree closely, and
 // counting avoids a window function over every heart rate row in the range —
 // this runs for a whole workout list, not one session.
-func (db *DB) GetWorkoutZones(ctx context.Context, userID int, start, end time.Time, maxHR float64) ([]WorkoutZones, error) {
-	if maxHR <= 0 {
+//
+// edges are the bpm boundaries from ZoneEdges; without them there are no zones.
+func (db *DB) GetWorkoutZones(ctx context.Context, userID int, start, end time.Time, edges []float64) ([]WorkoutZones, error) {
+	if len(edges) != ZoneCount-1 {
 		return nil, nil
-	}
-
-	edges := make([]float64, len(zoneBounds))
-	for i, f := range zoneBounds {
-		edges[i] = f * maxHR
 	}
 
 	rows, err := db.Pool.Query(ctx,

@@ -193,7 +193,7 @@ func (s *Server) handleLatestMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleWorkoutZones returns the per-zone share of each workout in the range,
-// plus the maximum heart rate the zone bands are derived from. Kept separate
+// plus the heart rates and bpm edges the zone bands are derived from. Kept separate
 // from the workout list so that response shape stays as the iOS app expects it.
 func (s *Server) handleWorkoutZones(w http.ResponseWriter, r *http.Request) {
 	uid, ok := mustUserID(w, r)
@@ -212,7 +212,7 @@ func (s *Server) handleWorkoutZones(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zones, err := s.db.GetWorkoutZones(r.Context(), uid, start, end, maxHR.BPM)
+	zones, err := s.db.GetWorkoutZones(r.Context(), uid, start, end, maxHR.ZoneEdges)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -223,6 +223,8 @@ func (s *Server) handleWorkoutZones(w http.ResponseWriter, r *http.Request) {
 		"max_heart_rate":          maxHR.BPM,
 		"max_heart_rate_origin":   maxHR.Origin,
 		"observed_max_heart_rate": maxHR.Observed,
+		"resting_heart_rate":      maxHR.Resting,
+		"zone_edges":              maxHR.ZoneEdges,
 		"zones":                   zones,
 	})
 }
