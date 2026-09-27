@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -49,10 +50,10 @@ func TestAgeYearsAcrossALeapDay(t *testing.T) {
 }
 
 func TestEstimatedMaxHeartRate(t *testing.T) {
-	if got := EstimatedMaxHeartRate(36); got != 184 {
-		t.Errorf("EstimatedMaxHeartRate(36) = %v, want 184", got)
-	}
-	if got := EstimatedMaxHeartRate(52); got != 168 {
-		t.Errorf("EstimatedMaxHeartRate(52) = %v, want 168", got)
+	cases := map[int]float64{36: 182.8, 52: 171.6}
+	for age, want := range cases {
+		if got := EstimatedMaxHeartRate(age); math.Abs(got-want) > 1e-9 {
+			t.Errorf("EstimatedMaxHeartRate(%d) = %v, want %v", age, got, want)
+		}
 	}
 }

@@ -127,7 +127,7 @@ export default function MaxHeartRateRow() {
           <>
             Unset, so zones use the estimate for age {data.age} —{" "}
             <span className="num">{formatNumber(data.estimated, 0)}</span> bpm,
-            from 220 minus age. That formula varies by about 10 bpm between
+            from 208 minus 0.7 × age. That formula varies by about 10 bpm between
             people, so your own figure is the better one if you know it.
           </>
         ) : (

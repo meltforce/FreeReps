@@ -55,6 +55,15 @@ the configured default priority Oura wins, which moves the edges down by 1 to
 3 bpm against the Apple Health figure of 68. The run of 2026-09-27 stays in zones 1
 to 3 either way.
 
+**Compared with the Apple Watch.** The watch showed the run of 2026-09-27 with
+edges of 130, 140, 151 and 161 bpm. The same four fractions of the reserve
+reproduce them with a resting rate of 68 and a maximum of 171.6: the Apple
+Health resting rate of those days, and the Tanaka estimate 208 − 0.7 × age at
+age 52. The maximum estimate was switched to Tanaka on the same day. The resting
+rate stays with the source priority, which puts Oura first; the operator chose
+on 2026-09-27 to keep Oura as its source rather than match the watch. The edges
+from Oura's 60 bpm (127, 138, 149, 160) lie 1 to 3 bpm below the watch's.
+
 **Trigger to re-open.** Zones that still disagree with the Apple Watch after a
 configured maximum, or a need to set the resting rate by hand. A configured
 resting rate would take the place of the median the same way a configured

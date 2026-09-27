@@ -54,14 +54,20 @@ func AgeYears(birth, now time.Time) int {
 	return years
 }
 
-// EstimatedMaxHeartRate is the Haskell-Fox estimate, 220 minus age.
+// EstimatedMaxHeartRate is the Tanaka estimate, 208 minus 0.7 times age.
+//
+// Tanaka replaced Haskell-Fox (220 minus age) on 2026-09-27. The Apple Watch
+// zone edges for the run of that day (130, 140, 151, 161 bpm at age 52) are
+// reproduced by a maximum of 171.6, which is Tanaka's figure; Haskell-Fox gives
+// 168. Tanaka is also the better fit above age 40, where Haskell-Fox
+// underestimates.
 //
 // It is a population average with a standard deviation around 10 to 12 bpm, so
 // it is a starting point rather than a measurement — which is why a figure the
 // user configured always wins, and why a genuinely observed rate above the
 // estimate wins too.
 func EstimatedMaxHeartRate(age int) float64 {
-	return float64(220 - age)
+	return 208 - 0.7*float64(age)
 }
 
 // DefaultFrontPageHeroes is used until the user picks their own. Readiness,
