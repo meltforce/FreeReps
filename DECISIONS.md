@@ -73,7 +73,17 @@ Where this differs from the approach recorded on the ROADMAP row:
 The tests in `server/internal/ingest/health/checkpoint_integration_test.go`
 cover the forward-only rule and the separation by client and metric. A failed
 insert leaving the checkpoint behind follows from the call order and is not
-covered by a test. The seed on the device was built but not run on 2026-09-27.
+covered by a test.
+
+Run on the device on 2026-09-27 with `backfillDays` at 30, after "Reset Sync
+State": eight of eleven categories were seeded, `qty_Activity` at 2026-09-18
+13:00 (the `distance_cycling` checkpoint of 2026-09-25 13:00 minus 7 days);
+`qty_Body Measurements`, `qty_Nutrition` and `cat_bp` had no checkpoint and
+started at the configured 30 days. The backfill ran from 11:17:25 to 11:21:34
+UTC without a failed call. The seed takes effect only when `backfillDays` is
+above 7: with the 7 days configured on that phone the seeded cursor never lies
+after the configured start, and every category is skipped with a
+"Not seeded" line in the console.
 
 **Trigger to re-open.** A reinstall whose first sync misses data the previous
 install had not delivered, or a backfill order that no longer runs its

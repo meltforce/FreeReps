@@ -839,9 +839,15 @@ final class SyncService: ObservableObject {
         }
 
         func seed(_ catID: String, _ newest: Date?) {
-            guard let newest else { return }
+            guard let newest else {
+                print("Not seeded \(catID): no checkpoint on the server")
+                return
+            }
             let cursor = min(max(newest.addingTimeInterval(-Self.seedLookback), historicalStart), anchor)
-            guard cursor > historicalStart else { return }
+            guard cursor > historicalStart else {
+                print("Not seeded \(catID): checkpoint \(newest) minus 7 days is not after the configured start \(historicalStart)")
+                return
+            }
             syncState.backfillCursors[catID] = cursor
             print("Seeded \(catID) at \(cursor) from the server's sync state")
         }
