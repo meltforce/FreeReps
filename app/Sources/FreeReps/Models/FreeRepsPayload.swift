@@ -35,6 +35,12 @@ struct FreeRepsMetricDataPoint: Encodable {
     var Min: Double? = nil
     var Avg: Double? = nil
     var Max: Double? = nil
+    // HealthKit source of the point. The server derives the stored source name
+    // from the bundle (health.CanonicalSource) and drops copies of providers it
+    // syncs directly. A statistics bucket over several Apple devices carries
+    // SourceGroup.appleHealthBundle.
+    var source_bundle: String? = nil
+    var source_name: String? = nil
 }
 
 // MARK: - Workouts
@@ -60,6 +66,9 @@ struct FreeRepsWorkout: Encodable {
 
     var heartRateData: [FreeRepsWorkoutHRPoint]?
     var route: [FreeRepsRoutePoint]?
+
+    var source_bundle: String?
+    var source_name: String?
 }
 
 struct FreeRepsQuantity: Encodable {
@@ -80,6 +89,7 @@ struct FreeRepsWorkoutHRPoint: Encodable {
     let Max: Double
     let units: String
     let source: String
+    var source_bundle: String? = nil
 }
 
 struct FreeRepsRoutePoint: Encodable {
@@ -168,6 +178,7 @@ struct FreeRepsStateOfMind: Encodable {
     let associations: [Int]
     let start_date: String
     let source: String
+    var source_bundle: String? = nil
 }
 
 // MARK: - Category samples
@@ -180,6 +191,7 @@ struct FreeRepsCategorySample: Encodable {
     let start_date: String
     let end_date: String
     let source: String
+    var source_bundle: String? = nil
 }
 
 // MARK: - Blood pressure (sent as metrics with systolic/diastolic shape)
@@ -356,6 +368,13 @@ extension HKObject {
     }
     var deviceName: String {
         device?.name ?? ""
+    }
+}
+
+extension HKSource {
+    /// Every Apple device (com.apple.health.<UUID>) and Apple app.
+    var isApple: Bool {
+        bundleIdentifier.hasPrefix("com.apple.")
     }
 }
 

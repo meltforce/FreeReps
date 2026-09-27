@@ -66,6 +66,17 @@ priority could separate them, because they carried the same source and client.
   against, so older rows could not be relabelled consistently. Chosen by the
   operator on 2026-09-27.
 
+**How the app attributes summed metrics.** A statistics query merges every
+source it reads, so an hourly step or energy bucket cannot carry one source
+by itself. The app lists the sources of a type in the sync range
+(`HKSourceQuery`) and queries once for all Apple sources together — HealthKit
+still resolves Watch and iPhone overlapping — and once for each other source
+(`HealthKitService.SourceGroup`). The Apple bucket carries the bundle
+`com.apple.health`. A workout's per-minute heart rate reads Apple sources and
+the workout's own source only, so samples a ring app writes for the same
+minutes do not enter a Watch workout's buckets. When the sources cannot be
+listed, the app sends unmarked buckets over every source, as before.
+
 The bundle identifiers in `knownBundles` (`com.ouraring.oura`,
 `com.withings.wiScaleNG`) are not yet confirmed from a payload; the display
 names `Oura` and `Withings`, which `category_samples` already holds, match as a

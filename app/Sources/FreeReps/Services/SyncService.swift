@@ -1133,7 +1133,9 @@ final class SyncService: ObservableObject {
                     FreeRepsMetricDataPoint(
                         date: haeDate(s.startDate),
                         qty: s.quantity.doubleValue(for: typeDesc.unit),
-                        source_uuid: s.uuid.uuidString
+                        source_uuid: s.uuid.uuidString,
+                        source_bundle: s.sourceBundleID,
+                        source_name: s.sourceDisplayName
                     )
                 }
                 let metric = FreeRepsMetric(name: metricName, units: typeDesc.unitString, data: points)
@@ -1159,27 +1161,33 @@ final class SyncService: ObservableObject {
         let start = since ?? Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
         let end = until ?? Date()
 
-        let buckets = try await healthKit.queryAggregatedStatistics(
-            typeID: typeDesc.hkIdentifier,
-            unit: typeDesc.unit,
-            from: start, until: end,
-            interval: interval
-        )
+        guard let hkType = HKObjectType.quantityType(forIdentifier: typeDesc.hkIdentifier) else { return 0 }
 
         var total = 0
-        for batch in buckets.chunked(into: insertBatchSize) {
-            let points = batch.map { b in
-                FreeRepsMetricDataPoint(
-                    date: haeDate(b.startDate),
-                    Min: b.min, Avg: b.avg, Max: b.max
-                )
+        for group in try await healthKit.sourceGroups(for: hkType, from: start, until: end) {
+            let buckets = try await healthKit.queryAggregatedStatistics(
+                typeID: typeDesc.hkIdentifier,
+                unit: typeDesc.unit,
+                from: start, until: end,
+                interval: interval,
+                sourceFilter: group.filter
+            )
+
+            for batch in buckets.chunked(into: insertBatchSize) {
+                let points = batch.map { b in
+                    FreeRepsMetricDataPoint(
+                        date: haeDate(b.startDate),
+                        Min: b.min, Avg: b.avg, Max: b.max,
+                        source_bundle: group.bundle, source_name: group.name
+                    )
+                }
+                let metric = FreeRepsMetric(name: metricName, units: typeDesc.unitString, data: points)
+                let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
+                try Task.checkCancellation()
+                let result = try await ingest(payload)
+                total += result.metrics_inserted ?? batch.count
+                onBatchInserted?(total)
             }
-            let metric = FreeRepsMetric(name: metricName, units: typeDesc.unitString, data: points)
-            let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
-            try Task.checkCancellation()
-            let result = try await ingest(payload)
-            total += result.metrics_inserted ?? batch.count
-            onBatchInserted?(total)
         }
         return total
     }
@@ -1196,40 +1204,47 @@ final class SyncService: ObservableObject {
         let start = since ?? Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
         let end = until ?? Date()
 
-        let buckets: [HealthKitService.CumulativeBucket]
-        do {
-            buckets = try await healthKit.queryCumulativeStatistics(
-                typeID: typeDesc.hkIdentifier,
-                unit: typeDesc.unit,
-                from: start, until: end,
-                interval: interval
-            )
-        } catch let timeout as HealthKitService.QueryTimeout {
-            throw timeout
-        } catch {
-            print("Cumulative statistics failed for \(metricName), querying per bucket: \(error.localizedDescription)")
-            buckets = try await healthKit.queryCumulativeStatisticsPerBucket(
-                typeID: typeDesc.hkIdentifier,
-                unit: typeDesc.unit,
-                from: start, until: end,
-                interval: interval
-            )
-        }
+        guard let hkType = HKObjectType.quantityType(forIdentifier: typeDesc.hkIdentifier) else { return 0 }
 
         var total = 0
-        for batch in buckets.chunked(into: insertBatchSize) {
-            let points = batch.map { b in
-                FreeRepsMetricDataPoint(
-                    date: haeDate(b.startDate),
-                    qty: b.sum
+        for group in try await healthKit.sourceGroups(for: hkType, from: start, until: end) {
+            let buckets: [HealthKitService.CumulativeBucket]
+            do {
+                buckets = try await healthKit.queryCumulativeStatistics(
+                    typeID: typeDesc.hkIdentifier,
+                    unit: typeDesc.unit,
+                    from: start, until: end,
+                    interval: interval,
+                    sourceFilter: group.filter
+                )
+            } catch let timeout as HealthKitService.QueryTimeout {
+                throw timeout
+            } catch {
+                print("Cumulative statistics failed for \(metricName), querying per bucket: \(error.localizedDescription)")
+                buckets = try await healthKit.queryCumulativeStatisticsPerBucket(
+                    typeID: typeDesc.hkIdentifier,
+                    unit: typeDesc.unit,
+                    from: start, until: end,
+                    interval: interval,
+                    sourceFilter: group.filter
                 )
             }
-            let metric = FreeRepsMetric(name: metricName, units: typeDesc.unitString, data: points)
-            let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
-            try Task.checkCancellation()
-            let result = try await ingest(payload)
-            total += result.metrics_inserted ?? batch.count
-            onBatchInserted?(total)
+
+            for batch in buckets.chunked(into: insertBatchSize) {
+                let points = batch.map { b in
+                    FreeRepsMetricDataPoint(
+                        date: haeDate(b.startDate),
+                        qty: b.sum,
+                        source_bundle: group.bundle, source_name: group.name
+                    )
+                }
+                let metric = FreeRepsMetric(name: metricName, units: typeDesc.unitString, data: points)
+                let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
+                try Task.checkCancellation()
+                let result = try await ingest(payload)
+                total += result.metrics_inserted ?? batch.count
+                onBatchInserted?(total)
+            }
         }
         return total
     }
@@ -1255,7 +1270,8 @@ final class SyncService: ObservableObject {
                             value_label: typeDesc.valueLabels[s.value],
                             start_date: haeDate(s.startDate),
                             end_date: haeDate(s.endDate),
-                            source: s.sourceDisplayName
+                            source: s.sourceDisplayName,
+                            source_bundle: s.sourceBundleID
                         )
                     }
                     let payload = FreeRepsPayload(data: FreeRepsData(category_samples: samples))
@@ -1275,8 +1291,30 @@ final class SyncService: ObservableObject {
         let hrUnit = HKUnit(from: "count/min")
         try await healthKit.streamWorkouts(from: since, until: until) { workouts in
             for batch in workouts.chunked(into: batchSize) {
+                // Heart rate sources over the batch's span, listed once rather
+                // than per workout. A workout's heart rate reads Apple sources and
+                // the workout's own source only: a ring or strap app writing its
+                // samples into HealthKit for the same minutes would otherwise be
+                // averaged into a Watch workout's buckets. nil when the sources
+                // cannot be listed; the buckets then read every source, as before.
+                var hrSources: Set<HKSource>?
+                if let first = batch.map(\.startDate).min(), let last = batch.map(\.endDate).max() {
+                    do {
+                        hrSources = try await self.healthKit.sources(for: HKQuantityType(.heartRate), from: first, until: last)
+                    } catch let timeout as HealthKitService.QueryTimeout {
+                        throw timeout
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        print("Heart rate source query failed for \(batch.count) workout(s), reading every source: \(error.localizedDescription)")
+                    }
+                }
+
                 var hbWorkouts: [FreeRepsWorkout] = []
                 for w in batch {
+                    let hrFilter = hrSources.map { all in
+                        all.filter { $0.isApple || $0.bundleIdentifier == w.sourceBundleID }
+                    }
                     // Query per-minute HR aggregates for this workout's time window
                     var hrData: [FreeRepsWorkoutHRPoint]?
                     if w.duration > 0 {
@@ -1286,7 +1324,8 @@ final class SyncService: ObservableObject {
                             buckets = try await self.healthKit.queryAggregatedStatistics(
                                 typeID: .heartRate, unit: hrUnit,
                                 from: w.startDate, until: w.endDate,
-                                interval: 60 // 1-minute buckets, matching HAE format
+                                interval: 60, // 1-minute buckets, matching HAE format
+                                sourceFilter: hrFilter
                             )
                         } catch let timeout as HealthKitService.QueryTimeout {
                             throw timeout
@@ -1296,7 +1335,8 @@ final class SyncService: ObservableObject {
                             buckets = try await self.healthKit.aggregateSamples(
                                 typeID: .heartRate, unit: hrUnit,
                                 from: w.startDate, until: w.endDate,
-                                interval: 60
+                                interval: 60,
+                                sourceFilter: hrFilter
                             )
                             print("HR fallback for workout \(w.uuid): \(buckets.count) minute bucket(s) in \(Int(Date().timeIntervalSince(fallbackStart))) s")
                         }
@@ -1306,7 +1346,8 @@ final class SyncService: ObservableObject {
                                     date: haeDate(b.startDate),
                                     Min: b.min, Avg: b.avg, Max: b.max,
                                     units: "bpm",
-                                    source: w.sourceDisplayName
+                                    source: w.sourceDisplayName,
+                                    source_bundle: w.sourceBundleID
                                 )
                             }
                         }
@@ -1352,7 +1393,9 @@ final class SyncService: ObservableObject {
                         elevationUp: elevUp,
                         elevationDown: elevDown,
                         heartRate: hrSummary,
-                        heartRateData: hrData
+                        heartRateData: hrData,
+                        source_bundle: w.sourceBundleID,
+                        source_name: w.sourceDisplayName
                     ))
                 }
                 let payload = FreeRepsPayload(data: FreeRepsData(workouts: hbWorkouts))
@@ -1383,8 +1426,8 @@ final class SyncService: ObservableObject {
             for corr in batch {
                 guard let sys = (corr.objects(for: systolicType) as? Set<HKQuantitySample>)?.first,
                       let dia = (corr.objects(for: diastolicType) as? Set<HKQuantitySample>)?.first else { continue }
-                sysPoints.append(FreeRepsMetricDataPoint(date: haeDate(corr.startDate), qty: sys.quantity.doubleValue(for: .millimeterOfMercury()), source_uuid: corr.uuid.uuidString))
-                diaPoints.append(FreeRepsMetricDataPoint(date: haeDate(corr.startDate), qty: dia.quantity.doubleValue(for: .millimeterOfMercury()), source_uuid: corr.uuid.uuidString))
+                sysPoints.append(FreeRepsMetricDataPoint(date: haeDate(corr.startDate), qty: sys.quantity.doubleValue(for: .millimeterOfMercury()), source_uuid: corr.uuid.uuidString, source_bundle: corr.sourceBundleID, source_name: corr.sourceDisplayName))
+                diaPoints.append(FreeRepsMetricDataPoint(date: haeDate(corr.startDate), qty: dia.quantity.doubleValue(for: .millimeterOfMercury()), source_uuid: corr.uuid.uuidString, source_bundle: corr.sourceBundleID, source_name: corr.sourceDisplayName))
             }
             if sysPoints.isEmpty { continue }
             let metrics = [
@@ -1422,7 +1465,8 @@ final class SyncService: ObservableObject {
                     labels: sample.labels.map { $0.rawValue },
                     associations: sample.associations.map { $0.rawValue },
                     start_date: haeDate(sample.startDate),
-                    source: sample.sourceRevision.source.name
+                    source: sample.sourceRevision.source.name,
+                    source_bundle: sample.sourceRevision.source.bundleIdentifier
                 )
             }
             try Task.checkCancellation()

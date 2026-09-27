@@ -539,6 +539,84 @@ final class HealthKitService {
         }
     }
 
+    /// A time-range predicate, narrowed to `sources` when given. An empty set
+    /// matches nothing, which is what a group without sources should return.
+    static func samplePredicate(from startDate: Date, until endDate: Date, sources: Set<HKSource>?) -> NSPredicate {
+        let time = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        guard let sources else { return time }
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [time, HKQuery.predicateForObjects(from: sources)])
+    }
+
+    /// One statistics query's share of the sources of a type, and the source
+    /// marker its buckets carry.
+    ///
+    /// A statistics query merges every source it reads. That is right across
+    /// Apple devices — HealthKit resolves Watch and iPhone overlapping on the same
+    /// steps — and wrong across providers: an hour's steps from the Oura app
+    /// would sit inside the Apple Health bucket, where the server can neither
+    /// rank nor drop them. So every Apple source goes into one group and every
+    /// other source into a group of its own.
+    struct SourceGroup {
+        /// nil reads every source: used when the sources could not be listed,
+        /// and then the buckets carry no marker, as before source markers.
+        let filter: Set<HKSource>?
+        let bundle: String?
+        let name: String?
+
+        /// Marker of a bucket merged over Apple devices. Any com.apple. bundle
+        /// is Apple Health to the server; this one names no single device.
+        static let appleHealthBundle = "com.apple.health"
+
+        static let unmarked = SourceGroup(filter: nil, bundle: nil, name: nil)
+
+        static func groups(for sources: Set<HKSource>) -> [SourceGroup] {
+            let apple = sources.filter(\.isApple)
+            let others = sources.subtracting(apple)
+            var groups: [SourceGroup] = []
+            if !apple.isEmpty {
+                // Without other sources the filter adds nothing to the query.
+                groups.append(SourceGroup(
+                    filter: others.isEmpty ? nil : apple,
+                    bundle: appleHealthBundle, name: "Apple Health"
+                ))
+            }
+            for source in others.sorted(by: { $0.bundleIdentifier < $1.bundleIdentifier }) {
+                groups.append(SourceGroup(filter: [source], bundle: source.bundleIdentifier, name: source.name))
+            }
+            return groups
+        }
+    }
+
+    /// Source groups for `type` in the range, or one unmarked group reading
+    /// every source when the sources cannot be listed — the sync then sends
+    /// what it sent before source markers rather than nothing.
+    func sourceGroups(for type: HKSampleType, from startDate: Date, until endDate: Date) async throws -> [SourceGroup] {
+        do {
+            return SourceGroup.groups(for: try await sources(for: type, from: startDate, until: endDate))
+        } catch let timeout as QueryTimeout {
+            throw timeout
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            print("Source query failed for \(Self.label(for: type)), sending unmarked buckets: \(error.localizedDescription)")
+            return [.unmarked]
+        }
+    }
+
+    /// The sources that wrote samples of `type` in the range.
+    func sources(for type: HKSampleType, from startDate: Date, until endDate: Date) async throws -> Set<HKSource> {
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        return try await run(Self.label(for: type)) { finish in
+            HKSourceQuery(sampleType: type, samplePredicate: predicate) { _, sources, error in
+                if let error {
+                    finish(.failure(error))
+                } else {
+                    finish(.success(sources ?? []))
+                }
+            }
+        }
+    }
+
     /// Aggregates quantity samples into fixed-interval buckets with min/avg/max.
     /// Much faster than streaming individual samples for high-frequency types like heart rate.
     struct AggregatedBucket {
@@ -553,11 +631,12 @@ final class HealthKitService {
         unit: HKUnit,
         from startDate: Date,
         until endDate: Date,
-        interval: TimeInterval
+        interval: TimeInterval,
+        sourceFilter: Set<HKSource>? = nil
     ) async throws -> [AggregatedBucket] {
         guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
 
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let predicate = Self.samplePredicate(from: startDate, until: endDate, sources: sourceFilter)
         var dateComponents = DateComponents()
         dateComponents.second = Int(interval)
         // Anchor to midnight so buckets align to clock boundaries
@@ -602,11 +681,12 @@ final class HealthKitService {
         unit: HKUnit,
         from startDate: Date,
         until endDate: Date,
-        interval: TimeInterval
+        interval: TimeInterval,
+        sourceFilter: Set<HKSource>? = nil
     ) async throws -> [AggregatedBucket] {
         guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
 
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let predicate = Self.samplePredicate(from: startDate, until: endDate, sources: sourceFilter)
         let samples: [HKQuantitySample] = try await run(Self.label(for: type)) { finish in
             let query = HKSampleQuery(
                 sampleType: type,
@@ -653,11 +733,12 @@ final class HealthKitService {
         unit: HKUnit,
         from startDate: Date,
         until endDate: Date,
-        interval: TimeInterval
+        interval: TimeInterval,
+        sourceFilter: Set<HKSource>? = nil
     ) async throws -> [CumulativeBucket] {
         guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
 
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let predicate = Self.samplePredicate(from: startDate, until: endDate, sources: sourceFilter)
         var dateComponents = DateComponents()
         dateComponents.second = Int(interval)
         let anchor = Calendar.current.startOfDay(for: startDate)
@@ -701,7 +782,8 @@ final class HealthKitService {
         unit: HKUnit,
         from startDate: Date,
         until endDate: Date,
-        interval: TimeInterval
+        interval: TimeInterval,
+        sourceFilter: Set<HKSource>? = nil
     ) async throws -> [CumulativeBucket] {
         guard let type = HKObjectType.quantityType(forIdentifier: typeID) else { return [] }
         let dayStart = Calendar.current.startOfDay(for: startDate)
@@ -710,7 +792,7 @@ final class HealthKitService {
         while bucketStart < endDate {
             try Task.checkCancellation()
             let bucketEnd = bucketStart.addingTimeInterval(interval)
-            let predicate = HKQuery.predicateForSamples(withStart: bucketStart, end: bucketEnd, options: .strictStartDate)
+            let predicate = Self.samplePredicate(from: bucketStart, until: bucketEnd, sources: sourceFilter)
             let sum: Double? = try await run(Self.label(for: type)) { finish in
                 let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, error in
                     if let error = error as? HKError, error.code == .errorNoData {
