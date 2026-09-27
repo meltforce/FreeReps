@@ -203,6 +203,7 @@ func (s *Server) routes() {
 			r.Post("/", s.handleIngest)
 			r.Post("/alpha", s.handleAlphaIngest)
 		})
+		r.Get("/api/v1/sync-state", s.handleSyncState)
 
 		// Unified import with auto-detection
 		r.Post("/api/v1/import", s.handleUnifiedImport)

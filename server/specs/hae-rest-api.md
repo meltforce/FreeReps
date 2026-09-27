@@ -36,6 +36,32 @@ Health Auto Export does not send the header. The same distinction is stored per
 row in `health_metrics.client` (`freereps_ios` or `hae`), and where both
 clients delivered a window the app's rows win.
 
+### Sync state
+
+`GET /api/v1/sync-state` returns where the calling client's stored data ends.
+The client is resolved from the same header: `freereps_ios` with
+`X-FreeReps-Client: freereps-ios`, `hae` without it.
+
+```json
+{
+  "client": "freereps_ios",
+  "server_now": "2026-09-27T10:00:00Z",
+  "checkpoints": [
+    {"domain": "metrics", "item": "step_count",
+     "newest_sample": "2026-09-27T09:00:00Z", "last_import_at": "2026-09-27T09:05:12Z"},
+    {"domain": "workouts",
+     "newest_sample": "2026-09-26T17:30:00Z", "last_import_at": "2026-09-27T09:05:13Z"}
+  ]
+}
+```
+
+`newest_sample` is the newest sample time of a payload section whose insert
+returned without error; every sample up to it is stored. Domains are
+`metrics` (one checkpoint per metric name), `workouts`, `workout_routes` (the
+newest workout that carried route points), `activity_summaries`,
+`state_of_mind` and `category_samples`. A domain the client never delivered has
+no entry. The endpoint only reads; the checkpoints advance on ingest.
+
 ## JSON Payload Structure
 
 ```json

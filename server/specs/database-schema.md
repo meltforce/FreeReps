@@ -353,6 +353,28 @@ CREATE TABLE user_metric_enabled (
 );
 ```
 
+### `ingest_checkpoints` (Regular)
+
+Where each Apple Health client's stored data ends, read through
+`GET /api/v1/sync-state`. Written by the ingest provider after the insert of a
+payload section returned without error; `newest_sample` only moves forward.
+`client` holds the `health_metrics.client` value. `domain` is one of
+`metrics`, `workouts`, `workout_routes`, `activity_summaries`,
+`state_of_mind`, `category_samples`; `item` is the metric name for `metrics` and
+empty otherwise.
+
+```sql
+CREATE TABLE ingest_checkpoints (
+    user_id        INTEGER     NOT NULL,
+    client         TEXT        NOT NULL,
+    domain         TEXT        NOT NULL,
+    item           TEXT        NOT NULL DEFAULT '',
+    newest_sample  TIMESTAMPTZ NOT NULL,
+    last_import_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, client, domain, item)
+);
+```
+
 ## Deduplication Strategy
 
 Unique constraints on natural keys prevent duplicate data from repeated syncs.

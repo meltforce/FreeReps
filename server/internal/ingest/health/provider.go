@@ -45,6 +45,38 @@ func clientFrom(ctx context.Context) string {
 	return ClientHAE
 }
 
+// Checkpoint domains, one per payload section the iOS app backfills on its own.
+// Workout routes are a domain of their own because the app sends them in a
+// separate pass after the workouts, so the newest workout says nothing about
+// how far the routes have arrived.
+const (
+	DomainMetrics           = "metrics"
+	DomainWorkouts          = "workouts"
+	DomainWorkoutRoutes     = "workout_routes"
+	DomainActivitySummaries = "activity_summaries"
+	DomainStateOfMind       = "state_of_mind"
+	DomainCategorySamples   = "category_samples"
+)
+
+// raiseNewest records t as the newest time of item when it is later than the
+// time already recorded.
+func raiseNewest(newest map[string]time.Time, item string, t time.Time) {
+	if cur, ok := newest[item]; !ok || t.After(cur) {
+		newest[item] = t
+	}
+}
+
+// advanceCheckpoint records how far this client's data of one domain has been
+// stored. Callers invoke it only after the insert of that data returned without
+// error, so every sample up to the recorded time is on the server, inserted now
+// or already present. A failure is logged and not returned: the data is stored,
+// and a checkpoint that stays behind costs the client one redundant fetch.
+func (p *Provider) advanceCheckpoint(ctx context.Context, userID int, domain string, newest map[string]time.Time) {
+	if err := p.db.AdvanceIngestCheckpoints(ctx, userID, clientFrom(ctx), domain, newest); err != nil {
+		p.log.Warn("advancing ingest checkpoint", "domain", domain, "error", err)
+	}
+}
+
 func NewProvider(db *storage.DB, log *slog.Logger) *Provider {
 	return &Provider{db: db, log: log}
 }
@@ -213,6 +245,12 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 		}
 		result.MetricsInserted = inserted
 		result.MetricsSkipped = int64(len(healthRows)) - inserted
+
+		newest := map[string]time.Time{}
+		for _, r := range healthRows {
+			raiseNewest(newest, r.MetricName, r.Time)
+		}
+		p.advanceCheckpoint(ctx, userID, DomainMetrics, newest)
 	}
 
 	return nil
@@ -484,6 +522,19 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 			result.WorkoutRoutePoints += n
 		}
 	}
+
+	workoutsNewest, routesNewest := map[string]time.Time{}, map[string]time.Time{}
+	for _, w := range workouts {
+		if _, err := uuid.Parse(w.ID); err != nil {
+			continue
+		}
+		raiseNewest(workoutsNewest, "", w.Start.Time)
+		if len(w.Route) > 0 {
+			raiseNewest(routesNewest, "", w.Start.Time)
+		}
+	}
+	p.advanceCheckpoint(ctx, userID, DomainWorkouts, workoutsNewest)
+	p.advanceCheckpoint(ctx, userID, DomainWorkoutRoutes, routesNewest)
 	return nil
 }
 
@@ -591,6 +642,12 @@ func (p *Provider) processActivitySummaries(ctx context.Context, summaries []mod
 			return fmt.Errorf("inserting activity summaries: %w", err)
 		}
 		result.ActivitySummariesInserted = inserted
+
+		newest := map[string]time.Time{}
+		for _, r := range rows {
+			raiseNewest(newest, "", r.Date)
+		}
+		p.advanceCheckpoint(ctx, userID, DomainActivitySummaries, newest)
 	}
 	return nil
 }
@@ -706,6 +763,12 @@ func (p *Provider) processStateOfMind(ctx context.Context, records []models.Stat
 			return fmt.Errorf("inserting state of mind: %w", err)
 		}
 		result.StateOfMindInserted = inserted
+
+		newest := map[string]time.Time{}
+		for _, r := range rows {
+			raiseNewest(newest, "", r.StartDate)
+		}
+		p.advanceCheckpoint(ctx, userID, DomainStateOfMind, newest)
 	}
 	return nil
 }
@@ -739,10 +802,18 @@ func (p *Provider) processCategorySamples(ctx context.Context, samples []models.
 		result.CategorySamplesInserted = inserted
 	}
 
+	// The checkpoint covers the sleep stages derived below as well, so it
+	// advances only once they are stored too.
+	newest := map[string]time.Time{}
+	for _, r := range rows {
+		raiseNewest(newest, "", r.StartDate)
+	}
+
 	// Extract sleep stages from sleep category samples.
 	if owner, claimed := p.sleepClaimedBySync(ctx, userID); claimed {
 		p.log.Debug("skipping sleep stages from category samples",
 			"owner", owner, "reason", "sleep is resolved to a source with its own sync")
+		p.advanceCheckpoint(ctx, userID, DomainCategorySamples, newest)
 		return nil
 	}
 
@@ -786,5 +857,6 @@ func (p *Provider) processCategorySamples(ctx context.Context, samples []models.
 		result.SleepStagesInserted += inserted
 	}
 
+	p.advanceCheckpoint(ctx, userID, DomainCategorySamples, newest)
 	return nil
 }

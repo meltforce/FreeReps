@@ -40,6 +40,42 @@ func ingestLogSource(r *http.Request) string {
 	return "hae_rest"
 }
 
+// ingestClient returns the health_metrics.client value for a request to the
+// ingest path.
+func ingestClient(r *http.Request) string {
+	if r.Header.Get(ClientHeader) == ClientIOSApp {
+		return health.ClientIOSApp
+	}
+	return health.ClientHAE
+}
+
+// handleSyncState reports where the calling client's stored data ends, per
+// domain and, for metrics, per metric name. The iOS app reads it when its local
+// sync state is empty — after a reinstall or on a new phone — and starts its
+// backfill there.
+//
+// It only reads. The checkpoints are advanced by the ingest path after an insert
+// returned without error; a read that advanced them would move a checkpoint past
+// data the client has not delivered, and the client would skip that data.
+func (s *Server) handleSyncState(w http.ResponseWriter, r *http.Request) {
+	uid, ok := mustUserID(w, r)
+	if !ok {
+		return
+	}
+	client := ingestClient(r)
+	checkpoints, err := s.db.IngestCheckpoints(r.Context(), uid, client)
+	if err != nil {
+		s.log.Error("reading ingest checkpoints", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "reading sync state"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"client":      client,
+		"server_now":  time.Now().UTC(),
+		"checkpoints": checkpoints,
+	})
+}
+
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	var payload models.HealthPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -53,10 +89,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	source := ingestLogSource(r)
-	ctx := r.Context()
-	if r.Header.Get(ClientHeader) == ClientIOSApp {
-		ctx = health.WithClient(ctx, health.ClientIOSApp)
-	}
+	ctx := health.WithClient(r.Context(), ingestClient(r))
 	start := time.Now()
 	result, err := s.health.Ingest(ctx, &payload, uid)
 	durationMs := int(time.Since(start).Milliseconds())

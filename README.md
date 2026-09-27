@@ -645,6 +645,7 @@ an identity, so a health check needs no credentials.
 | `/api/v1/version` | GET | Build version (no identity required) |
 | `/api/v1/me` | GET | Current user identity |
 | `/api/v1/ingest/` | POST | Ingest health data JSON (Health Auto Export REST; the iOS app with `X-FreeReps-Client: freereps-ios`) |
+| `/api/v1/sync-state` | GET | Where the calling client's stored data ends, per domain (see `server/specs/hae-rest-api.md`) |
 | `/api/v1/ingest/alpha` | POST | Ingest Alpha Progression CSV |
 | `/api/v1/import` | POST | Unified import (auto-detects format) |
 | `/api/v1/import/hae-tcp/check` | POST | Probe a Health Auto Export TCP server |
