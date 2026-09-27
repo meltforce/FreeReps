@@ -19,6 +19,41 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-27 — An Oura run in which no data type succeeded and at least one answered 401/403 is a failed run
+
+**Decided:** 2026-09-27
+
+**Decision.** `SyncUser` (`server/internal/oura/sync.go`) counts per run the data
+types that succeeded and those that answered 401 or 403. When none succeeded
+and at least one answered 401/403, `runVerdict` appends "access token rejected:
+N of 11 data types answered 401/403" to the run's errors, and the import log is
+written with `status = 'error'`. A 401/403 from some data types while others
+succeed stays a debug line per type, as before.
+
+**Reasoning.** Before this change every 401/403 was treated like a 404: a debug
+line and the next data type. `GetValidToken` (`token.go`) refreshes only when
+the stored expiry is near, so an access token revoked before its expiry makes
+every endpoint answer 401, and the run was logged as `success` with zero rows.
+The failure rule in `alerts/watcher.go` fires on consecutive runs that are not
+`success`, so no alert followed. Derived from the code on 2026-09-27; not
+reproduced against the live API.
+
+A single endpoint answering 401/403 has a second cause, a scope the token was
+not granted for, which the code comment has named since the sync was written.
+The two are separated by count, not by status code. The condition is "none
+succeeded" rather than "every data type answered 401/403" because `vo2_max`
+answers 404 for this ring model (measured 2026-09-21), and an endpoint that does
+not exist for the ring may answer 404 before it checks the token. HealthLog
+(`github.com/MBombeck/HealthLog` at `69ddcc2`,
+`src/lib/oura/response-classifier.ts`) classifies every 401/403 as
+`reauth_required`; that drops the scope case, which is why it was not copied.
+
+**Trigger to re-open.** A run that fails with this message while the token is
+valid, for example because Oura answers 401 for every endpoint during an outage;
+or a scope case in which every requested endpoint lacks its scope.
+
+---
+
 ## 2026-09-26 — Every HealthKit query of the iOS app is bounded at 10 minutes; the backfill keeps its parallel 90-day queries
 
 **Decided:** 2026-09-26

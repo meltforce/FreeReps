@@ -115,19 +115,31 @@ func (s *Syncer) SyncUser(ctx context.Context, userID int) {
 	}
 
 	var syncErr error
+	var succeeded, unauthorized int
 	for _, dt := range dataTypes {
 		if err := s.syncDataType(ctx, userID, token, dt, stats); err != nil {
-			// 404 or 401/403 are expected for endpoints not available for
-			// the user's ring model or missing scopes — log as debug, not error.
+			// 404 is expected for an endpoint the ring model does not offer,
+			// and 401/403 from a single endpoint for a missing scope — log as
+			// debug, not error. runVerdict decides whether the 401/403 count
+			// of the whole run means the token itself was rejected.
 			var apiErr *APIError
 			if errors.As(err, &apiErr) && (apiErr.IsNotFound() || apiErr.IsUnauthorized()) {
+				if apiErr.IsUnauthorized() {
+					unauthorized++
+				}
 				s.log.Debug("oura endpoint unavailable", "data_type", dt, "status", apiErr.StatusCode)
 				continue
 			}
 			stats.errors = append(stats.errors, fmt.Sprintf("%s: %s", dt, err))
 			s.log.Error("oura sync data type failed", "user_id", userID, "data_type", dt, "error", err)
 			// Continue with other data types even if one fails.
+			continue
 		}
+		succeeded++
+	}
+	if err := runVerdict(succeeded, unauthorized, len(dataTypes)); err != nil {
+		stats.errors = append(stats.errors, err.Error())
+		s.log.Error("oura sync rejected", "user_id", userID, "error", err)
 	}
 
 	if len(stats.errors) > 0 {
@@ -135,6 +147,24 @@ func (s *Syncer) SyncUser(ctx context.Context, userID int) {
 	}
 	s.db.InvalidateAvailableMetrics(userID)
 	s.logImport(ctx, userID, start, stats, syncErr)
+}
+
+// runVerdict reports a run in which no data type succeeded and at least one
+// answered 401 or 403 as a rejected token.
+//
+// A single data type answering 401/403 is a missing scope for that endpoint and
+// stays a per-type debug line. Every data type answering it is the token:
+// GetValidToken refreshes only when the stored expiry is near, so an access
+// token revoked before its expiry reaches all 11 endpoints, each answers 401,
+// and the run was logged as success with zero rows, which no alert rule reads
+// as a failure. The rule counts "none succeeded" rather than "all answered
+// 401/403" because an endpoint the ring model does not offer (vo2_max, 404 on
+// the ring measured on 2026-09-21) may answer 404 before it checks the token.
+func runVerdict(succeeded, unauthorized, total int) error {
+	if succeeded > 0 || unauthorized == 0 {
+		return nil
+	}
+	return fmt.Errorf("access token rejected: %d of %d data types answered 401/403", unauthorized, total)
 }
 
 // TriggerSync performs an immediate sync for a specific user (manual sync button).
