@@ -125,7 +125,8 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 	defer func() {
 		if result.SourceCopiesDropped > 0 {
 			p.log.Info("dropped HealthKit copies of directly synced providers",
-				"user_id", userID, "count", result.SourceCopiesDropped)
+				"user_id", userID, "count", result.SourceCopiesDropped,
+				"sources", policy.droppedSummary())
 		}
 	}()
 
@@ -203,7 +204,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 	return result, nil
 }
 
-func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, policy sourcePolicy, result *ingest.Result) error {
+func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, policy *sourcePolicy, result *ingest.Result) error {
 	var healthRows []models.HealthMetricRow
 	rejectedSet := map[string]bool{}
 
@@ -431,7 +432,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HealthMetric, user
 	return nil
 }
 
-func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HealthWorkout, userID int, policy sourcePolicy, result *ingest.Result) error {
+func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HealthWorkout, userID int, policy *sourcePolicy, result *ingest.Result) error {
 	for _, w := range workouts {
 		result.WorkoutsReceived++
 
@@ -803,7 +804,7 @@ func (p *Provider) processStateOfMind(ctx context.Context, records []models.Stat
 	return nil
 }
 
-func (p *Provider) processCategorySamples(ctx context.Context, samples []models.CategorySample, userID int, policy sourcePolicy, result *ingest.Result) error {
+func (p *Provider) processCategorySamples(ctx context.Context, samples []models.CategorySample, userID int, policy *sourcePolicy, result *ingest.Result) error {
 	// Resolve sources first: a dropped copy must not reach the sleep stages
 	// derived further down either.
 	kept := samples[:0:0]

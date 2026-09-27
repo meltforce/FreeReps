@@ -26,7 +26,7 @@ func TestCanonicalSource(t *testing.T) {
 }
 
 func TestSourcePolicyDropsOnlyCopiesWithABundle(t *testing.T) {
-	policy := sourcePolicy{direct: map[string]bool{"Oura": true}}
+	policy := &sourcePolicy{direct: map[string]bool{"Oura": true}, dropped: map[string]int{}}
 
 	if _, drop := policy.resolve("com.ouraring.oura", "Oura"); !drop {
 		t.Error("an Oura HealthKit copy is kept although Oura syncs directly")
@@ -38,5 +38,9 @@ func TestSourcePolicyDropsOnlyCopiesWithABundle(t *testing.T) {
 	}
 	if _, drop := policy.resolve("com.withings.wiScaleNG", "Withings"); drop {
 		t.Error("a Withings copy is dropped although Withings is not synced directly")
+	}
+	// Only the dropped item is listed; its bundle is what the log confirms.
+	if got, want := policy.droppedSummary(), "com.ouraring.oura (Oura)=1"; got != want {
+		t.Errorf("droppedSummary() = %q, want %q", got, want)
 	}
 }

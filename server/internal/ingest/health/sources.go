@@ -2,6 +2,8 @@ package health
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -55,18 +57,23 @@ func CanonicalSource(bundle, name string) string {
 // whether it is a HealthKit copy of a provider FreeReps syncs directly.
 type sourcePolicy struct {
 	direct map[string]bool
+	// dropped counts the dropped items per bundle and display name. It is
+	// logged, because a dropped item leaves no row whose source_bundle could
+	// be read afterwards, and the log is where a provider's bundle identifier
+	// is confirmed against knownBundles.
+	dropped map[string]int
 }
 
-func (p *Provider) loadSourcePolicy(ctx context.Context, userID int) (sourcePolicy, error) {
+func (p *Provider) loadSourcePolicy(ctx context.Context, userID int) (*sourcePolicy, error) {
 	providers, err := p.db.DirectSyncProviders(ctx, userID)
 	if err != nil {
-		return sourcePolicy{}, err
+		return nil, err
 	}
 	direct := make(map[string]bool, len(providers))
 	for _, name := range providers {
 		direct[name] = true
 	}
-	return sourcePolicy{direct: direct}, nil
+	return &sourcePolicy{direct: direct, dropped: map[string]int{}}, nil
 }
 
 // resolve returns the stored source name and whether the item is dropped.
@@ -81,7 +88,26 @@ func (p *Provider) loadSourcePolicy(ctx context.Context, userID int) (sourcePoli
 //
 // Only items carrying a bundle are dropped. An older app version reports none,
 // and its items keep the treatment they had before.
-func (s sourcePolicy) resolve(bundle, name string) (source string, drop bool) {
+func (s *sourcePolicy) resolve(bundle, name string) (source string, drop bool) {
 	source = CanonicalSource(bundle, name)
-	return source, bundle != "" && s.direct[source]
+	drop = bundle != "" && s.direct[source]
+	if drop {
+		s.dropped[fmt.Sprintf("%s (%s)", bundle, name)]++
+	}
+	return source, drop
+}
+
+// droppedSummary lists the dropped items as "bundle (name)=count", sorted so
+// that repeated syncs log the same line for the same sources.
+func (s *sourcePolicy) droppedSummary() string {
+	keys := make([]string, 0, len(s.dropped))
+	for k := range s.dropped {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = fmt.Sprintf("%s=%d", k, s.dropped[k])
+	}
+	return strings.Join(parts, ", ")
 }
