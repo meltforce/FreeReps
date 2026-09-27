@@ -19,6 +19,61 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-27 — A polled source that succeeds without storing rows has its own alert, with a fixed threshold per source
+
+**Decided:** 2026-09-27
+
+**Decision.** `checkSourceStale` (`server/internal/alerts/watcher.go`) fires per
+source when a user's newest run is `success`, that run lies within the
+threshold, at least one run of that user has ever stored a row, and the last
+such run is older than the threshold. The conditions have their own ids:
+
+| id | Source | Threshold | Counts as stored |
+|---|---|---|---|
+| 9206 | `withings_sync` | 7 days | `metrics_inserted > 0` |
+| 9207 | `oura_sync` | 48 hours | `metrics_inserted`, `workouts_inserted` or `sleep_sessions` above 0 |
+| 9208 | `hevy_sync` | 14 days | `workouts_inserted` or `sets_inserted` above 0 |
+
+The thresholds are constants in `staleConditions`, not a settings field.
+
+**Reasoning.** `checkSource` fires on consecutive runs that are not `success`. A
+provider that answers HTTP 200 with empty bodies produces successful runs, each
+of which resets that count, so the state produced no alert. The Apple Health
+path had the stored-rows rule since 2026-09-21 (`checkAppleIngest`); the polled
+sources had none.
+
+The thresholds follow what each source stores per run. A worn Oura ring
+produces heart-rate samples all day, so 48 hours without a stored row means the
+provider stopped delivering; 48 hours is also the `stale` figure of HealthLog
+(`github.com/MBombeck/HealthLog` at `69ddcc2`,
+`src/lib/integrations/sync-verdict.ts`). Withings stores a row per weigh-in and
+Hevy per training session, and both have weeks without one, so a 48-hour
+threshold would fire through every week without training. Hevy writes
+`workouts_inserted` and `sets_inserted` and never `metrics_inserted`, which is why
+the predicate is per source (`storedRowPredicates` in
+`server/internal/storage/alert_state.go`).
+
+The rule stays silent in three cases. A newest run that failed belongs to
+`checkSource`. A user who never stored a row has not finished connecting the
+integration, the same reasoning as `checkAppleIngest`. A user whose newest run
+is older than the threshold has stopped polling, typically after disconnecting
+the integration, and reading that as missing data would fire for as long as the
+old log rows exist. That third case also leaves a syncer that stopped running
+uncovered by this rule.
+
+**Alternatives rejected.** Reusing ids 9201–9203 for both states: `report`
+stores one state per id, so a source that is failing and then stale, or the
+reverse, would resolve one condition by reporting the other. A per-`(source,
+metric)` freshness check, the second part of the HealthLog approach
+(`metric-freshness.ts`, 14 days): it reports a single series that stopped while
+the provider delivers others, and is a larger change than this rule.
+
+**Trigger to re-open.** A threshold that fires on a normal quiet period or stays
+silent through a real outage, which makes it a settings field; or a series that
+stops while its provider keeps delivering others.
+
+---
+
 ## 2026-09-27 — An Oura run in which no data type succeeded and at least one answered 401/403 is a failed run
 
 **Decided:** 2026-09-27

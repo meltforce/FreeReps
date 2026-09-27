@@ -38,6 +38,11 @@ const (
 	// MonitorAppleWorkouts is its own id because the two Health Auto Export
 	// automations stop independently; see checkAppleIngest.
 	MonitorAppleWorkouts = 9205
+	// The stale conditions have ids of their own because a source can be
+	// failing or stale independently, and report keys its state by id.
+	MonitorWithingsStale = 9206
+	MonitorOuraStale     = 9207
+	MonitorHevyStale     = 9208
 )
 
 // maxMsgLen keeps a message readable wherever it is displayed. The upstream error
@@ -55,6 +60,28 @@ var sourceConditions = []sourceCondition{
 	{source: "withings_sync", monitorID: MonitorWithingsSync, service: ServiceNames[MonitorWithingsSync]},
 	{source: "oura_sync", monitorID: MonitorOuraSync, service: ServiceNames[MonitorOuraSync]},
 	{source: "hevy_sync", monitorID: MonitorHevySync, service: ServiceNames[MonitorHevySync]},
+}
+
+// staleCondition is one polled data source whose runs can succeed while its
+// provider delivers nothing, and how long that may last before it is reported.
+type staleCondition struct {
+	source    string // import_logs.source
+	monitorID int
+	silence   time.Duration
+}
+
+// staleConditions carry fixed thresholds rather than a settings field; one can
+// be promoted to the Settings screen when it needs tuning.
+//
+// Oura stores heart rate samples on every run of a worn ring, so 48 hours
+// without a stored row is a provider that stopped delivering — the figure
+// HealthLog uses for its `stale` verdict on polled sources. Withings stores a
+// row per weigh-in and Hevy per training session; both are sporadic by design,
+// and a 48-hour threshold would fire through every week without training.
+var staleConditions = []staleCondition{
+	{source: "withings_sync", monitorID: MonitorWithingsStale, silence: 7 * 24 * time.Hour},
+	{source: "oura_sync", monitorID: MonitorOuraStale, silence: 48 * time.Hour},
+	{source: "hevy_sync", monitorID: MonitorHevyStale, silence: 14 * 24 * time.Hour},
 }
 
 // appleIngestSources are the sources the Apple Health ingest path logs under:
@@ -91,6 +118,7 @@ type Store interface {
 	RecentRunsBySource(ctx context.Context, source string, limit int) (map[int][]storage.SourceRun, error)
 	LastStoredMetricRunAt(ctx context.Context, source string) (time.Time, bool, error)
 	LastWorkoutDeliveryAt(ctx context.Context, source string) (time.Time, bool, error)
+	RunHistoryByUser(ctx context.Context, source string) (map[int]storage.RunHistory, error)
 	GetAlertState(ctx context.Context, monitorID int) (storage.AlertState, error)
 	SetAlertState(ctx context.Context, monitorID int, firing bool, since time.Time, msg string) error
 }
@@ -104,6 +132,9 @@ var ServiceNames = map[int]string{
 	MonitorHevySync:      "freereps - hevy sync",
 	MonitorAppleIngest:   "freereps - apple health metrics",
 	MonitorAppleWorkouts: "freereps - apple health workouts",
+	MonitorWithingsStale: "freereps - withings data",
+	MonitorOuraStale:     "freereps - oura data",
+	MonitorHevyStale:     "freereps - hevy data",
 }
 
 // fallbackInterval is how often the watcher looks again when the channel is
@@ -160,6 +191,11 @@ func (w *Watcher) Check(ctx context.Context) time.Duration {
 	for _, c := range sourceConditions {
 		if err := w.checkSource(ctx, st, c); err != nil {
 			w.log.Warn("alert rule failed", "source", c.source, "error", err)
+		}
+	}
+	for _, c := range staleConditions {
+		if err := w.checkSourceStale(ctx, st, c); err != nil {
+			w.log.Warn("alert rule failed", "source", c.source, "condition", "stale", "error", err)
 		}
 	}
 	if err := w.checkAppleIngest(ctx, st); err != nil {
@@ -237,6 +273,49 @@ func (w *Watcher) checkSource(ctx context.Context, st storage.AlertSettings, c s
 	}
 
 	return w.report(ctx, st, c.monitorID, c.service, firing, msg)
+}
+
+// checkSourceStale fires when a user's runs of a polled source keep succeeding
+// while none of them has stored a row for longer than the condition's silence,
+// and resolves once a run stores something again.
+//
+// checkSource cannot see this state: a provider answering HTTP 200 with empty
+// bodies produces runs logged as success, and each of them resets the failure
+// count.
+//
+// Three cases stay silent. A user whose newest run failed belongs to
+// checkSource. A user who never stored a row has not finished connecting the
+// integration. A user whose newest run is older than the silence has stopped
+// polling — typically a disconnected integration — and a rule reading that as
+// missing data would fire for as long as the old log rows exist.
+func (w *Watcher) checkSourceStale(ctx context.Context, st storage.AlertSettings, c staleCondition) error {
+	byUser, err := w.store.RunHistoryByUser(ctx, c.source)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	firing := false
+	var reasons []string
+	for _, uid := range sortedKeys(byUser) {
+		a := byUser[uid]
+		if a.NewestStatus != "success" || a.LastStoredAt.IsZero() {
+			continue
+		}
+		if now.Sub(a.NewestRunAt) > c.silence || now.Sub(a.LastStoredAt) <= c.silence {
+			continue
+		}
+		firing = true
+		reasons = append(reasons, fmt.Sprintf("user %d: last stored row %s (%s ago)",
+			uid, a.LastStoredAt.UTC().Format(time.RFC3339), now.Sub(a.LastStoredAt).Round(time.Minute)))
+	}
+
+	msg := "runs store data"
+	if firing {
+		msg = truncate(fmt.Sprintf("runs succeed without storing rows, threshold %s — %s",
+			c.silence, strings.Join(reasons, "; ")), maxMsgLen)
+	}
+	return w.report(ctx, st, c.monitorID, ServiceNames[c.monitorID], firing, msg)
 }
 
 // checkAppleIngest fires when the Health Auto Export path has stored no new
@@ -359,7 +438,7 @@ func (w *Watcher) report(ctx context.Context, st storage.AlertSettings, monitorI
 	return nil
 }
 
-func sortedKeys(m map[int][]storage.SourceRun) []int {
+func sortedKeys[V any](m map[int]V) []int {
 	keys := make([]int, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

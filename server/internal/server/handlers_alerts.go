@@ -74,6 +74,9 @@ func (s *Server) handleAlertSettings(w http.ResponseWriter, r *http.Request) {
 		alerts.MonitorHevySync,
 		alerts.MonitorAppleIngest,
 		alerts.MonitorAppleWorkouts,
+		alerts.MonitorWithingsStale,
+		alerts.MonitorOuraStale,
+		alerts.MonitorHevyStale,
 	}
 	conditions := make([]condition, 0, len(ids))
 	for _, id := range ids {

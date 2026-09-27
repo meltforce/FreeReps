@@ -100,6 +100,64 @@ func (db *DB) lastRunAt(ctx context.Context, source, predicate string) (time.Tim
 	return *t, true, nil
 }
 
+// RunHistory is one user's import history for a polled source, reduced to
+// what the stale-source rule reads.
+type RunHistory struct {
+	NewestStatus string
+	NewestRunAt  time.Time
+	LastStoredAt time.Time // zero when no run of this user ever stored a row
+}
+
+// storedRowPredicates names, per polled source, what counts as a run that stored
+// something. The sources fill different columns: Hevy writes workouts and sets
+// and never metrics_inserted, Oura writes all three kinds, Withings only metrics.
+var storedRowPredicates = map[string]string{
+	"oura_sync":     "metrics_inserted > 0 OR workouts_inserted > 0 OR sleep_sessions > 0",
+	"withings_sync": "metrics_inserted > 0",
+	"hevy_sync":     "workouts_inserted > 0 OR sets_inserted > 0",
+}
+
+// RunHistoryByUser returns, per user, the newest run of a polled source, its
+// status, and when a run of that source last stored at least one row.
+//
+// It is per user for the reason RecentRunsBySource is: a second user whose
+// provider still delivers would otherwise hide a first user whose provider
+// answers with empty bodies.
+func (db *DB) RunHistoryByUser(ctx context.Context, source string) (map[int]RunHistory, error) {
+	predicate, ok := storedRowPredicates[source]
+	if !ok {
+		return nil, fmt.Errorf("no stored-row predicate for source %q", source)
+	}
+	rows, err := db.Pool.Query(ctx,
+		`SELECT user_id,
+		        (ARRAY_AGG(status ORDER BY created_at DESC))[1],
+		        MAX(created_at),
+		        MAX(created_at) FILTER (WHERE `+predicate+`)
+		   FROM import_logs
+		  WHERE source = $1
+		  GROUP BY user_id`,
+		source)
+	if err != nil {
+		return nil, fmt.Errorf("querying run history for %s: %w", source, err)
+	}
+	defer rows.Close()
+
+	out := map[int]RunHistory{}
+	for rows.Next() {
+		var uid int
+		var a RunHistory
+		var stored *time.Time
+		if err := rows.Scan(&uid, &a.NewestStatus, &a.NewestRunAt, &stored); err != nil {
+			return nil, fmt.Errorf("scanning run history: %w", err)
+		}
+		if stored != nil {
+			a.LastStoredAt = *stored
+		}
+		out[uid] = a
+	}
+	return out, rows.Err()
+}
+
 // AlertSettings is the deployment-wide configuration of the alert channel. It
 // lives in the database rather than only in config.yaml because the Settings UI
 // owns it, like every other integration's configuration in this project.

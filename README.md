@@ -471,7 +471,9 @@ loops, so a syncer that stopped running is covered as well:
 | 9201 | the Withings sync failed the configured number of times in a row |
 | 9202 | the Oura sync failed the configured number of times in a row |
 | 9203 | the Hevy sync failed the configured number of times in a row |
-| 9204 | no Health Auto Export delivery for longer than the silence threshold |
+| 9204 | no Apple Health metric stored for longer than the silence threshold |
+| 9205 | no Apple Health workout delivered for longer than the silence threshold |
+| 9206 / 9207 / 9208 | the Withings, Oura or Hevy sync keeps succeeding without storing a row for 7 days, 48 hours or 14 days |
 
 The payload follows Uptime Kuma's webhook shape, so an existing Kuma consumer
 needs no second parser:

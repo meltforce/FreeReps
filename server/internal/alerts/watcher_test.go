@@ -20,6 +20,7 @@ type fakeStore struct {
 	runs     map[string]map[int][]storage.SourceRun
 	last     map[string]time.Time // per source: when a delivery last stored a metric
 	lastWork map[string]time.Time // per source: when a workout was last delivered
+	activity map[string]map[int]storage.RunHistory
 	state    map[int]storage.AlertState
 }
 
@@ -39,6 +40,7 @@ func newFakeStore() *fakeStore {
 		runs:     map[string]map[int][]storage.SourceRun{},
 		last:     map[string]time.Time{},
 		lastWork: map[string]time.Time{},
+		activity: map[string]map[int]storage.RunHistory{},
 		state:    map[int]storage.AlertState{},
 	}
 }
@@ -66,6 +68,10 @@ func (f *fakeStore) LastStoredMetricRunAt(_ context.Context, source string) (tim
 func (f *fakeStore) LastWorkoutDeliveryAt(_ context.Context, source string) (time.Time, bool, error) {
 	t, ok := f.lastWork[source]
 	return t, ok, nil
+}
+
+func (f *fakeStore) RunHistoryByUser(_ context.Context, source string) (map[int]storage.RunHistory, error) {
+	return f.activity[source], nil
 }
 
 func (f *fakeStore) GetAlertState(_ context.Context, monitorID int) (storage.AlertState, error) {
@@ -483,6 +489,65 @@ func TestAppleIOSAppCountsAsDelivery(t *testing.T) {
 	for _, p := range rec.sent {
 		if (p.MonitorID == MonitorAppleIngest || p.MonitorID == MonitorAppleWorkouts) && p.Status == notify.StatusProblem {
 			t.Errorf("monitor %d alerted although the iOS app delivered within the threshold: %q", p.MonitorID, p.Msg)
+		}
+	}
+}
+
+// staleStatus runs one cycle and returns the status sent for monitorID, or -1
+// when nothing was sent for it.
+func staleStatus(t *testing.T, store *fakeStore, monitorID int) int {
+	t.Helper()
+	rec := &recorder{}
+	testWatcher(store, rec).Check(context.Background())
+	for _, p := range rec.sent {
+		if p.MonitorID == monitorID {
+			return p.Status
+		}
+	}
+	return -1
+}
+
+// TestStaleSourceFires covers the state checkSource cannot see: Oura runs keep
+// succeeding every 30 minutes while no run has stored a row for 50 hours, so the
+// failure count resets on every run and no failure alert follows.
+func TestStaleSourceFires(t *testing.T) {
+	store := newFakeStore()
+	store.activity["oura_sync"] = map[int]storage.RunHistory{2: {
+		NewestStatus: "success",
+		NewestRunAt:  time.Now().Add(-10 * time.Minute),
+		LastStoredAt: time.Now().Add(-50 * time.Hour),
+	}}
+	if got := staleStatus(t, store, MonitorOuraStale); got != notify.StatusProblem {
+		t.Errorf("status = %d, want a problem after 50 hours without a stored row, threshold 48", got)
+	}
+}
+
+// TestStaleSourceStaysSilent covers the cases that must not fire: a week
+// without training on Hevy, an integration that never stored anything, a
+// failing source (checkSource reports it), and a user who stopped polling,
+// whose old log rows would otherwise keep the condition firing.
+func TestStaleSourceStaysSilent(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		name      string
+		source    string
+		monitorID int
+		a         storage.RunHistory
+	}{
+		{"hevy quiet for 13 days", "hevy_sync", MonitorHevyStale,
+			storage.RunHistory{NewestStatus: "success", NewestRunAt: now.Add(-time.Hour), LastStoredAt: now.Add(-13 * 24 * time.Hour)}},
+		{"never stored a row", "oura_sync", MonitorOuraStale,
+			storage.RunHistory{NewestStatus: "success", NewestRunAt: now.Add(-time.Hour)}},
+		{"newest run failed", "oura_sync", MonitorOuraStale,
+			storage.RunHistory{NewestStatus: "error", NewestRunAt: now.Add(-time.Hour), LastStoredAt: now.Add(-72 * time.Hour)}},
+		{"stopped polling", "withings_sync", MonitorWithingsStale,
+			storage.RunHistory{NewestStatus: "success", NewestRunAt: now.Add(-30 * 24 * time.Hour), LastStoredAt: now.Add(-40 * 24 * time.Hour)}},
+	}
+	for _, c := range cases {
+		store := newFakeStore()
+		store.activity[c.source] = map[int]storage.RunHistory{2: c.a}
+		if got := staleStatus(t, store, c.monitorID); got == notify.StatusProblem {
+			t.Errorf("%s: fired", c.name)
 		}
 	}
 }
