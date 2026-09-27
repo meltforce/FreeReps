@@ -19,6 +19,7 @@ CREATE TABLE health_metrics (
     metric_name TEXT        NOT NULL,
     source      TEXT        NOT NULL DEFAULT '',
     client      TEXT        NOT NULL DEFAULT '',  -- 'freereps_ios', 'hae' or ''
+    source_bundle TEXT      NOT NULL DEFAULT '',  -- HealthKit bundle id, iOS app only
     units       TEXT        NOT NULL DEFAULT '',
     qty         DOUBLE PRECISION,
     min_val     DOUBLE PRECISION,
@@ -43,6 +44,15 @@ winner per partition by source priority first and then by client —
 `freereps_ios` before `hae` before `''` (`clientRankSQL` in
 `internal/storage/health_metrics.go`) — so where both clients delivered a day,
 only the app's rows count.
+
+`source_bundle` (migration `000038`, also on `workouts`, `workout_heart_rate`,
+`sleep_stages` and `category_samples`) holds the HealthKit bundle identifier the
+iOS app reports for an item; it is `''` for every other path and for rows stored
+before the app sent it. `source` is derived from it by `health.CanonicalSource`
+(`internal/ingest/health/sources.go`): every Apple device and Apple app becomes
+`''` (Apple Health), the Oura and Withings apps become `Oura` and `Withings`, any
+other app keeps its display name. An item from a provider the user also syncs
+directly is dropped at ingest rather than stored (`DECISIONS.md`, 2026-09-27).
 
 **Metric shapes:**
 - Standard (qty): `resting_heart_rate`, `heart_rate_variability`, `blood_oxygen_saturation`, `respiratory_rate`, `vo2_max`, `weight_body_mass`, `body_fat_percentage`, `active_energy`, `basal_energy_burned`, `apple_exercise_time`, `apple_sleeping_wrist_temperature`
@@ -83,7 +93,8 @@ CREATE TABLE sleep_stages (
     user_id     INTEGER     NOT NULL DEFAULT 1,
     stage       TEXT        NOT NULL,
     duration_hr DOUBLE PRECISION,
-    source      TEXT        NOT NULL DEFAULT ''
+    source      TEXT        NOT NULL DEFAULT '',
+    source_bundle TEXT      NOT NULL DEFAULT ''
 );
 
 SELECT create_hypertable('sleep_stages', 'start_time');
@@ -120,6 +131,8 @@ CREATE TABLE workouts (
     elevation_up            DOUBLE PRECISION,
     elevation_down          DOUBLE PRECISION,
     raw_json                JSONB,
+    source                  TEXT        NOT NULL DEFAULT '',
+    source_bundle           TEXT        NOT NULL DEFAULT '',
     UNIQUE (user_id, id)
 );
 ```
@@ -138,7 +151,8 @@ CREATE TABLE workout_heart_rate (
     min_bpm     DOUBLE PRECISION,
     avg_bpm     DOUBLE PRECISION,
     max_bpm     DOUBLE PRECISION,
-    source      TEXT        NOT NULL DEFAULT ''
+    source      TEXT        NOT NULL DEFAULT '',
+    source_bundle TEXT      NOT NULL DEFAULT ''
 );
 
 SELECT create_hypertable('workout_heart_rate', 'time');

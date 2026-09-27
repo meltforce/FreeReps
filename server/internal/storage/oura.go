@@ -173,3 +173,28 @@ func (db *DB) ListOuraSyncStates(ctx context.Context, userID int) ([]OuraSyncSta
 	}
 	return states, rows.Err()
 }
+
+// DirectSyncProviders returns the providers this user has authorised a direct
+// sync for, by the source name their rows are stored under. A credentials row
+// without an access token is not a sync: nothing arrives through it.
+func (db *DB) DirectSyncProviders(ctx context.Context, userID int) ([]string, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT 'Oura' FROM oura_tokens WHERE user_id = $1 AND access_token <> ''
+		 UNION ALL
+		 SELECT 'Withings' FROM withings_tokens WHERE user_id = $1 AND access_token <> ''`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing direct sync providers: %w", err)
+	}
+	defer rows.Close()
+
+	var providers []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scanning direct sync provider: %w", err)
+		}
+		providers = append(providers, name)
+	}
+	return providers, rows.Err()
+}

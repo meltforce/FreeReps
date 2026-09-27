@@ -205,8 +205,8 @@ var cumulativeMetrics = map[string]bool{
 }
 
 // maxRowsPerBatch is the PostgreSQL extended protocol parameter limit (65535)
-// divided by 13 parameters per row, with headroom.
-const maxRowsPerBatch = 5000
+// divided by 14 parameters per row, with headroom.
+const maxRowsPerBatch = 4000
 
 // InsertHealthMetrics batch-upserts health metric rows and returns the number of rows
 // inserted or changed. A row whose key (metric_name, source, time, user_id) already
@@ -236,31 +236,34 @@ func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetri
 }
 
 func (db *DB) insertHealthMetricsBatch(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
-	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, client, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid)
+	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, client, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid, source_bundle)
 VALUES `
-	args := make([]any, 0, len(rows)*13)
+	args := make([]any, 0, len(rows)*14)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 13
+		base := i * 14
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12, base+13,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12, base+13, base+14,
 		))
 		args = append(args, r.Time, r.UserID, r.MetricName, r.Source, r.Client, r.Units,
-			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic, r.SourceUUID)
+			r.Qty, r.MinVal, r.AvgVal, r.MaxVal, r.Systolic, r.Diastolic, r.SourceUUID, r.SourceBundle)
 	}
 
 	query += strings.Join(valueStrings, ",") + `
 ON CONFLICT (metric_name, source, client, time, user_id) DO UPDATE SET
 	units = EXCLUDED.units, qty = EXCLUDED.qty,
 	min_val = EXCLUDED.min_val, avg_val = EXCLUDED.avg_val, max_val = EXCLUDED.max_val,
-	systolic = EXCLUDED.systolic, diastolic = EXCLUDED.diastolic, source_uuid = EXCLUDED.source_uuid
+	systolic = EXCLUDED.systolic, diastolic = EXCLUDED.diastolic, source_uuid = EXCLUDED.source_uuid,
+	source_bundle = EXCLUDED.source_bundle
 WHERE (health_metrics.units, health_metrics.qty, health_metrics.min_val, health_metrics.avg_val,
-       health_metrics.max_val, health_metrics.systolic, health_metrics.diastolic, health_metrics.source_uuid)
+       health_metrics.max_val, health_metrics.systolic, health_metrics.diastolic, health_metrics.source_uuid,
+       health_metrics.source_bundle)
 	IS DISTINCT FROM
       (EXCLUDED.units, EXCLUDED.qty, EXCLUDED.min_val, EXCLUDED.avg_val,
-       EXCLUDED.max_val, EXCLUDED.systolic, EXCLUDED.diastolic, EXCLUDED.source_uuid)`
+       EXCLUDED.max_val, EXCLUDED.systolic, EXCLUDED.diastolic, EXCLUDED.source_uuid,
+       EXCLUDED.source_bundle)`
 
 	tag, err := db.Pool.Exec(ctx, query, args...)
 	if err != nil {

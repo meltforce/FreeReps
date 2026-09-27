@@ -19,6 +19,63 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-09-27 — Items from the iOS app carry their HealthKit source, and copies of directly synced providers are dropped at ingest
+
+**Decided:** 2026-09-27
+
+**Decision.** The iOS app reports, for every item it sends, the HealthKit
+bundle identifier (`source_bundle`) and display name (`source_name`, or the
+existing `source` field where a type already had one). The server derives the
+stored `source` from them in `health.CanonicalSource`
+(`server/internal/ingest/health/sources.go`) and keeps the bundle in a
+`source_bundle` column (migration `000038`):
+
+- Every Apple device and Apple app (`com.apple.*`) is stored as `''`, Apple
+  Health — not under device names such as `Linus Watch Ultra 2`.
+- The Oura and Withings apps are stored as `Oura` and `Withings`, the names
+  their direct integrations write.
+- Any other app keeps its display name.
+
+An item whose source is a provider the user has authorised a direct sync for
+(an `oura_tokens` or `withings_tokens` row with an access token) is dropped at
+ingest and counted in `source_copies_dropped`. Items without a bundle, from
+Health Auto Export and older app versions, are stored as before. Rows stored
+before the change keep their source; nothing is relabelled.
+
+**Reasoning.** Until now a quantity sample or a workout from the app arrived
+without a source, so everything the Oura or Withings app wrote into HealthKit
+was stored as Apple Health. On 2026-09-27 the Oura app wrote its copy of an
+Apple Watch run back into HealthKit: a second workout (rounded to full
+minutes, 261 kcal against 228) and 290 heart rate samples interleaved with the
+watch's 278, both stored with `source = ''` next to the originals. No source
+priority could separate them, because they carried the same source and client.
+
+- *Apple devices as `''`.* Over the 90 days to 2026-09-27, 192,543 app rows
+  and 216,439 rows from earlier Apple Health paths carry `''`, and the source priority ranks `''` as Apple Health. Device names
+  would rank below every listed source and could not be listed ahead of time.
+  Watch and iPhone stay merged, which is what HealthKit's statistics already do
+  for the summed metrics; the per-device question stays with the deferred
+  Health Auto Export row in `ROADMAP.md`.
+- *Dropping instead of ranking.* A HealthKit copy stored as `Oura` would share
+  source and name with the row from the Oura API, and `clientRankSQL` ranks the
+  app's client ahead of the integration's `''` — the copy would replace the
+  original. This is the reasoning of the sleep rule of 2026-09-20
+  (`sleepClaimedBySync`), applied to every data type. Without a direct sync the
+  copy is the only delivery and is kept.
+- *No relabelling.* Summed buckets carry no HealthKit identifier to match
+  against, so older rows could not be relabelled consistently. Chosen by the
+  operator on 2026-09-27.
+
+The bundle identifiers in `knownBundles` (`com.ouraring.oura`,
+`com.withings.wiScaleNG`) are not yet confirmed from a payload; the display
+names `Oura` and `Withings`, which `category_samples` already holds, match as a
+fallback.
+
+**Trigger to re-open.** A further provider with a direct sync, a provider that
+changes its bundle identifier, or a need to tell Watch and iPhone apart.
+
+---
+
 ## 2026-09-27 — Heart rate zones are shares of the heart rate reserve, and the server computes their edges
 
 **Decided:** 2026-09-27

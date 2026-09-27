@@ -22,7 +22,7 @@ type Provider struct {
 
 // NewProvider creates a new health ingest provider.
 // Client values stored in health_metrics.client. The iOS app and Health Auto
-// Export both deliver Apple Health data with source '', and the dedup ranks
+// Export both deliver Apple Health data with source ”, and the dedup ranks
 // the app first (storage.clientRankSQL); this is how their rows are told apart.
 const (
 	ClientIOSApp = "freereps_ios"
@@ -118,16 +118,27 @@ func (p *Provider) sleepClaimedBySync(ctx context.Context, userID int) (string, 
 func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, userID int) (*ingest.Result, error) {
 	result := &ingest.Result{}
 
+	policy, err := p.loadSourcePolicy(ctx, userID)
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		if result.SourceCopiesDropped > 0 {
+			p.log.Info("dropped HealthKit copies of directly synced providers",
+				"user_id", userID, "count", result.SourceCopiesDropped)
+		}
+	}()
+
 	// Process metrics
 	if len(payload.Data.Metrics) > 0 {
-		if err := p.processMetrics(ctx, payload.Data.Metrics, userID, result); err != nil {
+		if err := p.processMetrics(ctx, payload.Data.Metrics, userID, policy, result); err != nil {
 			return result, fmt.Errorf("processing metrics: %w", err)
 		}
 	}
 
 	// Process workouts
 	if len(payload.Data.Workouts) > 0 {
-		if err := p.processWorkouts(ctx, payload.Data.Workouts, userID, result); err != nil {
+		if err := p.processWorkouts(ctx, payload.Data.Workouts, userID, policy, result); err != nil {
 			return result, fmt.Errorf("processing workouts: %w", err)
 		}
 	}
@@ -176,7 +187,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 
 	// Process category samples
 	if len(payload.Data.CategorySamples) > 0 {
-		if err := p.processCategorySamples(ctx, payload.Data.CategorySamples, userID, result); err != nil {
+		if err := p.processCategorySamples(ctx, payload.Data.CategorySamples, userID, policy, result); err != nil {
 			return result, fmt.Errorf("processing category samples: %w", err)
 		}
 	}
@@ -192,7 +203,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 	return result, nil
 }
 
-func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, result *ingest.Result) error {
+func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, policy sourcePolicy, result *ingest.Result) error {
 	var healthRows []models.HealthMetricRow
 	rejectedSet := map[string]bool{}
 
@@ -228,6 +239,16 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 				p.log.Warn("skipping data point", "metric", m.Name, "error", err)
 				continue
 			}
+			// Every shape carries the same optional source fields, so they
+			// are read once here rather than in each branch of the shape switch.
+			var sf models.SourceFields
+			_ = json.Unmarshal(raw, &sf)
+			source, drop := policy.resolve(sf.SourceBundle, sf.SourceName)
+			if drop {
+				result.SourceCopiesDropped++
+				continue
+			}
+			row.Source, row.SourceBundle = source, sf.SourceBundle
 			row.Client = clientFrom(ctx)
 			if _, unknown := normalizeUnits(row); unknown {
 				p.log.Warn("storing metric in an unconverted unit",
@@ -410,7 +431,7 @@ func (p *Provider) processSleep(ctx context.Context, m models.HealthMetric, user
 	return nil
 }
 
-func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HealthWorkout, userID int, result *ingest.Result) error {
+func (p *Provider) processWorkouts(ctx context.Context, workouts []models.HealthWorkout, userID int, policy sourcePolicy, result *ingest.Result) error {
 	for _, w := range workouts {
 		result.WorkoutsReceived++
 
@@ -420,19 +441,27 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 			continue
 		}
 
+		source, drop := policy.resolve(w.SourceBundle, w.SourceName)
+		if drop {
+			result.SourceCopiesDropped++
+			continue
+		}
+
 		// Marshal the full workout as raw_json for fields we don't explicitly model
 		rawJSON, _ := json.Marshal(w)
 
 		row := models.WorkoutRow{
-			ID:          workoutID,
-			UserID:      userID,
-			Name:        ingest.NormalizeWorkoutName(w.Name),
-			StartTime:   w.Start.Time,
-			EndTime:     w.End.Time,
-			DurationSec: w.Duration,
-			Location:    w.Location,
-			IsIndoor:    w.IsIndoor,
-			RawJSON:     rawJSON,
+			ID:           workoutID,
+			UserID:       userID,
+			Name:         ingest.NormalizeWorkoutName(w.Name),
+			Source:       source,
+			SourceBundle: w.SourceBundle,
+			StartTime:    w.Start.Time,
+			EndTime:      w.End.Time,
+			DurationSec:  w.Duration,
+			Location:     w.Location,
+			IsIndoor:     w.IsIndoor,
+			RawJSON:      rawJSON,
 		}
 
 		// Extract quantity fields
@@ -482,13 +511,14 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 			hrRows := make([]models.WorkoutHRRow, len(w.HeartRateData))
 			for i, hr := range w.HeartRateData {
 				hrRows[i] = models.WorkoutHRRow{
-					Time:      hr.Date.Time,
-					WorkoutID: workoutID,
-					UserID:    userID,
-					MinBPM:    &hr.Min,
-					AvgBPM:    &hr.Avg,
-					MaxBPM:    &hr.Max,
-					Source:    hr.Source,
+					Time:         hr.Date.Time,
+					WorkoutID:    workoutID,
+					UserID:       userID,
+					MinBPM:       &hr.Min,
+					AvgBPM:       &hr.Avg,
+					MaxBPM:       &hr.Max,
+					Source:       CanonicalSource(hr.SourceBundle, hr.Source),
+					SourceBundle: hr.SourceBundle,
 				}
 			}
 			n, err := p.db.InsertWorkoutHeartRate(ctx, hrRows)
@@ -563,7 +593,7 @@ func (p *Provider) processECGRecordings(ctx context.Context, recordings []models
 			SamplingFrequency:   rec.SamplingFrequency,
 			VoltageMeasurements: voltageMeasurements,
 			StartDate:           rec.StartDate.Time,
-			Source:              rec.Source,
+			Source:              CanonicalSource(rec.SourceBundle, rec.Source),
 		}
 
 		inserted, err := p.db.InsertECGRecording(ctx, row)
@@ -600,7 +630,7 @@ func (p *Provider) processAudiograms(ctx context.Context, audiograms []models.Au
 			UserID:            userID,
 			SensitivityPoints: sensitivityPoints,
 			StartDate:         ag.StartDate.Time,
-			Source:            ag.Source,
+			Source:            CanonicalSource(ag.SourceBundle, ag.Source),
 		}
 
 		inserted, err := p.db.InsertAudiogram(ctx, row)
@@ -667,7 +697,7 @@ func (p *Provider) processMedications(ctx context.Context, medications []models.
 			Dosage:    med.Dosage,
 			LogStatus: med.LogStatus,
 			StartDate: med.StartDate.Time,
-			Source:    med.Source,
+			Source:    CanonicalSource(med.SourceBundle, med.Source),
 		}
 		if med.EndDate != nil {
 			t := med.EndDate.Time
@@ -717,7 +747,7 @@ func (p *Provider) processVisionPrescriptions(ctx context.Context, prescriptions
 			PrescriptionType: vp.PrescriptionType,
 			RightEye:         rightEye,
 			LeftEye:          leftEye,
-			Source:           vp.Source,
+			Source:           CanonicalSource(vp.SourceBundle, vp.Source),
 		}
 		if vp.ExpirationDate != nil {
 			t := vp.ExpirationDate.Time
@@ -753,7 +783,7 @@ func (p *Provider) processStateOfMind(ctx context.Context, records []models.Stat
 			Labels:       som.Labels,
 			Associations: som.Associations,
 			StartDate:    som.StartDate.Time,
-			Source:       som.Source,
+			Source:       CanonicalSource(som.SourceBundle, som.Source),
 		})
 	}
 
@@ -773,7 +803,21 @@ func (p *Provider) processStateOfMind(ctx context.Context, records []models.Stat
 	return nil
 }
 
-func (p *Provider) processCategorySamples(ctx context.Context, samples []models.CategorySample, userID int, result *ingest.Result) error {
+func (p *Provider) processCategorySamples(ctx context.Context, samples []models.CategorySample, userID int, policy sourcePolicy, result *ingest.Result) error {
+	// Resolve sources first: a dropped copy must not reach the sleep stages
+	// derived further down either.
+	kept := samples[:0:0]
+	for _, cs := range samples {
+		source, drop := policy.resolve(cs.SourceBundle, cs.Source)
+		if drop {
+			result.SourceCopiesDropped++
+			continue
+		}
+		cs.Source = source
+		kept = append(kept, cs)
+	}
+	samples = kept
+
 	var rows []models.CategorySampleRow
 	for _, cs := range samples {
 		id, err := uuid.Parse(cs.ID)
@@ -783,14 +827,15 @@ func (p *Provider) processCategorySamples(ctx context.Context, samples []models.
 		}
 
 		rows = append(rows, models.CategorySampleRow{
-			ID:         id,
-			UserID:     userID,
-			Type:       cs.Type,
-			Value:      cs.Value,
-			ValueLabel: cs.ValueLabel,
-			StartDate:  cs.StartDate.Time,
-			EndDate:    cs.EndDate.Time,
-			Source:     cs.Source,
+			ID:           id,
+			UserID:       userID,
+			Type:         cs.Type,
+			Value:        cs.Value,
+			ValueLabel:   cs.ValueLabel,
+			StartDate:    cs.StartDate.Time,
+			EndDate:      cs.EndDate.Time,
+			Source:       cs.Source,
+			SourceBundle: cs.SourceBundle,
 		})
 	}
 
@@ -841,12 +886,13 @@ func (p *Provider) processCategorySamples(ctx context.Context, samples []models.
 			p.log.Warn("unknown sleep stage from category sample, storing as-is", "raw", label)
 		}
 		sleepStages = append(sleepStages, models.SleepStageRow{
-			StartTime:  cs.StartDate.Time,
-			EndTime:    cs.EndDate.Time,
-			UserID:     userID,
-			Stage:      stage,
-			DurationHr: cs.EndDate.Time.Sub(cs.StartDate.Time).Hours(),
-			Source:     cs.Source,
+			StartTime:    cs.StartDate.Time,
+			EndTime:      cs.EndDate.Time,
+			UserID:       userID,
+			Stage:        stage,
+			DurationHr:   cs.EndDate.Time.Sub(cs.StartDate.Time).Hours(),
+			Source:       cs.Source,
+			SourceBundle: cs.SourceBundle,
 		})
 	}
 	if len(sleepStages) > 0 {

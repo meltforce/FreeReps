@@ -23,6 +23,9 @@ type HealthMetricRow struct {
 	Systolic   *float64
 	Diastolic  *float64
 	SourceUUID *uuid.UUID
+	// SourceBundle is the HealthKit bundle identifier the iOS app reported,
+	// empty for every other path.
+	SourceBundle string
 }
 
 // SleepSessionRow is a row ready for insertion into the sleep_sessions table.
@@ -49,6 +52,8 @@ type SleepStageRow struct {
 	Stage      string
 	DurationHr float64
 	Source     string
+	// SourceBundle is the HealthKit bundle identifier, empty when unknown.
+	SourceBundle string
 }
 
 // WorkoutRow is a row ready for insertion into the workouts table.
@@ -57,6 +62,9 @@ type WorkoutRow struct {
 	UserID             int
 	Name               string
 	Source             string
+	// SourceBundle is the HealthKit bundle identifier the iOS app reported,
+	// empty for every other path. Stored, not read back.
+	SourceBundle       string `json:"-"`
 	StartTime          time.Time
 	EndTime            time.Time
 	DurationSec        float64
@@ -102,6 +110,8 @@ type WorkoutHRRow struct {
 	AvgBPM    *float64
 	MaxBPM    *float64
 	Source    string
+	// SourceBundle is the HealthKit bundle identifier, empty when unknown.
+	SourceBundle string
 }
 
 // WorkoutRouteRow is a row for the workout_routes table.
@@ -241,4 +251,6 @@ type CategorySampleRow struct {
 	StartDate  time.Time
 	EndDate    time.Time
 	Source     string
+	// SourceBundle is the HealthKit bundle identifier, empty when unknown.
+	SourceBundle string
 }

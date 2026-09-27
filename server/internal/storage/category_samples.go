@@ -16,18 +16,18 @@ func (db *DB) InsertCategorySamples(ctx context.Context, rows []models.CategoryS
 		return 0, nil
 	}
 
-	query := `INSERT INTO category_samples (id, user_id, type, value, value_label, start_date, end_date, source) VALUES `
-	args := make([]any, 0, len(rows)*8)
+	query := `INSERT INTO category_samples (id, user_id, type, value, value_label, start_date, end_date, source, source_bundle) VALUES `
+	args := make([]any, 0, len(rows)*9)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 8
+		base := i * 9
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9,
 		))
 		args = append(args, r.ID, r.UserID, r.Type, r.Value, r.ValueLabel,
-			r.StartDate, r.EndDate, r.Source)
+			r.StartDate, r.EndDate, r.Source, r.SourceBundle)
 	}
 
 	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"

@@ -27,5 +27,9 @@ type Result struct {
 	StateOfMindInserted      int64 `json:"state_of_mind_inserted,omitempty"`
 	CategorySamplesInserted  int64 `json:"category_samples_inserted,omitempty"`
 
+	// SourceCopiesDropped counts items a provider wrote into HealthKit that
+	// FreeReps also syncs from that provider directly (health.sourcePolicy).
+	SourceCopiesDropped int `json:"source_copies_dropped,omitempty"`
+
 	Message string `json:"message,omitempty"`
 }

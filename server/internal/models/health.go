@@ -78,11 +78,20 @@ type HealthMetric struct {
 	Data  []json.RawMessage `json:"data"`
 }
 
+// SourceFields identify the HealthKit source of an item. The iOS app sends them
+// since 2026-09-27; Health Auto Export and older app versions send neither.
+// health.CanonicalSource turns them into the stored source name.
+type SourceFields struct {
+	SourceBundle string `json:"source_bundle,omitempty"`
+	SourceName   string `json:"source_name,omitempty"`
+}
+
 // HealthMetricDataPoint is a standard metric data point with qty.
 type HealthMetricDataPoint struct {
 	Date       HealthTime `json:"date"`
 	Qty        float64 `json:"qty"`
 	SourceUUID *string `json:"source_uuid,omitempty"`
+	SourceFields
 }
 
 // HeartRateDataPoint has Min/Avg/Max fields (capitalized in JSON).
@@ -95,6 +104,7 @@ type HeartRateDataPoint struct {
 	Max        float64 `json:"Max"`
 	Qty        float64 `json:"qty"`
 	SourceUUID *string `json:"source_uuid,omitempty"`
+	SourceFields
 }
 
 // BloodPressureDataPoint has systolic/diastolic fields.
@@ -103,6 +113,7 @@ type BloodPressureDataPoint struct {
 	Systolic   float64 `json:"systolic"`
 	Diastolic  float64 `json:"diastolic"`
 	SourceUUID *string `json:"source_uuid,omitempty"`
+	SourceFields
 }
 
 // SleepAggregated is a nightly sleep summary (Summarize Data: ON).
@@ -149,6 +160,8 @@ type HealthWorkout struct {
 	AvgHR     *Quantity         `json:"avgHeartRate,omitempty"`
 	MaxHR     *Quantity         `json:"maxHeartRate,omitempty"`
 
+	SourceFields
+
 	HeartRateData     []WorkoutHRPoint `json:"heartRateData,omitempty"`
 	HeartRateRecovery []WorkoutHRPoint `json:"heartRateRecovery,omitempty"`
 	Route             []RoutePoint     `json:"route,omitempty"`
@@ -178,6 +191,8 @@ type WorkoutHRPoint struct {
 	Max    float64 `json:"Max"`
 	Units  string  `json:"units"`
 	Source string  `json:"source"`
+	// SourceBundle is the HealthKit bundle of Source; see SourceFields.
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // RoutePoint is a GPS point from a workout route.
@@ -203,6 +218,7 @@ type ECGRecording struct {
 	VoltageMeasurements []float64 `json:"voltage_measurements,omitempty"`
 	StartDate           HealthTime   `json:"start_date"`
 	Source              string    `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // Audiogram is an audiogram from HealthBeat.
@@ -211,6 +227,7 @@ type Audiogram struct {
 	SensitivityPoints []AudiogramSensPoint `json:"sensitivity_points"`
 	StartDate         HealthTime              `json:"start_date"`
 	Source            string               `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // AudiogramSensPoint is a single frequency/sensitivity measurement.
@@ -240,6 +257,7 @@ type Medication struct {
 	StartDate HealthTime  `json:"start_date"`
 	EndDate   *HealthTime `json:"end_date,omitempty"`
 	Source    string   `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // VisionPrescription is a glasses/contacts prescription.
@@ -251,6 +269,7 @@ type VisionPrescription struct {
 	RightEye         map[string]interface{} `json:"right_eye,omitempty"`
 	LeftEye          map[string]interface{} `json:"left_eye,omitempty"`
 	Source           string                 `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // StateOfMind is an iOS 18+ mood/emotion record.
@@ -262,6 +281,7 @@ type StateOfMind struct {
 	Associations []int   `json:"associations,omitempty"`
 	StartDate    HealthTime `json:"start_date"`
 	Source       string  `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }
 
 // CategorySample is an HKCategorySample record.
@@ -273,4 +293,5 @@ type CategorySample struct {
 	StartDate  HealthTime `json:"start_date"`
 	EndDate    HealthTime `json:"end_date"`
 	Source     string  `json:"source,omitempty"`
+	SourceBundle string `json:"source_bundle,omitempty"`
 }

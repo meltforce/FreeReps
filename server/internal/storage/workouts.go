@@ -49,14 +49,14 @@ func (db *DB) InsertWorkout(ctx context.Context, row models.WorkoutRow) (bool, e
 		`INSERT INTO workouts (id, user_id, name, source, start_time, end_time, duration_sec, location, is_indoor,
 		 active_energy_burned, active_energy_units, total_energy, total_energy_units,
 		 distance, distance_units, avg_heart_rate, max_heart_rate, min_heart_rate,
-		 elevation_up, elevation_down, raw_json)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		 elevation_up, elevation_down, raw_json, source_bundle)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 		 ON CONFLICT DO NOTHING`,
 		row.ID, row.UserID, row.Name, row.Source, row.StartTime, row.EndTime, row.DurationSec,
 		row.Location, row.IsIndoor,
 		row.ActiveEnergyBurned, row.ActiveEnergyUnits, row.TotalEnergy, row.TotalEnergyUnits,
 		row.Distance, row.DistanceUnits, row.AvgHeartRate, row.MaxHeartRate, row.MinHeartRate,
-		row.ElevationUp, row.ElevationDown, row.RawJSON)
+		row.ElevationUp, row.ElevationDown, row.RawJSON, row.SourceBundle)
 	if err != nil {
 		return false, fmt.Errorf("inserting workout: %w", err)
 	}
@@ -69,17 +69,17 @@ func (db *DB) InsertWorkoutHeartRate(ctx context.Context, rows []models.WorkoutH
 		return 0, nil
 	}
 
-	query := `INSERT INTO workout_heart_rate (time, workout_id, user_id, min_bpm, avg_bpm, max_bpm, source) VALUES `
-	args := make([]any, 0, len(rows)*7)
+	query := `INSERT INTO workout_heart_rate (time, workout_id, user_id, min_bpm, avg_bpm, max_bpm, source, source_bundle) VALUES `
+	args := make([]any, 0, len(rows)*8)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 7
+		base := i * 8
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8,
 		))
-		args = append(args, r.Time, r.WorkoutID, r.UserID, r.MinBPM, r.AvgBPM, r.MaxBPM, r.Source)
+		args = append(args, r.Time, r.WorkoutID, r.UserID, r.MinBPM, r.AvgBPM, r.MaxBPM, r.Source, r.SourceBundle)
 	}
 
 	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"

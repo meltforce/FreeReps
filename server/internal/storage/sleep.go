@@ -41,17 +41,17 @@ func (db *DB) InsertSleepStages(ctx context.Context, rows []models.SleepStageRow
 		return 0, nil
 	}
 
-	query := `INSERT INTO sleep_stages (start_time, end_time, user_id, stage, duration_hr, source) VALUES `
-	args := make([]any, 0, len(rows)*6)
+	query := `INSERT INTO sleep_stages (start_time, end_time, user_id, stage, duration_hr, source, source_bundle) VALUES `
+	args := make([]any, 0, len(rows)*7)
 	valueStrings := make([]string, 0, len(rows))
 
 	for i, r := range rows {
-		base := i * 6
+		base := i * 7
 		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6,
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7,
 		))
-		args = append(args, r.StartTime, r.EndTime, r.UserID, r.Stage, r.DurationHr, r.Source)
+		args = append(args, r.StartTime, r.EndTime, r.UserID, r.Stage, r.DurationHr, r.Source, r.SourceBundle)
 	}
 
 	query += strings.Join(valueStrings, ",") + " ON CONFLICT DO NOTHING"
