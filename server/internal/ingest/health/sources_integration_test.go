@@ -10,10 +10,11 @@ import (
 )
 
 // TestHealthKitCopiesOfDirectlySyncedProviders runs the source policy against
-// the database: the Oura copy of a workout and its heart rate, as the Oura app
-// wrote them into HealthKit on 2026-09-27, are dropped while Oura is
-// connected and stored under "Oura" while it is not. Watch data in the same
-// payload is stored as Apple Health either way.
+// the database: the Oura copy of a workout, as the Oura app wrote it into
+// HealthKit on 2026-09-27, and an Oura category sample are dropped while Oura
+// is connected and stored under "Oura" while it is not. An Oura heart rate
+// sample is stored under "Oura" either way; the client rank decides at read
+// time. Watch data in the same payload is stored as Apple Health either way.
 func TestHealthKitCopiesOfDirectlySyncedProviders(t *testing.T) {
 	db := sleepTestDB(t)
 	ctx := context.Background()
@@ -56,7 +57,7 @@ func TestHealthKitCopiesOfDirectlySyncedProviders(t *testing.T) {
 		}
 		return n
 	}
-	check := func(label string, wantOura int) {
+	check := func(label string, wantOuraCopies int) {
 		t.Helper()
 		if got := count(`SELECT count(*) FROM health_metrics WHERE user_id = $1 AND source = '' AND source_bundle = 'com.apple.health.5C1F0A77'`); got != 1 {
 			t.Errorf("%s: %d Apple heart rate rows, want 1", label, got)
@@ -64,13 +65,15 @@ func TestHealthKitCopiesOfDirectlySyncedProviders(t *testing.T) {
 		if got := count(`SELECT count(*) FROM workouts WHERE user_id = $1 AND source = ''`); got != 1 {
 			t.Errorf("%s: %d Apple workouts, want 1", label, got)
 		}
+		if got := count(`SELECT count(*) FROM health_metrics WHERE user_id = $1 AND source = 'Oura' AND client = 'freereps_ios'`); got != 1 {
+			t.Errorf("%s: %d Oura heart rate rows from the app, want 1", label, got)
+		}
 		for _, q := range []string{
-			`SELECT count(*) FROM health_metrics WHERE user_id = $1 AND source = 'Oura'`,
 			`SELECT count(*) FROM workouts WHERE user_id = $1 AND source = 'Oura'`,
 			`SELECT count(*) FROM category_samples WHERE user_id = $1 AND source = 'Oura'`,
 		} {
-			if got := count(q); got != wantOura {
-				t.Errorf("%s: %q = %d, want %d", label, q, got, wantOura)
+			if got := count(q); got != wantOuraCopies {
+				t.Errorf("%s: %q = %d, want %d", label, q, got, wantOuraCopies)
 			}
 		}
 	}
@@ -85,12 +88,12 @@ func TestHealthKitCopiesOfDirectlySyncedProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
-	if res.SourceCopiesDropped != 3 {
-		t.Errorf("dropped %d copies, want 3", res.SourceCopiesDropped)
+	if res.SourceCopiesDropped != 2 {
+		t.Errorf("dropped %d copies, want 2", res.SourceCopiesDropped)
 	}
 	check("connected", 0)
 
-	// Oura not connected: HealthKit is the only path, so its data is kept.
+	// Oura not connected: HealthKit is the only path, so every copy is kept.
 	clear()
 	if _, err := p.Ingest(app, metricPayload(t, payload), sleepTestUser); err != nil {
 		t.Fatalf("ingest: %v", err)

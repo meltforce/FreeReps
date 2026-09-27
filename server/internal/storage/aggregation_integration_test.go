@@ -261,3 +261,44 @@ func TestHeartRateKeepsWindowsTheLeadingSourceMisses(t *testing.T) {
 		t.Errorf("Count = %d, want 2 — Apple's competing row in the Oura window is dropped, its own window is not", stats.Count)
 	}
 }
+
+// TestDirectIntegrationOutranksItsHealthKitCopy covers the heart rate the Oura
+// app writes into HealthKit while the Oura API lags behind: on 2026-09-27 the
+// API held nothing after 12:14:45Z for four hours. The copy arrives through the
+// iOS app under the same source name, so the client rank decides — the API row
+// wins its window, and the copy fills the window the API has not delivered.
+func TestDirectIntegrationOutranksItsHealthKitCopy(t *testing.T) {
+	db := aggTestDB(t)
+	ctx := context.Background()
+
+	copyRow := func(ts time.Time, v float64) models.HealthMetricRow {
+		r := row(ts, "heart_rate", "Oura", v)
+		r.Client = "freereps_ios"
+		return r
+	}
+	insert(t, db, []models.HealthMetricRow{
+		// 07:00 — the API and the HealthKit copy both report.
+		row(at(7, 0, 0), "heart_rate", "Oura", 60),
+		copyRow(at(7, 0, 30), 70),
+		// 07:05 — the copy only; the API has not delivered this window yet.
+		copyRow(at(7, 5, 0), 80),
+	})
+	if err := db.UpsertSourcePriority(ctx, aggTestUser, "_default", []string{"Oura", "", "Withings"}); err != nil {
+		t.Fatalf("setting _default priority: %v", err)
+	}
+
+	start, end := at(0, 0, 0), at(0, 0, 0).AddDate(0, 0, 1)
+	stats, err := db.GetMetricStats(ctx, "heart_rate", start, end, aggTestUser)
+	if err != nil {
+		t.Fatalf("GetMetricStats: %v", err)
+	}
+
+	// (60 + 80) / 2. Ranking the app's client first, as for Apple Health, would
+	// report (70 + 80) / 2 = 75.
+	if stats.Avg == nil || !nearly(*stats.Avg, 70) {
+		t.Errorf("Avg = %v, want 70", stats.Avg)
+	}
+	if stats.Count != 2 {
+		t.Errorf("Count = %d, want 2", stats.Count)
+	}
+}

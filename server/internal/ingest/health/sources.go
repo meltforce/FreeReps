@@ -78,13 +78,16 @@ func (p *Provider) loadSourcePolicy(ctx context.Context, userID int) (*sourcePol
 
 // resolve returns the stored source name and whether the item is dropped.
 //
-// A copy is dropped when the provider that wrote it into HealthKit is also
-// synced directly for this user. The two deliveries describe the same
-// measurement under the same source name, and the client rank
-// (storage.clientRankSQL) would put the HealthKit copy from the iOS app ahead
-// of the provider's own row. This is the sleep rule of 2026-09-20
-// (sleepClaimedBySync) applied to every data type; see DECISIONS.md,
-// 2026-09-27.
+// Only workouts and category samples call it; metric points are never
+// dropped. A workout or category sample the provider's app wrote into
+// HealthKit is dropped when the provider is also synced directly for this
+// user: both deliveries are stored under the provider's name, their keys are
+// HealthKit or API identifiers that never match, and no read-time rank
+// separates them — the list would show an Oura workout twice. This is the
+// sleep rule of 2026-09-20 (sleepClaimedBySync) applied to those types.
+// Metric points instead are kept and ranked behind the provider's own rows
+// (storage.clientRankSQL), because the provider's API can lag hours behind
+// what its app writes into HealthKit; see DECISIONS.md, 2026-09-27.
 //
 // Only items carrying a bundle are dropped. An older app version reports none,
 // and its items keep the treatment they had before.

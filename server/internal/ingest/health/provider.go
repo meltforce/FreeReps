@@ -132,7 +132,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 
 	// Process metrics
 	if len(payload.Data.Metrics) > 0 {
-		if err := p.processMetrics(ctx, payload.Data.Metrics, userID, policy, result); err != nil {
+		if err := p.processMetrics(ctx, payload.Data.Metrics, userID, result); err != nil {
 			return result, fmt.Errorf("processing metrics: %w", err)
 		}
 	}
@@ -204,7 +204,7 @@ func (p *Provider) Ingest(ctx context.Context, payload *models.HealthPayload, us
 	return result, nil
 }
 
-func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, policy *sourcePolicy, result *ingest.Result) error {
+func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMetric, userID int, result *ingest.Result) error {
 	var healthRows []models.HealthMetricRow
 	rejectedSet := map[string]bool{}
 
@@ -242,14 +242,11 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 			}
 			// Every shape carries the same optional source fields, so they
 			// are read once here rather than in each branch of the shape switch.
+			// A copy of a directly synced provider is kept: the client rank
+			// puts the provider's own rows first (sourcePolicy.resolve).
 			var sf models.SourceFields
 			_ = json.Unmarshal(raw, &sf)
-			source, drop := policy.resolve(sf.SourceBundle, sf.SourceName)
-			if drop {
-				result.SourceCopiesDropped++
-				continue
-			}
-			row.Source, row.SourceBundle = source, sf.SourceBundle
+			row.Source, row.SourceBundle = CanonicalSource(sf.SourceBundle, sf.SourceName), sf.SourceBundle
 			row.Client = clientFrom(ctx)
 			if _, unknown := normalizeUnits(row); unknown {
 				p.log.Warn("storing metric in an unconverted unit",

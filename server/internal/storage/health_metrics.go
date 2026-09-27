@@ -82,11 +82,21 @@ func multiMetricPartition(metricNames []string) string {
 		strings.Join(cumulative, ","), dedupBucket)
 }
 
-// clientRankSQL orders the clients of one source: where the iOS app and Health
-// Auto Export both delivered Apple Health data for a window, the app wins, and
-// both win over rows stored before the client column existed. Both clients
-// write source = '', so without this rank their rows were summed together.
-const clientRankSQL = "CASE client WHEN 'freereps_ios' THEN 0 WHEN 'hae' THEN 1 ELSE 2 END"
+// clientRankSQL orders the clients of one source.
+//
+// For Apple Health (source = ''): where the iOS app and Health Auto Export
+// both delivered a window, the app wins, and both win over rows stored before
+// the client column existed. Both clients write source = '', so without this
+// rank their rows were summed together.
+//
+// For a named source: the provider's direct integration (client = '') wins
+// over the copy its app wrote into HealthKit and the iOS app forwarded. The
+// copy fills only the windows the integration has not delivered. On
+// 2026-09-27 the Oura API held no heart rate after 12:14:45Z through six
+// syncs to 16:28Z, while the Oura app had written 48 samples into HealthKit
+// for that span (DECISIONS.md, 2026-09-27).
+const clientRankSQL = "CASE WHEN source = '' THEN CASE client WHEN 'freereps_ios' THEN 0 WHEN 'hae' THEN 1 ELSE 2 END " +
+	"ELSE CASE client WHEN '' THEN 0 ELSE 1 END END"
 
 // winningSourceRN marks every row of the highest-priority source in its
 // partition with rn = 1, so callers keep filtering on "WHERE rn = 1". Within

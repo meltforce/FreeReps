@@ -40,10 +40,11 @@ the iOS app, `hae` for every other Health Auto Export path (REST automation, TCP
 import, uploaded export), `''` for Oura, Withings, derived rows and every row
 stored before migration `000036`. Both Apple Health clients write
 `source = ''`, so `client` is what tells their rows apart. Queries resolve one
-winner per partition by source priority first and then by client —
-`freereps_ios` before `hae` before `''` (`clientRankSQL` in
-`internal/storage/health_metrics.go`) — so where both clients delivered a day,
-only the app's rows count.
+winner per partition by source priority first and then by client
+(`clientRankSQL` in `internal/storage/health_metrics.go`). For `source = ''` the
+order is `freereps_ios` before `hae` before `''`, so where both clients
+delivered a day, only the app's rows count. For a named source the direct
+integration (`''`) comes first and a HealthKit copy from the app second.
 
 `source_bundle` (migration `000038`, also on `workouts`, `workout_heart_rate`,
 `sleep_stages` and `category_samples`) holds the HealthKit bundle identifier the
@@ -51,8 +52,10 @@ iOS app reports for an item; it is `''` for every other path and for rows stored
 before the app sent it. `source` is derived from it by `health.CanonicalSource`
 (`internal/ingest/health/sources.go`): every Apple device and Apple app becomes
 `''` (Apple Health), the Oura and Withings apps become `Oura` and `Withings`, any
-other app keeps its display name. An item from a provider the user also syncs
-directly is dropped at ingest rather than stored (`DECISIONS.md`, 2026-09-27).
+other app keeps its display name. A metric point from a provider the user also
+syncs directly is stored under the provider's name with client `freereps_ios`
+and ranks behind the provider's own rows (client `''`); a workout or category
+sample from such a provider is dropped at ingest (`DECISIONS.md`, 2026-09-27).
 
 **Metric shapes:**
 - Standard (qty): `resting_heart_rate`, `heart_rate_variability`, `blood_oxygen_saturation`, `respiratory_rate`, `vo2_max`, `weight_body_mass`, `body_fat_percentage`, `active_energy`, `basal_energy_burned`, `apple_exercise_time`, `apple_sleeping_wrist_temperature`

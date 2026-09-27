@@ -19,7 +19,7 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
-## 2026-09-27 — Items from the iOS app carry their HealthKit source, and copies of directly synced providers are dropped at ingest
+## 2026-09-27 — Items from the iOS app carry their HealthKit source; a directly synced provider outranks its HealthKit copy
 
 **Decided:** 2026-09-27
 
@@ -36,11 +36,15 @@ stored `source` from them in `health.CanonicalSource`
   their direct integrations write.
 - Any other app keeps its display name.
 
-An item whose source is a provider the user has authorised a direct sync for
-(an `oura_tokens` or `withings_tokens` row with an access token) is dropped at
-ingest and counted in `source_copies_dropped`. Items without a bundle, from
-Health Auto Export and older app versions, are stored as before. Rows stored
-before the change keep their source; nothing is relabelled.
+A metric point from a provider the user has authorised a direct sync for (an
+`oura_tokens` or `withings_tokens` row with an access token) is stored under
+that provider's name with client `freereps_ios`. For a named source,
+`clientRankSQL` ranks the direct integration (client `''`) ahead of the app, so
+the copy counts only in windows the integration has not delivered; for Apple
+Health the rank is unchanged. A workout or category sample from such a provider
+is dropped at ingest and counted in `source_copies_dropped`. Items without a
+bundle, from Health Auto Export and older app versions, are stored as before.
+Rows stored before the change keep their source; nothing is relabelled.
 
 **Reasoning.** Until now a quantity sample or a workout from the app arrived
 without a source, so everything the Oura or Withings app wrote into HealthKit
@@ -56,12 +60,22 @@ priority could separate them, because they carried the same source and client.
   Watch and iPhone stay merged, which is what HealthKit's statistics already do
   for the summed metrics; the per-device question stays with the deferred
   Health Auto Export row in `ROADMAP.md`.
-- *Dropping instead of ranking.* A HealthKit copy stored as `Oura` would share
-  source and name with the row from the Oura API, and `clientRankSQL` ranks the
-  app's client ahead of the integration's `''` — the copy would replace the
-  original. This is the reasoning of the sleep rule of 2026-09-20
-  (`sleepClaimedBySync`), applied to every data type. Without a direct sync the
-  copy is the only delivery and is kept.
+- *Ranking metric copies instead of dropping them.* The Oura API lags behind
+  what the Oura app writes into HealthKit: on 2026-09-27 it held no heart rate
+  after 12:14:45Z through six syncs up to 16:28Z, while the app had written 48
+  samples for that span, all dropped under the first form of this decision.
+  Ranked behind the integration, a copy fills exactly those windows and
+  yields to the API row once it arrives. The rank had to change with it: for
+  Apple Health the app outranks Health Auto Export, and the same order applied
+  to a named source would have let the copy replace the API row.
+- *Dropping workout and category copies.* Their keys are HealthKit or API
+  identifiers that never match between the two deliveries, and no read-time
+  rank separates them: an Oura workout would be listed twice. The Oura app
+  writes its own workouts into HealthKit, so this recurs independently of the
+  copy of an Apple Watch run seen on 2026-09-27, which the operator regards as
+  a one-time effect of Oura having lost read access to Apple Health. This is
+  the reasoning of the sleep rule of 2026-09-20 (`sleepClaimedBySync`). Without
+  a direct sync the copy is the only delivery and is kept.
 - *No relabelling.* Summed buckets carry no HealthKit identifier to match
   against, so older rows could not be relabelled consistently. Chosen by the
   operator on 2026-09-27.
@@ -84,6 +98,11 @@ listed, the app sends unmarked buckets over every source, as before.
 
 **Trigger to re-open.** A further provider with a direct sync, a provider that
 changes its bundle identifier, or a need to tell Watch and iPhone apart.
+
+**Revisions.**
+- 2026-09-27, same day: first form dropped every item of a directly synced
+  provider, metric points included. Changed to ranking for metric points
+  after the API lag described above.
 
 ---
 
