@@ -16,6 +16,31 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-09-27 — A diagnostic query restarted the production database
+
+**Symptoms.** At 2026-09-27 12:52:10Z the PostgreSQL server in `freereps-db-1`
+logged `server process (PID 989520) was terminated by signal 9: Killed`,
+terminated every connection and ran crash recovery; it accepted connections
+again at 12:52:11.7Z. The app logged no error and no 5xx response in that
+window.
+
+**Root cause.** A read-only query run by hand over `docker exec … psql` to check
+the new `source_bundle` column grouped `health_metrics` for one user by
+`metric_name, source, source_bundle` without a time bound. The column has no
+index, so the query read every chunk of the hypertable, and the kernel killed
+the backend for memory on the LXC, which has 2048 MB.
+
+**Fix.** None to the code. The same check bounded to `time >= '2026-09-27'` and
+run under `SET statement_timeout = '20s'` returned in under a second.
+`server/CLAUDE.md` now states the rule for queries against the deployed
+database.
+
+**Lesson.** A query against the deployed `health_metrics` carries a time bound
+and a statement timeout; an unbounded aggregate over the hypertable does not
+fit in the host's memory.
+
+---
+
 ## 2026-09-26 — both Apple Health alerts fired while the iOS app was delivering
 
 **Symptoms.** Monitors 9204 (`apple health metrics`) and 9205 (`apple health

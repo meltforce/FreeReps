@@ -15,6 +15,13 @@ Upstream references not reproduced in `specs/`:
 - [Health Auto Export — server connection (TCP/MCP)](https://help.healthyapps.dev/en/health-auto-export/automations/server-connection/)
 - [HealthyApps reference server](https://github.com/HealthyApps/health-auto-export-server) — the Grafana-based implementation this project's ingest was checked against
 
+## Querying the deployed database
+
+A query against `freereps-db-1` bounds `health_metrics` by `time` and runs under
+`SET statement_timeout = '20s'`. *Why:* the host has 2048 MB, and an aggregate
+over every chunk of the hypertable was killed for memory and restarted the
+database server on 2026-09-27 (`INCIDENTS.md`).
+
 ## Integration tests
 
 `go test ./...` skips them. They need a PostgreSQL server in `FREEREPS_TEST_DSN`
