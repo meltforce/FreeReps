@@ -89,7 +89,8 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	source := ingestLogSource(r)
-	ctx := health.WithClient(r.Context(), ingestClient(r))
+	client := ingestClient(r)
+	ctx := health.WithClient(r.Context(), client)
 	start := time.Now()
 	result, err := s.health.Ingest(ctx, &payload, uid)
 	durationMs := int(time.Since(start).Milliseconds())
@@ -110,6 +111,9 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	s.db.InvalidateAllAvailableMetrics()
 	go s.logImport(uid, source, result, nil, durationMs)
+	if isAppIngest(client) {
+		s.nudgeOuraSync(uid)
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 

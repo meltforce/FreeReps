@@ -76,6 +76,15 @@ priority could separate them, because they carried the same source and client.
   a one-time effect of Oura having lost read access to Apple Health. This is
   the reasoning of the sleep rule of 2026-09-20 (`sleepClaimedBySync`). Without
   a direct sync the copy is the only delivery and is kept.
+- *Starting the Oura sync instead of importing an early workout copy.*
+  Considered on 2026-09-28: storing the HealthKit copy of an Oura workout
+  while the API has not listed it yet. The copy would have to be deleted when
+  the API row arrives, the drop rule would depend on that row's presence, and
+  the app's heart rate for the copy reads Apple sources as well. The gain is
+  at most the 30-minute interval of the Oura sync, since the API lists a
+  workout within minutes of its end. An ingest from the iOS app now starts an
+  Oura sync instead, at most once per 5 minutes per user
+  (`server/internal/server/oura_nudge.go`).
 - *No relabelling.* Summed buckets carry no HealthKit identifier to match
   against, so older rows could not be relabelled consistently. Chosen by the
   operator on 2026-09-27.

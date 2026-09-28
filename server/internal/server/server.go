@@ -33,6 +33,7 @@ type Server struct {
 	// Oura integration (nil if disabled)
 	ouraTokenMgr *oura.TokenManager
 	ouraSyncer   *oura.Syncer
+	ouraNudge    ouraNudge
 
 	// Hevy integration (nil if not wired up)
 	hevySyncer *hevy.Syncer
