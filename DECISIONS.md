@@ -745,6 +745,17 @@ turn the sync's fixed `Oura` argument into a per-source decision. Equally, Oura
 beginning to return the workouts it imported: those would arrive as `Oura` rows
 with the start times of Apple rows.
 
+**Revisions.**
+- 2026-09-28: the Apple Health ingest runs the same derivation
+  (`FillSourceWorkoutsHeartRate`) after storing heart rate of a named source,
+  for that source's workouts overlapping the stored samples. Since 2026-09-27
+  the Oura app's HealthKit copy of the heart rate is stored as `Oura`
+  (entry of that date), and it arrives hours before the API's: the Yoga
+  session of 2026-09-28 was listed by the API at its end, 08:10:55Z, and had
+  no heart rate until the iOS app delivered the copy at 11:28Z. The Oura sync
+  still derives it on every cycle, and minutes the API adds later are added
+  to the series.
+
 ---
 
 ## 2026-09-20 — Data has its own ramp, and the nav bar has its own surface

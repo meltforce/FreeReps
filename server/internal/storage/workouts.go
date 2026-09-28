@@ -91,6 +91,53 @@ func (db *DB) InsertWorkoutHeartRate(ctx context.Context, rows []models.WorkoutH
 	return tag.RowsAffected(), nil
 }
 
+// FillSourceWorkoutsHeartRate runs FillWorkoutHeartRateFromMetrics for every
+// workout of source whose interval overlaps [from, to], and returns the number
+// of minute rows inserted.
+//
+// The Apple Health ingest calls it after storing heart rate of a named source.
+// The Oura app writes heart rate into HealthKit hours before the Oura API
+// returns it: on 2026-09-28 a Yoga session ending 08:10:55Z was listed by the
+// API's workout endpoint while its heart rate reached FreeReps only through the
+// iOS app, at 11:28Z. Filling here gives the workout its series at that ingest
+// rather than at the next Oura sync, which runs every 30 minutes.
+func (db *DB) FillSourceWorkoutsHeartRate(ctx context.Context, userID int, source string, from, to time.Time) (int64, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT id, start_time, end_time FROM workouts
+		 WHERE user_id = $1 AND source = $2 AND start_time <= $4 AND end_time >= $3`,
+		userID, source, from, to)
+	if err != nil {
+		return 0, fmt.Errorf("listing %s workouts: %w", source, err)
+	}
+	type span struct {
+		id         uuid.UUID
+		start, end time.Time
+	}
+	var spans []span
+	for rows.Next() {
+		var s span
+		if err := rows.Scan(&s.id, &s.start, &s.end); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scanning %s workout: %w", source, err)
+		}
+		spans = append(spans, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	var total int64
+	for _, s := range spans {
+		n, err := db.FillWorkoutHeartRateFromMetrics(ctx, userID, s.id, source, s.start, s.end)
+		if err != nil {
+			return total, err
+		}
+		total += n
+	}
+	return total, nil
+}
+
 // FillWorkoutHeartRateFromMetrics derives a workout's heart rate series from the
 // stored heart_rate metrics of one source and attaches it to that workout.
 //

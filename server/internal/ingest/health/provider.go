@@ -270,8 +270,43 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 			raiseNewest(newest, r.MetricName, r.Time)
 		}
 		p.advanceCheckpoint(ctx, userID, DomainMetrics, newest)
+
+		if err := p.fillSourceWorkouts(ctx, userID, healthRows, result); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// fillSourceWorkouts derives the heart rate of stored workouts of a named
+// source from the heart rate this payload delivered for that source — the Oura
+// app's HealthKit copy reaches FreeReps hours before the Oura API's heart rate
+// (storage.FillSourceWorkoutsHeartRate). Apple Health rows are left out: their
+// workouts carry their own series in the workout payload.
+func (p *Provider) fillSourceWorkouts(ctx context.Context, userID int, rows []models.HealthMetricRow, result *ingest.Result) error {
+	type span struct{ from, to time.Time }
+	spans := map[string]span{}
+	for _, r := range rows {
+		if r.MetricName != "heart_rate" || r.Source == "" {
+			continue
+		}
+		sp, ok := spans[r.Source]
+		if !ok || r.Time.Before(sp.from) {
+			sp.from = r.Time
+		}
+		if !ok || r.Time.After(sp.to) {
+			sp.to = r.Time
+		}
+		spans[r.Source] = sp
+	}
+	for source, sp := range spans {
+		n, err := p.db.FillSourceWorkoutsHeartRate(ctx, userID, source, sp.from, sp.to)
+		if err != nil {
+			return fmt.Errorf("deriving %s workout heart rate: %w", source, err)
+		}
+		result.WorkoutHRPoints += n
+	}
 	return nil
 }
 
