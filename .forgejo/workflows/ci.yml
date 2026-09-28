@@ -73,7 +73,7 @@ jobs:
     # caller still reports success (cast2md lost its :edge builds that way for
     # a month). `github.ref` stays correct and is refs/pull/N/merge on PRs.
     if: github.ref == 'refs/heads/main'
-    uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v5
+    uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v6
     with:
       app_name: freereps
       target_host: freereps-lxc.coydog-fence.ts.net
