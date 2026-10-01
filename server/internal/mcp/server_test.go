@@ -62,3 +62,23 @@ func TestDefaultTimeRange(t *testing.T) {
 		t.Error("expected error for invalid date")
 	}
 }
+
+// TestToolsAnnotatedReadOnly verifies every registered tool carries the
+// read-only annotations. A tool built with mcp.NewTool directly defaults to
+// destructiveHint=true and is shown to clients as a write/delete tool.
+func TestToolsAnnotatedReadOnly(t *testing.T) {
+	s := New(nil, "test", nil)
+	tools := s.ListTools()
+	if len(tools) == 0 {
+		t.Fatal("no tools registered")
+	}
+	for name, st := range tools {
+		a := st.Tool.Annotations
+		if a.ReadOnlyHint == nil || !*a.ReadOnlyHint {
+			t.Errorf("%s: readOnlyHint is not true", name)
+		}
+		if a.DestructiveHint == nil || *a.DestructiveHint {
+			t.Errorf("%s: destructiveHint is not false", name)
+		}
+	}
+}
