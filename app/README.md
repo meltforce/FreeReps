@@ -1,9 +1,9 @@
 # FreeReps iOS App
 
-> **Version 2.1 is coming to the App Store soon.** Version 1.0, in the App Store
-> today, stopped syncing on iOS 27. Version 2.1 syncs on iOS 27, sends only what
+> **Version 2.2 is coming to the App Store soon.** Version 1.0, in the App Store
+> today, stopped syncing on iOS 27. Version 2.2 syncs on iOS 27, sends only what
 > HealthKit added since the last sync, and adds a Home Screen widget and a
-> Shortcuts action. It needs iOS 27 and a FreeReps server 2.1.
+> Shortcuts action. It needs iOS 27 and a FreeReps server 2.2.
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/freereps/id6760661354)
 

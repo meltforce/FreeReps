@@ -7,11 +7,11 @@ Oura, Withings, Hevy and Alpha Progression, stores it persistently, visualizes
 it through a web dashboard with freely configurable correlations, and exposes it
 as an MCP server for LLMs.
 
-> **FreeReps for iOS 2.1 is coming to the App Store soon.** The version in the
-> App Store today, 1.0, stopped syncing on iOS 27. Version 2.1 syncs on iOS 27,
+> **FreeReps for iOS 2.2 is coming to the App Store soon.** The version in the
+> App Store today, 1.0, stopped syncing on iOS 27. Version 2.2 syncs on iOS 27,
 > sends only what HealthKit added since the last sync, and starts a sync from
 > the app, a Home Screen widget or Siri. It needs a FreeReps server of the same
-> release, 2.1. See [iOS app](#ios-app).
+> release, 2.2. See [iOS app](#ios-app).
 
 ## Dashboard Features
 
@@ -72,7 +72,7 @@ Apple Health data straight to your server:
 - **Your server decides** — metrics switched off in **Settings → Ingest** are
   skipped before the app reads HealthKit.
 
-Version 2.1 needs iOS 27 and a FreeReps server 2.1. Setup, the Shortcuts
+Version 2.2 needs iOS 27 and a FreeReps server 2.2. Setup, the Shortcuts
 triggers that work and the developer notes are in [`app/README.md`](app/README.md).
 
 ## Why FreeReps?
