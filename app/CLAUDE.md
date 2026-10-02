@@ -4,6 +4,19 @@
 - Requires physical device (HealthKit unavailable in Simulator)
 - Bundle ID: `com.meltforce.freereps`
 
+## Uploading a build
+
+```bash
+tools/ios-upload.sh                 # archive, check, upload to App Store Connect
+tools/ios-upload.sh --export-only   # archive, check, write the .ipa locally
+```
+
+Raise `CURRENT_PROJECT_VERSION` first; App Store Connect refuses a build number
+it already has. Use the script rather than `xcodebuild -exportArchive`
+directly: with Homebrew's rsync on PATH the export fails with "Copy failed",
+and the script checks the App Intent metadata for the words App Store Connect
+rejects (ITMS-90626). Its header carries both reasons.
+
 ## App Store review server
 
 A submission needs a server the reviewer can reach, because the production
