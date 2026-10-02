@@ -5,8 +5,10 @@ import UIKit
 /// process without opening it, through the same SyncViewModel as the dashboard.
 struct SyncHealthDataIntent: AppIntent {
     static let title: LocalizedStringResource = "Sync Health Data"
+    // App Store Connect refuses a description containing "Apple" or "iPhone"
+    // (ITMS-90626), which rejected build 2.2.0 (3).
     static let description = IntentDescription(
-        "Sends new Apple Health data to your FreeReps server. HealthKit is readable only while the iPhone is unlocked, so an automation should use a trigger that fires while the phone is in use."
+        "Sends new Health data to your FreeReps server. HealthKit is readable only while the phone is unlocked, so an automation should use a trigger that fires while the phone is in use."
     )
 
     @MainActor
@@ -14,7 +16,7 @@ struct SyncHealthDataIntent: AppIntent {
         // HealthKit rejects every read while the device is locked; say so instead of
         // reporting a sync that failed in every category.
         guard UIApplication.shared.isProtectedDataAvailable else {
-            return .result(dialog: "iPhone is locked, so Health data cannot be read. Sync skipped.")
+            return .result(dialog: "The phone is locked, so Health data cannot be read. Sync skipped.")
         }
         let vm = SyncViewModel.shared
         guard !vm.isAnySyncRunning else {
