@@ -26,7 +26,7 @@
 		AABB0000000000000002001C /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001E /* ActivityKit.framework */; };
 		AABB0000000000000002001D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001D /* WidgetKit.framework */; };
 		AABB0000000000000002001E /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001E /* ActivityKit.framework */; };
-		AABB0000000000000002001F /* FreeRepsWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001F /* FreeRepsWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AABB0000000000000002001F /* FreeRepsWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001001F /* FreeRepsWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AABB00000000000000020020 /* FreeRepsWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010020 /* FreeRepsWidgetsBundle.swift */; };
 		AABB00000000000000020021 /* SyncLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010021 /* SyncLiveActivity.swift */; };
 		AABB00000000000000020023 /* SyncActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010023 /* SyncActivityAttributes.swift */; };
@@ -59,15 +59,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		AABB00000000000000040007 /* Embed App Extensions */ = {
+		AABB00000000000000040007 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				AABB0000000000000002001F /* FreeRepsWidgets.appex in Embed App Extensions */,
+				AABB0000000000000002001F /* FreeRepsWidgets.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -312,7 +312,7 @@
 				AABB00000000000000040001 /* Sources */,
 				AABB00000000000000040002 /* Resources */,
 				AABB00000000000000040003 /* Frameworks */,
-				AABB00000000000000040007 /* Embed App Extensions */,
+				AABB00000000000000040007 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -349,7 +349,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					AABB00000000000000060001 = {
 						CreatedOnToolsVersion = 15.0;
@@ -460,6 +460,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -523,6 +524,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>FreeReps</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -17,19 +19,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.meltforce.freereps</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>freereps</string>
-			</array>
-		</dict>
-	</array>
-	<key>CFBundleDisplayName</key>
-	<string>FreeReps</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -42,12 +31,25 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.meltforce.freereps</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>freereps</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -57,18 +59,16 @@
 	<array>
 		<string>_http._tcp</string>
 	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>FreeReps connects to your FreeReps server on the local network to sync health data.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>FreeReps reads your Apple Health data to sync it to FreeReps for analysis and backup.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>FreeReps may write sync metadata to Apple Health.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>FreeReps connects to your FreeReps server on the local network to sync health data.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
