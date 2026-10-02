@@ -67,18 +67,9 @@ func Seed(ctx context.Context, db *storage.DB, log *slog.Logger) error {
 			return fmt.Errorf("demo: insert workout: %w", err)
 		}
 	}
-	var hrInserted int64
-	const hrBatchSize = 9000
-	for i := 0; i < len(workoutHR); i += hrBatchSize {
-		end := i + hrBatchSize
-		if end > len(workoutHR) {
-			end = len(workoutHR)
-		}
-		n, err := db.InsertWorkoutHeartRate(ctx, workoutHR[i:end])
-		if err != nil {
-			return fmt.Errorf("demo: insert workout HR batch %d: %w", i/hrBatchSize, err)
-		}
-		hrInserted += n
+	hrInserted, err := db.InsertWorkoutHeartRate(ctx, workoutHR)
+	if err != nil {
+		return fmt.Errorf("demo: insert workout HR: %w", err)
 	}
 	log.Info("demo: workouts", "count", len(workouts), "hr_samples", hrInserted)
 

@@ -16,6 +16,34 @@ the fix was verified, this file does not claim it was.
 
 ---
 
+## 2026-10-02 — The 2.2.0 review instance restarted every minute in the demo seed
+
+**Symptoms.** `review-server deploy freereps REVIEW_IMAGE_TAG=2.2.0` ended with
+`no 200 after 900s (last: 502)`. The app container logged `demo seed failed`
+with `demo: insert workout HR batch 0: inserting workout heart rate: extended
+protocol limited to 65535 parameters` once per minute, after each restart.
+
+**Root cause.** `7c90ee4` (migration `000038`) added `source_bundle` to
+`workout_heart_rate`, so `InsertWorkoutHeartRate` binds 8 parameters per row
+instead of 7. The demo seed inserted in batches of 9000 rows, which was 63,000
+parameters before and 72,000 after. The ingest path in
+`internal/ingest/health/provider.go` passes a workout's whole series in one
+call and had no batching at all, so a series of more than 8191 samples fails
+there as well. Neither the unit tests nor CI start the server in demo mode.
+
+**Fix.** `InsertWorkoutHeartRate` splits its input into statements of 8000
+rows, as `InsertWorkoutSets` and `InsertWorkoutRoutes` already did; the demo
+seed passes the whole series. `TestInsertWorkoutHeartRateBeyondOneStatement`
+inserts 9000 rows against TimescaleDB and fails with the original error at a
+batch size of 9000. A local demo run seeded 24,826 workout HR samples. Released
+as 2.2.1; the 2.2.0 tag stays as published.
+
+**Lesson.** A migration that adds a column to a table written by a multi-row
+`INSERT` changes the row limit of that statement; check every caller's batch
+size against 65535 divided by the new column count.
+
+---
+
 ## 2026-09-27 — A diagnostic query restarted the production database
 
 **Symptoms.** At 2026-09-27 12:52:10Z the PostgreSQL server in `freereps-db-1`

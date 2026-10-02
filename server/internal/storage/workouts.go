@@ -63,8 +63,30 @@ func (db *DB) InsertWorkout(ctx context.Context, row models.WorkoutRow) (bool, e
 	return tag.RowsAffected() > 0, nil
 }
 
+// insertWorkoutHRBatchSize caps how many rows go into one INSERT. A row costs 8
+// parameters and the extended protocol allows 65535 per statement, so one
+// statement holds at most 8191 rows. Migration 000038 added source_bundle as the
+// eighth column, which pushed the demo seed's batch of 9000 rows to 72,000
+// parameters; the 2.2.0 review instance restarted every minute with "extended
+// protocol limited to 65535 parameters". The ingest path passes a workout's
+// whole series in one call, so the limit is enforced here and not by callers.
+const insertWorkoutHRBatchSize = 8000
+
 // InsertWorkoutHeartRate batch-inserts workout HR data points. Returns count inserted.
 func (db *DB) InsertWorkoutHeartRate(ctx context.Context, rows []models.WorkoutHRRow) (int64, error) {
+	var total int64
+	for start := 0; start < len(rows); start += insertWorkoutHRBatchSize {
+		end := min(start+insertWorkoutHRBatchSize, len(rows))
+		n, err := db.insertWorkoutHRBatch(ctx, rows[start:end])
+		if err != nil {
+			return total, err
+		}
+		total += n
+	}
+	return total, nil
+}
+
+func (db *DB) insertWorkoutHRBatch(ctx context.Context, rows []models.WorkoutHRRow) (int64, error) {
 	if len(rows) == 0 {
 		return 0, nil
 	}

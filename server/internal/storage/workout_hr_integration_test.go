@@ -173,3 +173,34 @@ func TestDerivedHeartRateLeavesAWorkoutWithoutSamplesAlone(t *testing.T) {
 		t.Errorf("avg_heart_rate = %v, want none", *detail.AvgHeartRate)
 	}
 }
+
+// TestInsertWorkoutHeartRateBeyondOneStatement covers a series whose row count
+// exceeds what one INSERT can carry: 8 parameters per row against the 65535
+// ceiling allow 8191 rows. The 2.2.0 demo seed passed 9000 and failed with
+// "extended protocol limited to 65535 parameters", and the ingest path passes a
+// workout's whole series in one call.
+func TestInsertWorkoutHeartRateBeyondOneStatement(t *testing.T) {
+	db := hrTestDB(t)
+	ctx := context.Background()
+
+	start := time.Date(2026, 9, 21, 6, 0, 0, 0, time.UTC)
+	const samples = 9000 // one per second, 2.5 hours
+	id := hrWorkout(t, db, start, start.Add(samples*time.Second))
+
+	bpm := 120.0
+	rows := make([]models.WorkoutHRRow, samples)
+	for i := range rows {
+		rows[i] = models.WorkoutHRRow{
+			Time: start.Add(time.Duration(i) * time.Second), WorkoutID: id, UserID: hrTestUser,
+			MinBPM: &bpm, AvgBPM: &bpm, MaxBPM: &bpm, Source: "Apple Watch",
+		}
+	}
+
+	n, err := db.InsertWorkoutHeartRate(ctx, rows)
+	if err != nil {
+		t.Fatalf("inserting %d rows: %v", samples, err)
+	}
+	if n != samples {
+		t.Fatalf("inserted %d rows, want %d", n, samples)
+	}
+}
