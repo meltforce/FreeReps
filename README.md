@@ -9,9 +9,8 @@ as an MCP server for LLMs.
 
 > **FreeReps for iOS 2.2 is available in the
 > [App Store](https://apps.apple.com/us/app/freereps/id6760661354).** It syncs
-> on iOS 27 — version 1.0 stopped syncing there — sends only what HealthKit
-> added since the last sync, and starts a sync from the app, a Home Screen
-> widget or Siri. It needs a FreeReps server of the same release, 2.2. See
+> on iOS 27, sends only what HealthKit added since the last sync, and starts a
+> sync from the app, a Home Screen widget or Siri. It needs a FreeReps server of the same release, 2.2. See
 > [iOS app](#ios-app).
 
 ## Dashboard Features
