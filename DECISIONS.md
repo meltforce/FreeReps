@@ -928,6 +928,12 @@ exception again, not a reversal of this decision: the homelab tool
 through deploy, check and destroy on 2026-09-26 (see
 [`app/CLAUDE.md`](app/CLAUDE.md)).
 
+**Re-opened once, closed 2026-10-03.** The 2.2.0 submission (iOS build 4)
+used the instance: deployed on 2026-10-02 with server 2.2.1, removed on
+2026-10-03 after App Store approval with `review-server destroy freereps`,
+which reported server, firewall, Caddy site and DNS gone and
+`https://freereps-test.meltforce.net/api/v1/version` answering 404.
+
 ---
 
 ## 2026-09-20 — Sleep belongs to one channel, decided at the entrance
