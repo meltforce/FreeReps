@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Headless Renovate (no PR workflow; preset: homelab/default.json). It watches server/go.mod, server/web/package.json, the Dockerfile's base images and the workflow's actions. The iOS app under app/ is not built by the CI, so a bump there would land untested; it is excluded.",
+  "extends": [
+    "local>meltforce.net/homelab"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
+  "ignorePaths": [
+    "app/**"
+  ],
+  "packageRules": [
+    {
+      "description": "A release is three days old before it is taken, so a broken release is usually withdrawn or fixed before it reaches main. Every bump lands on main and deploys through build-push-deploy; the undo is a revert of the commit.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "go.mod and go.sum are shared by every module update; one branch for all non-major updates writes them once instead of producing branches that conflict with each other. The go directive is excluded by the preset's own rule and moves alone.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "go modules non-major",
+      "matchDepTypes": [
+        "require",
+        "indirect"
+      ]
+    },
+    {
+      "description": "Every npm dependency shares one package-lock.json; separate branches conflict with each other and stall (seen in nutrak on 2026-08-01). One branch for all non-major updates.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "npm non-major"
+    }
+  ]
+}
