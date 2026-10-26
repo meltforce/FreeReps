@@ -202,6 +202,20 @@ func (pr *PriorityResolver) ForMetric(metricName string) []string {
 	return pr.ForCategory("_default")
 }
 
+// ExplicitSourcePriority returns the source priority for the given category
+// only if the user has configured an explicit rule for it. It does not fall
+// back to _default or the global config. Returns nil when no rule exists.
+func (db *DB) ExplicitSourcePriority(ctx context.Context, userID int, category string) []string {
+	var sources []string
+	err := db.Pool.QueryRow(ctx,
+		`SELECT sources FROM source_priority WHERE user_id = $1 AND category = $2`,
+		userID, category).Scan(&sources)
+	if err != nil {
+		return nil
+	}
+	return sources
+}
+
 // ResolveSourcePriority returns the source priority list for a given user and category.
 // Falls back to the user's "_default" rule, then to db.SourcePriority (config global).
 // NOTE: For repeated lookups, prefer NewPriorityResolver to avoid per-call DB queries.

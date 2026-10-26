@@ -102,7 +102,7 @@ var sleepSyncSources = []string{"Oura", "Withings"}
 // user configured: when sleep belongs to a syncing provider, this endpoint
 // leaves sleep alone. Everything else in the payload is unaffected.
 func (p *Provider) sleepClaimedBySync(ctx context.Context, userID int) (string, bool) {
-	priorities := p.db.ResolveSourcePriority(ctx, userID, "sleep")
+	priorities := p.db.ExplicitSourcePriority(ctx, userID, "sleep")
 	if len(priorities) == 0 {
 		return "", false
 	}
