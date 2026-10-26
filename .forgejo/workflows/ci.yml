@@ -38,7 +38,7 @@ jobs:
       - run: go test ./...
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
           working-directory: server
       # Blocking: a reachable vulnerability fails the job, and with it
       # build-deploy, so neither a push nor the weekly schedule ships it.
