@@ -86,7 +86,7 @@ decimal points in the tracked documents. It detects; it does not prevent.
 `main`. It does **not** run the integration tests, and it does not build the iOS
 app — that happens on GitHub via the mirror, in `.github/workflows/ios.yml`.
 
-A green CI run on `main` continues into build and deploy to `freereps-lxc`. A
+A green CI run on `main` continues into build and deploy to `smokey`. A
 failure after the build stage means `:edge` may be in a broken state; the ntfy
 alert in `notify-deploy-failure` carries the run URL.
 

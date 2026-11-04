@@ -87,7 +87,9 @@ jobs:
     uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v7
     with:
       app_name: freereps
-      target_host: freereps-lxc.coydog-fence.ts.net
+      # smokey, the homelab VM shared by the in-house tsnet apps, since
+      # 2026-11-04 (freereps-lxc before; the tsnet node moved with its state).
+      target_host: smokey.coydog-fence.ts.net
       # The shared workflow's health step is gated on this input being set
       # (`if: inputs.health_url != ''`). Without it the deploy job reports
       # success as soon as `docker compose up -d` returns, which says nothing

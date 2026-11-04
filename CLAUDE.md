@@ -40,7 +40,7 @@ exist on Forgejo first (a GitHub-only branch is deleted at the next sync).
 
 | Where | What runs | Triggered by |
 |---|---|---|
-| `.forgejo/workflows/ci.yml` | Go build/vet/test/lint, frontend tsc + build, document contract check, then build → `git.coydog-fence.ts.net/meltforce.net/freereps:edge` → redeploy on `freereps-lxc` | push/PR on `main` |
+| `.forgejo/workflows/ci.yml` | Go build/vet/test/lint, frontend tsc + build, document contract check, then build → `git.coydog-fence.ts.net/meltforce.net/freereps:edge` → redeploy on `smokey` (the homelab VM shared by the in-house tsnet apps; `freereps-lxc` until 2026-11-04) | push/PR on `main` |
 | `.github/workflows/ios.yml` | Xcode build (no macOS runner exists on Forgejo) | mirror push |
 | `.github/workflows/release.yml` | Docker Hub image + GitHub Release with `freereps-upload` binaries | tag push, carried over by the mirror |
 

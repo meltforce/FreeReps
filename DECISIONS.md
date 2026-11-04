@@ -622,7 +622,9 @@ so `user_id` belongs in `segmentby`. `workout_routes` was not measured — GPS
 floats do not repeat the way a metric name and a source do, so the factor from
 `health_metrics` does not carry over to it.
 
-**Trigger to re-open.** The disk on `freereps-lxc` past roughly 80 %, or a
+**Trigger to re-open.** The disk of the host past roughly 80 % (`smokey` since
+2026-11-04, a disk shared with the other in-house apps; `freereps-lxc` when
+this was written), or a
 hypertable that grows faster than the trimmed export does.
 
 ---

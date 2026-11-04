@@ -43,14 +43,15 @@ FREEREPS_TEST_DSN='postgres://freereps:scratch@localhost:55432/freereps_scratch?
 ```
 
 Where Docker is unavailable, the same container runs on the homelab host behind
-a tunnel:
+a tunnel (smokey since 2026-11-04, which the other in-house apps share — remove
+the scratch container when done):
 
 ```bash
-ssh root@freereps-lxc 'docker run -d --name freereps-idem \
+ssh root@smokey 'docker run -d --name freereps-idem \
   -e POSTGRES_PASSWORD=scratch -e POSTGRES_USER=freereps -e POSTGRES_DB=freereps_idem \
   -p 127.0.0.1:15432:5432 timescale/timescaledb:latest-pg16'
-ssh -f -N -L 15432:127.0.0.1:15432 root@freereps-lxc
-ssh root@freereps-lxc 'docker rm -f freereps-idem'   # and kill the tunnel
+ssh -f -N -L 15432:127.0.0.1:15432 root@smokey
+ssh root@smokey 'docker rm -f freereps-idem'   # and kill the tunnel
 ```
 
 The helpers refuse to run against a database named `freereps`, because they
