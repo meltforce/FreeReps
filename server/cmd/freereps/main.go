@@ -22,6 +22,7 @@ import (
 	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
 	"github.com/claude/freereps/internal/notify"
+	"github.com/claude/freereps/internal/opengym"
 	"github.com/claude/freereps/internal/oura"
 	"github.com/claude/freereps/internal/server"
 	"github.com/claude/freereps/internal/storage"
@@ -147,6 +148,13 @@ func main() {
 
 	srv.SetHevy(hevySyncer)
 	log.Info("hevy sync started", "interval", cfg.Hevy.SyncInterval)
+
+	// Start openGym sync (always runs; no-ops if no user has paired an instance)
+	openGymSyncer := opengym.NewSyncer(db, cfg.OpenGym.SyncInterval, cfg.Ingest.Location, log)
+	go openGymSyncer.Run(syncCtx)
+
+	srv.SetOpenGym(openGymSyncer)
+	log.Info("openGym sync started", "interval", cfg.OpenGym.SyncInterval)
 
 	// Start Withings sync (always runs; no-ops if no users have authorized)
 	withingsTokenMgr := withings.NewTokenManager(db)

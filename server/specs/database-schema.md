@@ -190,8 +190,8 @@ CREATE UNIQUE INDEX idx_workout_routes_dedup
 
 ### `workout_sets` (Regular)
 
-Set/rep/weight data. The Alpha Progression CSV import and the Hevy sync write
-here; the openGym ingest (`server/specs/opengym-api.md`) will be the third.
+Set/rep/weight data. Three sources write here: the Alpha Progression CSV
+import, the Hevy sync and the openGym sync.
 
 ```sql
 CREATE TABLE workout_sets (
@@ -230,6 +230,38 @@ CREATE TABLE workout_sets (
 );
 
 CREATE INDEX idx_workout_sets_source_external ON workout_sets (source, external_id);
+```
+
+### openGym connection (Regular)
+
+Migration `000041`; design in `opengym-api.md`, Part 2.
+
+```sql
+CREATE TABLE opengym_credentials (
+    user_id    INTEGER     NOT NULL PRIMARY KEY REFERENCES users(id),
+    base_url   TEXT        NOT NULL,   -- https://host of the instance
+    token      TEXT        NOT NULL,   -- session token; replaced when /api/me renews it
+    sync_from  DATE        NOT NULL,   -- day in the session timezone
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- (rev, wid) of the state the last error-free cycle read.
+CREATE TABLE opengym_sync_state (
+    user_id    INTEGER     NOT NULL PRIMARY KEY REFERENCES users(id),
+    rev        BIGINT      NOT NULL,
+    wid        TEXT        NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One row per stored workout: SHA-256 of its mapped workout_sets rows.
+CREATE TABLE opengym_workouts (
+    user_id      INTEGER     NOT NULL REFERENCES users(id),
+    workout_id   TEXT        NOT NULL,
+    content_hash TEXT        NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, workout_id)
+);
 ```
 
 `source` is `Alpha Progression` or `Hevy`. Columns each source leaves empty:

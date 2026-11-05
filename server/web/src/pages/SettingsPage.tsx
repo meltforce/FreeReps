@@ -6,20 +6,22 @@ import HevyTab from "../components/settings/HevyTab";
 import IdentityTab from "../components/settings/IdentityTab";
 import ImportTab from "../components/settings/ImportTab";
 import IngestTab from "../components/settings/IngestTab";
+import OpenGymTab from "../components/settings/OpenGymTab";
 import OuraTab from "../components/settings/OuraTab";
 import SourcesTab from "../components/settings/SourcesTab";
 import WithingsTab from "../components/settings/WithingsTab";
 import { useIsDesktop } from "../hooks/useMediaQuery";
 
-/* Hevy and Import are absent from the design's five-tab rail, but both drive
-   working integrations, so they stay rather than being dropped along with the
-   old layout. */
+/* Hevy, openGym and Import are absent from the design's five-tab rail, but all
+   three drive working integrations, so they stay rather than being dropped along
+   with the old layout. */
 const TABS = [
   { id: "identity", label: "Identity", render: () => <IdentityTab /> },
   { id: "sources", label: "Sources", render: () => <SourcesTab /> },
   { id: "oura", label: "Oura", render: () => <OuraTab /> },
   { id: "withings", label: "Withings", render: () => <WithingsTab /> },
   { id: "hevy", label: "Hevy", render: () => <HevyTab /> },
+  { id: "opengym", label: "openGym", render: () => <OpenGymTab /> },
   { id: "front-page", label: "Front page", render: () => <FrontPageTab /> },
   { id: "ingest", label: "Ingest", render: () => <IngestTab /> },
   { id: "import", label: "Import", render: () => <ImportTab /> },

@@ -1,4 +1,4 @@
-# openGym HTTP API — Wire Format Spec and Ingest Proposal
+# openGym HTTP API — Wire Format Spec and Ingest
 
 openGym (`github.com/DuarteSantos8/openGym`, AGPL-3.0) is a self-hosted
 workout logger under evaluation as the replacement for Hevy. This document has
@@ -9,14 +9,13 @@ two parts:
    at commit `8fb98b16` (2026-11-04). The instance runs image tag `1.4.4`
    (homelab `docker/stacks/opengym/compose.yaml`). Every route listed under
    *Endpoints FreeReps uses* was called against it.
-2. **Ingest proposal** — how FreeReps would store openGym sessions in
-   `workout_sets`. Each design choice moves to `DECISIONS.md` when it is taken,
-   and this section shrinks accordingly. Decided so far: transport and map key
-   (both 2026-11-05).
+2. **Ingest** — how FreeReps stores openGym sessions in `workout_sets`
+   (`server/internal/opengym/`). The design choices are in `DECISIONS.md`,
+   2026-11-05; the open questions are at the end.
 
 The instance is `https://gym.meltrocker.net` (homelab
-`configuration/docker-stacks/stacks/opengym.yml`), on marty, reachable through
-the `tag:apps-web` 443 grant.
+`configuration/docker-stacks/stacks/opengym.yml`), on marty. FreeReps reaches
+it as described under *Network reach* in Part 2.
 
 ---
 
@@ -98,7 +97,7 @@ state has about 90 top-level keys; FreeReps reads these:
 | `unit` | `kg` or `lb`; weights are stored in this unit |
 | `customEx[]` | The user's own exercises: `id`, name in `n`, equipment in `eq`, body part in `bp` (upstream `openapi.yaml`, `CustomExercise`) |
 | `effort` | `rpe`, `rir` or `none` — the scale the app asks for (unset here; every set carried `rpe`) |
-| `deleted` | Record of removals, written once something is deleted (absent here; shape unverified) |
+| `deleted` | Record of removals for merging devices (absent here). FreeReps does not read it: a deleted workout is removed from `workouts[]` |
 | `_rev`, `_wid` | Mirror of the revision and write id |
 
 `exUnit` (per-exercise unit, `{ "<exercise id>": { "unit": "kg" | "lb" | null, "_ts": … } }`)
@@ -183,13 +182,14 @@ reviewing every row.
 
 ---
 
-## Part 2 — Ingest proposal
+## Part 2 — Ingest
 
-**Status: proposal, 2026-11-05.** Decided: transport (`DECISIONS.md`,
-*openGym is read through its HTTP API*) and map key and naming
-(`DECISIONS.md`, *openGym exercises are mapped by their id*). Implemented:
-migration `000040` and the mapper (`server/internal/opengym/`). Not yet
-implemented: the sync loop, credentials, the pairing flow, the alerts.
+**Status: implemented 2026-11-05.** Decisions in `DECISIONS.md`, 2026-11-05:
+*openGym is read through its HTTP API*, *openGym exercises are mapped by their
+id*, *The openGym sync rewrites a workout only when its mapped rows change*.
+Code: migrations `000040`, `000041`; `server/internal/opengym/` (client,
+mapper, sync, pairing); `server/internal/server/handlers_opengym.go`;
+Settings → openGym.
 
 ### Scope
 
@@ -213,14 +213,19 @@ Per cycle (`opengym.sync_interval`, 30 minutes like Hevy):
    when the response carries one.
 2. `GET /api/data/rev` — if `(rev, wid)` equals the stored pair, the cycle ends.
 3. `GET /api/data` — reconcile the workouts:
-   - every workout with `start >= sync_from` is written with
-     delete-then-insert per `external_id`, the same shape as the Hevy ingest
-     (`server/internal/hevy/sync.go`, `storeWorkout`), so an edited set
+   - every workout that starts on or after `sync_from` is mapped; when the
+     SHA-256 of its mapped rows differs from the hash in `opengym_workouts`,
+     its sets are deleted by `external_id` and inserted again, so an edited set
      replaces the stored one and a removed set disappears;
-   - every stored `openGym` `external_id` whose workout is no longer in the
-     state is deleted. A full state makes this exact, which Hevy's event feed
-     needs a `deleted` event for.
-4. Store `(rev, wid)` and write the `import_logs` row (`source = opengym_sync`).
+   - every workout in `opengym_workouts` that is no longer in the state has its
+     sets deleted. A full state makes this exact, which Hevy's event feed needs
+     a `deleted` event for. A state without workouts next to stored ones is
+     refused rather than read as a deletion of all of them;
+   - a workout the mapper refuses (`ErrUnsupported`) or that fails to store is
+     recorded as an error; the others are stored.
+4. Store `(rev, wid)` if the cycle had no error, rebuild `strength_tonnage`
+   from `sync_from` when anything was written, and write the `import_logs` row
+   (`source = opengym_sync`, status `error` if any workout failed).
 
 **Alternatives.**
 
@@ -237,24 +242,26 @@ Per cycle (`opengym.sync_interval`, 30 minutes like Hevy):
 
 ### Credentials
 
-A table in the shape of `hevy_credentials`:
+Migration `000041`: `opengym_credentials` (user, `base_url`, `token`,
+`sync_from` as a day in the session timezone), `opengym_sync_state` (`rev`,
+`wid`), `opengym_workouts` (workout id, hash of its mapped rows). The schema is
+in `database-schema.md`.
 
-```sql
-CREATE TABLE opengym_credentials (
-    user_id    INTEGER     NOT NULL PRIMARY KEY REFERENCES users(id),
-    base_url   TEXT        NOT NULL,   -- https only, like openGym's own MCP client
-    token      TEXT        NOT NULL,
-    sync_from  DATE        NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
--- plus opengym_sync_state (user_id, rev, wid, updated_at)
-```
+Connect flow in Settings → openGym: instance URL (https, host only), pairing
+code and `sync_from`. The server checks all three before it redeems the code,
+because a code is valid once: a code with dashes is refused with the hint about
+the device-link code, and a `sync_from` on or before the day of the last Hevy
+session is refused (see *Overlap with the Hevy history*). It then redeems the
+code, validates the token with `/api/me` and stores it. The token never reaches
+the browser. Disconnecting deletes the stored token; it stays valid in openGym
+until it expires or *Sign out everywhere* revokes it.
 
-Connect flow in the settings screen: base URL and pairing code; the server
-redeems the code, validates the token with `/api/me`, and stores it. This
-replaces a token pasted by hand and keeps the token out of the browser. A
-failed redeem shows the `pair-invalid` hint about the dashed device-link code.
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/v1/opengym/status` | GET | Connection, `sync_from`, last change read; when unconfigured the earliest allowed `sync_from` |
+| `/api/v1/opengym/pair` | PUT | `{base_url, code, sync_from}` — redeem and store |
+| `/api/v1/opengym/sync` | POST | Start a cycle now |
+| `/api/v1/opengym/disconnect` | DELETE | Remove the connection; stored sets stay |
 
 FreeReps gets **its own pairing**, separate from the token the strength-coach
 project holds (`claude/opengym-token` in setec), so each consumer can be
@@ -350,7 +357,10 @@ doubles tonnage and set counts, because the training aggregates do not filter
 on source (roadmap row *Source deduplication in the training aggregates*).
 
 - `sync_from` is the guard, as for Hevy: the first day logged in openGym, after
-  the last Hevy session. The `iw` prefix is not a guard; it is undocumented.
+  the last Hevy session. The pairing handler refuses a `sync_from` on or before
+  the day of the newest stored Hevy session (session timezone) and defaults to
+  the day after it (`opengym.ResolveSyncFrom`). The `iw` prefix is not a guard;
+  it is undocumented.
 - **A trial period logged in both apps** is the trigger of that roadmap row. Either
   one app logs during the trial, or the deduplication lands first.
 - Once openGym is the logger, the Hevy credentials are removed and the Hevy
@@ -360,44 +370,57 @@ on source (roadmap row *Source deduplication in the training aggregates*).
 
 ### Alerts
 
-- A failed run (HTTP error, `401` after a revocation, unparseable state) reaches
+- **9209 `freereps - opengym sync`:** consecutive failed runs (HTTP error,
+  `401` after a revocation, unparseable state, a refused workout) reach
   `checkSource` like every polled source.
-- A stale condition with its own id, `opengym_sync`, 14 days, counting
-  `workouts_inserted` or `sets_inserted` above 0 — the reasoning of the Hevy row
-  (id 9208) applies unchanged.
+- **9210 `freereps - opengym data`:** `opengym_sync` stored no workout for 14
+  days, counting `workouts_inserted` or `sets_inserted` above 0 — the reasoning
+  of the Hevy row (id 9208) applies unchanged. A workout counts as inserted only
+  when its mapped rows changed, so a weigh-in does not reset the condition.
 
-### Prerequisite outside this repo: network reach
+### Network reach
 
-The grant onto `tag:apps-web` 443 (homelab
-`infrastructure/tailnet-policy/policy.hujson`) admits `group:family`,
-`tag:juno`, `tag:magnum`, `tag:claude` and `tag:home-assistant`. FreeReps runs on
-smokey with a tsnet node `freereps`; neither identity is in that list.
-Which of the two originates the outbound request depends on whether the HTTP
-client dials through tsnet or through the host — the policy file's note 3 on
-tsnet twins covers why that matters. **Measure it, then add the grant in the
-homelab repo**, with its entry there. A blocked node is absent from the netmap,
-so the failure presents as a DNS error, not as a refused connection.
+The client (`internal/opengym/client.go`) uses Go's default dialer, not the
+tsnet node, so a request leaves the container through smokey's network stack
+and arrives at marty as smokey (`tag:homelab`, `tag:ci-target`,
+`tag:apps-own-web`). marty carries `tag:homelab` next to `tag:apps-web`, and the
+homelab grant `tag:homelab` → `tag:homelab` on `tcp:443`
+(`infrastructure/tailnet-policy/policy.hujson`) admits the connection. The
+`tag:apps-web` grant is not involved. Measured on 2026-11-05 from inside
+`freereps-app-1`: `gym.meltrocker.net` resolves to marty (`100.119.115.91`) and
+`GET /api/health` answers `{"ok":true,…}`.
+
+If that grant is narrowed, the sync fails. A blocked peer is absent from the
+netmap, so the run fails with a DNS or dial error, not with a refused
+connection.
 
 ### Tests
 
-- Mapper unit tests on a fixture cut from a real state — done:
-  `internal/opengym/mapper_test.go`, `testdata/state-cut.json`. The map join is
-  covered by `storage/exercise_map_integration_test.go`.
-- Reconciliation: an edited set, a deleted workout, an unchanged `(rev, wid)`
-  that skips the fetch, a changed `wid` at the same `rev`.
-- Integration test against the scratch database: a second sync with the same
-  state writes nothing; the unique constraint holds.
-- The connect flow against a recorded `pair-invalid` answer.
+- Mapper: `internal/opengym/mapper_test.go` on `testdata/state-cut.json`, a
+  fixture cut from the operator's state.
+- Reconciliation against a fake store: `sync_test.go` — an edited set, a
+  deleted workout, an unchanged `(rev, wid)` that skips the fetch, a changed
+  `wid` at the same `rev`, a new `rev` without workout change, a refused
+  workout, an empty state, token renewal and a rejected token.
+- Against the scratch database: `sync_integration_test.go` (a second sync with
+  the same workouts writes nothing; a deletion removes the sets) and
+  `storage/exercise_map_integration_test.go` (the map join).
+- Pairing against the recorded answers, including `pair-invalid`:
+  `pair_test.go`.
 
 ### Open questions
 
 1. Assisted exercises: skip `weight_kg`, store it negative, or flag the set.
    The mapper refuses them until this is decided.
-2. Shapes of `deleted`, timed, cardio, per-side and rest-pause sets — capture
-   from a state that contains them. The mapper refuses the set shapes until
-   then.
+2. Shapes of timed, cardio, per-side and rest-pause sets — capture from a
+   state that contains them. The mapper refuses the set shapes until then.
+   (`deleted` needs no shape: deleting a workout in the app removes it from
+   `workouts[]`, upstream `frontend/src/sheets.jsx` `deleteWorkout`.)
 3. Whether `d` or `start` defines the session day for a workout logged on paper
    or moved to another date in the app ("move it to the right date"). The
    mapper uses `start` and falls back to `d`.
-4. Whether the web UI's provider label (`DECISIONS.md`, 2026-09-21) shows
-   `openGym` for these sessions without further change.
+
+The provider label (`DECISIONS.md`, 2026-09-21) needed no change:
+`models.RecordedBy` returns the source name. The workout detail page needed
+`openGym` in its list of sources whose sessions exist only in `workout_sets`
+(`web/src/pages/WorkoutDetailPage.tsx`).

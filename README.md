@@ -3,7 +3,7 @@
 **F**reely hosted **Re**cords, **E**valuation & **P**rocessing **S**erver
 
 A self-hosted server that collects health and training data from Apple Health,
-Oura, Withings, Hevy and Alpha Progression, stores it persistently, visualizes
+Oura, Withings, Hevy, openGym and Alpha Progression, stores it persistently, visualizes
 it through a web dashboard with freely configurable correlations, and exposes it
 as an MCP server for LLMs.
 
@@ -97,8 +97,8 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
                                                            ▼
    Oura API v2    ←── OAuth2, 30 min ───┐    ┌──────────────────────────────┐
    Withings API   ←── OAuth2, 30 min ───┼───→│        FreeReps Server       │
-   Hevy event feed←── API key, 30 min ──┘    │                              │
-                                             │  Ingest ─→ Storage           │
+   Hevy event feed←── API key, 30 min ──┤    │                              │
+   openGym state  ←── paired, 30 min ───┘    │  Ingest ─→ Storage           │
                                              │            PostgreSQL +      │
                                              │            TimescaleDB       │
                                              │              │               │
@@ -336,6 +336,40 @@ The **Sync from** cutoff is what keeps a Hevy history and an imported Alpha
 Progression history from covering the same period twice — the training
 aggregates sum across sources without filtering on one.
 
+### openGym
+
+[openGym](https://github.com/DuarteSantos8/openGym) is a self-hosted workout
+logger and the planned successor to Hevy. FreeReps checks the profile's revision
+(`GET /api/data/rev`) every 30 minutes and reads the state (`GET /api/data`) when
+it changed. A workout is rewritten only when its mapped sets changed, and a
+workout deleted in openGym is removed. Wire format and design:
+[`server/specs/opengym-api.md`](server/specs/opengym-api.md).
+
+openGym serves catalogue ids, not exercise names. `exercise_name_map` maps each
+id onto the Hevy catalog, so a lift keeps its name and muscle groups across the
+switch. An unmapped id is stored as `openGym exercise <id>` and counted as
+unmapped until a map row is added. Assisted exercises and set shapes not yet
+observed (timed, cardio, per-side, rest-pause) are refused and fail the run
+until they are decided.
+
+#### openGym Setup
+
+1. **Mint a pairing code** in openGym: Settings → Account → "Pair the mobile
+   app". It has 8 characters and is valid once, for 5 minutes. The
+   `XXXX-XXXX-XXXX` code under "Add a device" is a different thing.
+2. **Pair in FreeReps**: Settings → openGym, enter the instance URL
+   (`https://…`), the code and **Import from**. The server redeems the code and
+   keeps the token; it never reaches the browser.
+3. **Sync runs every 30 minutes.** "Sync now" starts a run; Settings → Import
+   Logs carries the outcome.
+
+**Import from** has to lie after the last Hevy session: openGym's Hevy importer
+copies the Hevy history into openGym, and FreeReps already holds it under source
+Hevy. The form refuses an earlier day and suggests the earliest allowed one.
+
+The token is a full sign-in to the openGym profile, including write access;
+openGym has no scoped token. FreeReps only reads.
+
 ### Alpha Progression (CSV)
 
 [Alpha Progression](https://alphaprogression.com) was the strength logger before
@@ -474,6 +508,8 @@ loops, so a syncer that stopped running is covered as well:
 | 9204 | no Apple Health metric stored for longer than the silence threshold |
 | 9205 | no Apple Health workout delivered for longer than the silence threshold |
 | 9206 / 9207 / 9208 | the Withings, Oura or Hevy sync keeps succeeding without storing a row for 7 days, 48 hours or 14 days |
+| 9209 | the openGym sync failed the configured number of times in a row, including a run with a refused workout |
+| 9210 | the openGym sync keeps succeeding without storing a new or changed workout for 14 days |
 
 Two formats are available, chosen per deployment under Settings → Alerts.
 
@@ -707,6 +743,10 @@ an identity, so a health check needs no credentials.
 | `/api/v1/hevy/credentials` | PUT | Save the Hevy API key and sync cutoff |
 | `/api/v1/hevy/sync` | POST | Trigger manual Hevy sync |
 | `/api/v1/hevy/disconnect` | DELETE | Remove the Hevy API key |
+| `/api/v1/opengym/status` | GET | openGym connection status and the earliest allowed cutoff |
+| `/api/v1/opengym/pair` | PUT | Redeem a pairing code and store the token and cutoff |
+| `/api/v1/opengym/sync` | POST | Trigger manual openGym sync |
+| `/api/v1/opengym/disconnect` | DELETE | Remove the openGym connection |
 | `/api/v1/alerts` | GET/PUT | Alert channel configuration and per-condition state |
 | `/api/v1/alerts/test` | POST | Post a test message on `monitor_id` 9200 |
 | `/api/v1/stats` | GET | Row counts and coverage per source |

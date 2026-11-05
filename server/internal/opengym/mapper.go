@@ -53,7 +53,7 @@ type Mapper struct {
 // as a Hevy template id. The openGym id goes into SourceExerciseID, which is
 // what exercise_name_map is keyed by for this source.
 func (m Mapper) MapWorkout(st *State, w Workout) ([]models.WorkoutSetRow, error) {
-	start, err := m.sessionStart(w)
+	start, err := m.SessionStart(w)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +133,9 @@ func (m Mapper) MapWorkout(st *State, w Workout) ([]models.WorkoutSetRow, error)
 	return rows, nil
 }
 
-// sessionStart is the workout's start instant, or its day at midnight in the
+// SessionStart is the workout's start instant, or its day at midnight in the
 // configured timezone when the app recorded no start.
-func (m Mapper) sessionStart(w Workout) (time.Time, error) {
+func (m Mapper) SessionStart(w Workout) (time.Time, error) {
 	if w.Start != nil {
 		return time.UnixMilli(*w.Start), nil
 	}

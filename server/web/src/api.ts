@@ -714,6 +714,49 @@ export async function disconnectHevy(): Promise<void> {
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
 }
 
+// --- openGym Integration ---
+
+export interface OpenGymStatus {
+  configured: boolean;
+  base_url?: string;
+  /** YYYY-MM-DD. Workouts that started before this day are not ingested. */
+  sync_from?: string;
+  /** RFC3339. When the last changed state was read without errors. */
+  last_change_read?: string;
+  /** YYYY-MM-DD. The earliest cutoff a new connection may use. */
+  suggested_sync_from?: string;
+  /** YYYY-MM-DD. Day of the newest stored Hevy session, if any. */
+  last_hevy_session?: string;
+}
+
+export async function fetchOpenGymStatus(): Promise<OpenGymStatus> {
+  const res = await fetch(`${BASE}/opengym/status`);
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function pairOpenGym(baseUrl: string, code: string, syncFrom: string): Promise<void> {
+  const res = await fetch(`${BASE}/opengym/pair`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ base_url: baseUrl, code, sync_from: syncFrom }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${res.status}: ${res.statusText}`);
+  }
+}
+
+export async function triggerOpenGymSync(): Promise<void> {
+  const res = await fetch(`${BASE}/opengym/sync`, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
+export async function disconnectOpenGym(): Promise<void> {
+  const res = await fetch(`${BASE}/opengym/disconnect`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+}
+
 /* ── Alerts ──────────────────────────────────────────────────────────────── */
 
 /** The channel configuration as stored in the database, not in config.yaml. */

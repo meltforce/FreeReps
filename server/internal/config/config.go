@@ -25,6 +25,7 @@ type Config struct {
 	Ingest         IngestConfig    `yaml:"ingest"`
 	Oura           OuraConfig      `yaml:"oura"`
 	Hevy           HevyConfig      `yaml:"hevy"`
+	OpenGym        OpenGymConfig   `yaml:"opengym"`
 	Withings       WithingsConfig  `yaml:"withings"`
 	Alerts         AlertsConfig    `yaml:"alerts"`
 	SourcePriority []string        `yaml:"source_priority"`
@@ -91,6 +92,15 @@ type OuraConfig struct {
 // There is no backfill window: the first sync fetches the full event history and
 // the cutoff decides how much of it is kept.
 type HevyConfig struct {
+	SyncInterval time.Duration `yaml:"-"`
+
+	// RawSyncInterval is the YAML representation; parsed into SyncInterval by Load.
+	RawSyncInterval string `yaml:"sync_interval"`
+}
+
+// OpenGymConfig holds server-wide openGym sync settings. The per-user instance,
+// token and ingest cutoff are stored in the database, not here.
+type OpenGymConfig struct {
 	SyncInterval time.Duration `yaml:"-"`
 
 	// RawSyncInterval is the YAML representation; parsed into SyncInterval by Load.
@@ -177,6 +187,9 @@ func Load(path string) (*Config, error) {
 		Hevy: HevyConfig{
 			RawSyncInterval: "30m",
 		},
+		OpenGym: OpenGymConfig{
+			RawSyncInterval: "30m",
+		},
 		Withings: WithingsConfig{
 			RawSyncInterval: "30m",
 			BackfillDays:    90,
@@ -246,6 +259,14 @@ func Load(path string) (*Config, error) {
 			return nil, fmt.Errorf("parsing hevy.sync_interval: %w", err)
 		}
 		cfg.Hevy.SyncInterval = d
+	}
+
+	if cfg.OpenGym.RawSyncInterval != "" {
+		d, err := time.ParseDuration(cfg.OpenGym.RawSyncInterval)
+		if err != nil {
+			return nil, fmt.Errorf("parsing opengym.sync_interval: %w", err)
+		}
+		cfg.OpenGym.SyncInterval = d
 	}
 
 	// Parse Withings sync interval.

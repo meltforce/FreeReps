@@ -13,6 +13,7 @@ import (
 	"github.com/claude/freereps/internal/ingest/alpha"
 	"github.com/claude/freereps/internal/ingest/health"
 	freerepsmcp "github.com/claude/freereps/internal/mcp"
+	"github.com/claude/freereps/internal/opengym"
 	"github.com/claude/freereps/internal/oura"
 	"github.com/claude/freereps/internal/storage"
 	"github.com/claude/freereps/internal/withings"
@@ -37,6 +38,9 @@ type Server struct {
 
 	// Hevy integration (nil if not wired up)
 	hevySyncer *hevy.Syncer
+
+	// openGym integration (nil if not wired up)
+	openGymSyncer *opengym.Syncer
 
 	// Withings integration (nil if not wired up)
 	withingsTokenMgr *withings.TokenManager
@@ -285,6 +289,14 @@ func (s *Server) routes() {
 			r.Put("/credentials", s.handleHevyCredentials)
 			r.Post("/sync", s.handleHevySync)
 			r.Delete("/disconnect", s.handleHevyDisconnect)
+		})
+
+		// openGym integration
+		r.Route("/api/v1/opengym", func(r chi.Router) {
+			r.Get("/status", s.handleOpenGymStatus)
+			r.Put("/pair", s.handleOpenGymPair)
+			r.Post("/sync", s.handleOpenGymSync)
+			r.Delete("/disconnect", s.handleOpenGymDisconnect)
 		})
 
 		// HAE TCP import

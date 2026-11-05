@@ -43,6 +43,8 @@ const (
 	MonitorWithingsStale = 9206
 	MonitorOuraStale     = 9207
 	MonitorHevyStale     = 9208
+	MonitorOpenGymSync   = 9209
+	MonitorOpenGymStale  = 9210
 )
 
 // maxMsgLen keeps a message readable wherever it is displayed. The upstream error
@@ -60,6 +62,7 @@ var sourceConditions = []sourceCondition{
 	{source: "withings_sync", monitorID: MonitorWithingsSync, service: ServiceNames[MonitorWithingsSync]},
 	{source: "oura_sync", monitorID: MonitorOuraSync, service: ServiceNames[MonitorOuraSync]},
 	{source: "hevy_sync", monitorID: MonitorHevySync, service: ServiceNames[MonitorHevySync]},
+	{source: "opengym_sync", monitorID: MonitorOpenGymSync, service: ServiceNames[MonitorOpenGymSync]},
 }
 
 // staleCondition is one polled data source whose runs can succeed while its
@@ -76,12 +79,14 @@ type staleCondition struct {
 // Oura stores heart rate samples on every run of a worn ring, so 48 hours
 // without a stored row is a provider that stopped delivering — the figure
 // HealthLog uses for its `stale` verdict on polled sources. Withings stores a
-// row per weigh-in and Hevy per training session; both are sporadic by design,
-// and a 48-hour threshold would fire through every week without training.
+// row per weigh-in and Hevy and openGym per training session; these are
+// sporadic by design, and a 48-hour threshold would fire through every week
+// without training.
 var staleConditions = []staleCondition{
 	{source: "withings_sync", monitorID: MonitorWithingsStale, silence: 7 * 24 * time.Hour},
 	{source: "oura_sync", monitorID: MonitorOuraStale, silence: 48 * time.Hour},
 	{source: "hevy_sync", monitorID: MonitorHevyStale, silence: 14 * 24 * time.Hour},
+	{source: "opengym_sync", monitorID: MonitorOpenGymStale, silence: 14 * 24 * time.Hour},
 }
 
 // appleIngestSources are the sources the Apple Health ingest path logs under:
@@ -135,6 +140,8 @@ var ServiceNames = map[int]string{
 	MonitorWithingsStale: "freereps - withings data",
 	MonitorOuraStale:     "freereps - oura data",
 	MonitorHevyStale:     "freereps - hevy data",
+	MonitorOpenGymSync:   "freereps - opengym sync",
+	MonitorOpenGymStale:  "freereps - opengym data",
 }
 
 // conditionTitle is the title a condition is sent under in the `ntfy` format,

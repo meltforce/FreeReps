@@ -20,6 +20,10 @@ var alphaWorkoutNamespace = uuid.MustParse("7ba7b810-9dad-11d1-80b4-00c04fd430c8
 // stable even when the session is renamed or its start time is corrected.
 var hevyWorkoutNamespace = uuid.MustParse("8ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
+// openGymWorkoutNamespace is the UUID namespace for synthetic openGym workout
+// IDs, derived from openGym's own workout id for the reason given for Hevy.
+var openGymWorkoutNamespace = uuid.MustParse("9ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
 // syntheticWorkoutName is the workout type reported for sessions that exist only
 // in workout_sets. The frontend type filters match on this value.
 const syntheticWorkoutName = "Traditional Strength Training"
@@ -30,11 +34,14 @@ func syntheticWorkoutID(s SetSessionInfo) uuid.UUID {
 	if s.Source == "Hevy" && s.ExternalID != "" {
 		return uuid.NewSHA1(hevyWorkoutNamespace, []byte("hevy:workout:"+s.ExternalID))
 	}
+	if s.Source == "openGym" && s.ExternalID != "" {
+		return uuid.NewSHA1(openGymWorkoutNamespace, []byte("opengym:workout:"+s.ExternalID))
+	}
 	return uuid.NewSHA1(alphaWorkoutNamespace,
 		[]byte("alpha:"+s.SessionDate.Format(time.RFC3339)+":"+s.SessionName))
 }
 
-// syntheticWorkoutEnd returns the session end. Hevy reports it directly; Alpha
+// syntheticWorkoutEnd returns the session end. Hevy and openGym report it directly; Alpha
 // only carries a duration string that has to be parsed and added to the start.
 func syntheticWorkoutEnd(s SetSessionInfo) time.Time {
 	if s.SessionEnd != nil && !s.SessionEnd.IsZero() {

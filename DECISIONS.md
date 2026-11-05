@@ -19,6 +19,56 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-11-05 — The openGym sync rewrites a workout only when its mapped rows change, and a refused workout fails the cycle
+
+**Decided:** 2026-11-05
+
+**Decision.** Every `opengym.sync_interval` (30 minutes), per user:
+
+1. `GET /api/me` validates the token and stores a renewed one.
+2. `GET /api/data/rev` is compared with the `(rev, wid)` stored in
+   `opengym_sync_state`. If they match, the cycle ends there.
+3. `GET /api/data` is mapped workout by workout. A workout is rewritten
+   (delete by `external_id`, then insert) only when the SHA-256 of its mapped
+   rows differs from the hash in `opengym_workouts`. A stored workout missing
+   from the state has its sets deleted. A state without workouts next to stored
+   ones is refused.
+4. `(rev, wid)` is stored only after a cycle without errors.
+
+Every cycle writes one `import_logs` row with `source = opengym_sync`,
+including a cycle that found nothing changed. A cycle in which any workout
+was refused or failed is logged as `error`; the other workouts are stored
+anyway. The alerts use monitor ids 9209 (`opengym_sync` failed) and 9210
+(`opengym_sync` stored no workout for 14 days, predicate as for Hevy).
+
+The connection is made in Settings → openGym with the instance URL and a
+pairing code. The server redeems the code and stores the token; the token never
+reaches the browser. `sync_from` has to lie after the day of the last stored
+Hevy session in the session timezone, and defaults to the day after it.
+
+**Reasoning.** openGym raises `rev` on every write to the profile, including a
+weigh-in or a changed setting. Rewriting every workout on every new `rev` would
+count each of them as inserted, and the stale alert would never fire while the
+app is in use. A hash over the mapped rows changes on an edited workout, and it
+also changes when a map row is added or the mapper is changed, which the raw
+workout JSON would not show.
+
+Storing `(rev, wid)` only after a cycle without errors makes the next cycle
+fetch and fail again, so the failure alert sees consecutive failed runs instead
+of one failure followed by unchanged successes. The unchanged cycles are logged
+because `checkSourceStale` treats a source whose newest run is older than the
+threshold as stopped (2026-09-27) and stays silent.
+
+The `sync_from` check exists because openGym's history includes every Hevy
+workout since 2026-08-11 under `iw` ids, and the training aggregates sum across
+sources.
+
+**Trigger to re-open.** openGym offers a delta feed or a scoped read token.
+Source deduplication in the training aggregates is the other trigger: once it
+exists, the `sync_from` check is no longer the only guard.
+
+---
+
 ## 2026-11-05 — openGym exercises are mapped by their id, and a mapped set carries the name of its catalog entry
 
 **Decided:** 2026-11-05
@@ -112,6 +162,13 @@ rejected for these reasons, measured on 2026-11-05:
   it was mounted with, without an error.
 - `/api/data` and `/api/data/rev` are in upstream `openapi.yaml`. The file name
   and the internal fields are not documented.
+
+The API path needs no new grant. The client uses the host's network stack, so
+the request leaves smokey as smokey (`tag:homelab`). marty carries
+`tag:homelab` next to `tag:apps-web`, and the grant `tag:homelab` →
+`tag:homelab` on `tcp:443` in homelab `policy.hujson` admits the connection.
+Measured on 2026-11-05: `wget https://gym.meltrocker.net/api/health` from inside
+`freereps-app-1` answered `{"ok":true,…}`.
 
 **Trigger to re-open.** openGym and FreeReps running on the same host, where a
 read-only mount of the directory needs no network path.

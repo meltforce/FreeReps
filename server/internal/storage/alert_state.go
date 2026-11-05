@@ -109,12 +109,15 @@ type RunHistory struct {
 }
 
 // storedRowPredicates names, per polled source, what counts as a run that stored
-// something. The sources fill different columns: Hevy writes workouts and sets
+// something. The sources fill different columns: Hevy and openGym write workouts and sets
 // and never metrics_inserted, Oura writes all three kinds, Withings only metrics.
 var storedRowPredicates = map[string]string{
 	"oura_sync":     "metrics_inserted > 0 OR workouts_inserted > 0 OR sleep_sessions > 0",
 	"withings_sync": "metrics_inserted > 0",
 	"hevy_sync":     "workouts_inserted > 0 OR sets_inserted > 0",
+	// openGym counts a workout as inserted only when its mapped rows changed,
+	// so a write to the profile that touches no workout does not count.
+	"opengym_sync": "workouts_inserted > 0 OR sets_inserted > 0",
 }
 
 // RunHistoryByUser returns, per user, the newest run of a polled source, its

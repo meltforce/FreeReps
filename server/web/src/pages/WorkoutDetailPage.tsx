@@ -18,7 +18,9 @@ export default function WorkoutDetailPage() {
   // Sessions that live only in workout_sets have no row in the workouts table,
   // so their id cannot be fetched — the list already carries everything shown.
   const isSynthetic =
-    routeWorkout?.Source === "Alpha Progression" || routeWorkout?.Source === "Hevy";
+    routeWorkout?.Source === "Alpha Progression" ||
+    routeWorkout?.Source === "Hevy" ||
+    routeWorkout?.Source === "openGym";
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["workout", id],

@@ -36,6 +36,9 @@ oura:
 hevy:
   sync_interval: "30m"   # how often to poll the Hevy event feed (API key configured in Settings UI)
 
+opengym:
+  sync_interval: "30m"   # how often to check the openGym state for changes (instance paired in Settings UI)
+
 withings:
   sync_interval: "30m"   # how often to poll Withings (per-user creds configured in Settings UI)
   backfill_days: 90      # days of history to fetch on first sync
