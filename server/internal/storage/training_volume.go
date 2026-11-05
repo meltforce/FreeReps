@@ -45,7 +45,8 @@ type TrainingVolumePeriod struct {
 }
 
 // resolvedSetsCTE joins workout_sets to the exercise catalog. Hevy rows carry a
-// template id directly; Alpha rows reach it through exercise_name_map.
+// template id directly; Alpha and openGym rows reach it through
+// exercise_name_map, keyed by the source's exercise id where it has one.
 const resolvedSetsCTE = `
 	resolved AS (
 		SELECT ws.session_date, ws.weight_kg, ws.reps, ws.exercise_name,
@@ -53,7 +54,8 @@ const resolvedSetsCTE = `
 		       COALESCE(m.note, '') AS map_note
 		FROM workout_sets ws
 		LEFT JOIN exercise_name_map m
-		       ON m.source = ws.source AND m.exercise_name = ws.exercise_name
+		       ON m.source = ws.source
+		      AND m.source_key = COALESCE(NULLIF(ws.source_exercise_id, ''), ws.exercise_name)
 		WHERE ws.session_date >= $2 AND ws.session_date < $3
 		  AND ws.user_id = $4
 		  AND NOT ws.is_warmup

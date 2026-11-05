@@ -190,8 +190,8 @@ CREATE UNIQUE INDEX idx_workout_routes_dedup
 
 ### `workout_sets` (Regular)
 
-Set/rep/weight data. Two sources write here: the Alpha Progression CSV import
-and the Hevy sync.
+Set/rep/weight data. The Alpha Progression CSV import and the Hevy sync write
+here; the openGym ingest (`server/specs/opengym-api.md`) will be the third.
 
 ```sql
 CREATE TABLE workout_sets (
@@ -224,6 +224,7 @@ CREATE TABLE workout_sets (
     distance_m           DOUBLE PRECISION,
     duration_sec         DOUBLE PRECISION,
     custom_metric        DOUBLE PRECISION,
+    source_exercise_id   TEXT        NOT NULL DEFAULT '',  -- source's exercise id (openGym); key into exercise_name_map
     CONSTRAINT workout_sets_source_natural_key
         UNIQUE (user_id, source, session_date, exercise_number, set_number, is_warmup)
 );

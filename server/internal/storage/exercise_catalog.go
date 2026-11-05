@@ -96,8 +96,12 @@ func (db *DB) CountExerciseTemplates(ctx context.Context) (int, error) {
 
 // UnmappedExerciseName is an exercise name from a source without template ids
 // that has no catalog entry, together with how much data hangs off it.
+//
+// SourceKey is the value a new exercise_name_map row needs as its key: the
+// source's exercise id where the source has one (openGym), the name otherwise.
 type UnmappedExerciseName struct {
 	Source       string `json:"source"`
+	SourceKey    string `json:"source_key"`
 	ExerciseName string `json:"exercise_name"`
 	Sets         int    `json:"sets"`
 }
@@ -108,13 +112,16 @@ type UnmappedExerciseName struct {
 // the measure of what any volume figure leaves out.
 func (db *DB) ListUnmappedExerciseNames(ctx context.Context, userID int) ([]UnmappedExerciseName, error) {
 	rows, err := db.Pool.Query(ctx,
-		`SELECT ws.source, ws.exercise_name, COUNT(*)::int AS sets
+		`SELECT ws.source,
+		        COALESCE(NULLIF(ws.source_exercise_id, ''), ws.exercise_name) AS source_key,
+		        ws.exercise_name, COUNT(*)::int AS sets
 		 FROM workout_sets ws
 		 LEFT JOIN exercise_name_map m
-		   ON m.source = ws.source AND m.exercise_name = ws.exercise_name
+		   ON m.source = ws.source
+		  AND m.source_key = COALESCE(NULLIF(ws.source_exercise_id, ''), ws.exercise_name)
 		 WHERE ws.user_id = $1
 		   AND COALESCE(NULLIF(ws.exercise_template_id, ''), m.exercise_template_id) IS NULL
-		 GROUP BY ws.source, ws.exercise_name
+		 GROUP BY 1, 2, 3
 		 ORDER BY sets DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing unmapped exercise names: %w", err)
@@ -124,7 +131,7 @@ func (db *DB) ListUnmappedExerciseNames(ctx context.Context, userID int) ([]Unma
 	var result []UnmappedExerciseName
 	for rows.Next() {
 		var u UnmappedExerciseName
-		if err := rows.Scan(&u.Source, &u.ExerciseName, &u.Sets); err != nil {
+		if err := rows.Scan(&u.Source, &u.SourceKey, &u.ExerciseName, &u.Sets); err != nil {
 			return nil, fmt.Errorf("scanning unmapped exercise name: %w", err)
 		}
 		result = append(result, u)

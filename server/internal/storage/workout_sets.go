@@ -18,7 +18,7 @@ var workoutSetColumns = []string{
 	"exercise_number", "exercise_name", "exercise_template_id", "exercise_notes",
 	"equipment", "target_reps", "is_warmup", "set_type", "set_number", "superset_id",
 	"weight_kg", "is_bodyweight_plus", "reps", "rir", "rpe",
-	"distance_m", "duration_sec", "custom_metric",
+	"distance_m", "duration_sec", "custom_metric", "source_exercise_id",
 }
 
 // DeleteWorkoutSets removes all sets for a given session date and user, enabling clean re-imports.
@@ -49,7 +49,7 @@ func (db *DB) DeleteWorkoutSetsByExternalID(ctx context.Context, userID int, sou
 // insertWorkoutSetsBatchSize caps how many rows go into one INSERT. The
 // extended protocol allows 65535 parameters per statement and a row costs
 // len(workoutSetColumns) of them, so a full Alpha Progression export — around
-// 4000 rows against 26 columns — exceeds the limit in a single statement and
+// 4000 rows against 27 columns — exceeds the limit in a single statement and
 // the whole import fails with "extended protocol limited to 65535 parameters".
 // Same failure that f55a5a3 fixed for workout_routes; workout_sets crossed the
 // limit later, when migration 000020 widened the row for Hevy.
@@ -102,7 +102,7 @@ func (db *DB) insertWorkoutSetBatch(ctx context.Context, rows []models.WorkoutSe
 			r.ExerciseNumber, r.ExerciseName, r.ExerciseTemplateID, r.ExerciseNotes,
 			r.Equipment, r.TargetReps, r.IsWarmup, setType, r.SetNumber, r.SupersetID,
 			r.WeightKg, r.IsBodyweightPlus, r.Reps, r.RIR, r.RPE,
-			r.DistanceM, r.DurationSec, r.CustomMetric,
+			r.DistanceM, r.DurationSec, r.CustomMetric, r.SourceExerciseID,
 		)
 	}
 
@@ -118,7 +118,8 @@ func (db *DB) insertWorkoutSetBatch(ctx context.Context, rows []models.WorkoutSe
 // QueryWorkoutSets retrieves workout sets in a date range, optionally filtered by exercise name.
 func (db *DB) QueryWorkoutSets(ctx context.Context, start, end time.Time, userID int, exerciseFilter string) ([]models.WorkoutSetRow, error) {
 	// The muscle group comes from the exercise catalog: Hevy rows reference it
-	// directly, Alpha rows reach it through exercise_name_map.
+	// directly, Alpha and openGym rows reach it through exercise_name_map — keyed
+	// by the source's exercise id where it has one, by the name otherwise.
 	query := `SELECT ws.user_id, ws.source, ws.external_id, ws.routine_id,
 		 ws.session_name, ws.session_date, ws.session_end, ws.session_duration,
 		 ws.exercise_number, ws.exercise_name, ws.exercise_template_id, ws.exercise_notes,
@@ -128,7 +129,8 @@ func (db *DB) QueryWorkoutSets(ctx context.Context, start, end time.Time, userID
 		 ws.distance_m, ws.duration_sec, ws.custom_metric
 		 FROM workout_sets ws
 		 LEFT JOIN exercise_name_map m
-		        ON m.source = ws.source AND m.exercise_name = ws.exercise_name
+		        ON m.source = ws.source
+		       AND m.source_key = COALESCE(NULLIF(ws.source_exercise_id, ''), ws.exercise_name)
 		 LEFT JOIN exercise_templates t
 		        ON t.id = COALESCE(NULLIF(ws.exercise_template_id, ''), m.exercise_template_id)
 		 WHERE ws.session_date >= $1 AND ws.session_date < $2 AND ws.user_id = $3`

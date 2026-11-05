@@ -10,8 +10,9 @@ two parts:
    (homelab `docker/stacks/opengym/compose.yaml`). Every route listed under
    *Endpoints FreeReps uses* was called against it.
 2. **Ingest proposal** — how FreeReps would store openGym sessions in
-   `workout_sets`. Nothing in that part is decided. Each design choice moves to
-   `DECISIONS.md` when it is taken, and this section shrinks accordingly.
+   `workout_sets`. Each design choice moves to `DECISIONS.md` when it is taken,
+   and this section shrinks accordingly. Decided so far: transport and map key
+   (both 2026-11-05).
 
 The instance is `https://gym.meltrocker.net` (homelab
 `configuration/docker-stacks/stacks/opengym.yml`), on marty, reachable through
@@ -95,11 +96,16 @@ state has about 90 top-level keys; FreeReps reads these:
 |---|---|
 | `workouts[]` | Logged sessions, chronological |
 | `unit` | `kg` or `lb`; weights are stored in this unit |
-| `exUnit` | Per-exercise unit override (empty on this instance; shape unverified) |
-| `customEx[]` | The user's own exercises: id, name, muscles |
+| `customEx[]` | The user's own exercises: `id`, name in `n`, equipment in `eq`, body part in `bp` (upstream `openapi.yaml`, `CustomExercise`) |
 | `effort` | `rpe`, `rir` or `none` — the scale the app asks for (unset here; every set carried `rpe`) |
 | `deleted` | Record of removals, written once something is deleted (absent here; shape unverified) |
 | `_rev`, `_wid` | Mirror of the revision and write id |
+
+`exUnit` (per-exercise unit, `{ "<exercise id>": { "unit": "kg" | "lb" | null, "_ts": … } }`)
+changes only how the app shows and takes input for an exercise. Every weight in
+the state stays in `unit` (upstream `frontend/src/lib/ex-unit.js`, header
+comment). FreeReps does not read it. The app treats `unit` values other than
+`lb`, including an absent `unit`, as `kg` (`profileUnit` in the same file).
 
 ### Workout object
 
@@ -179,7 +185,11 @@ reviewing every row.
 
 ## Part 2 — Ingest proposal
 
-**Status: proposal, 2026-11-05.** Not implemented, nothing decided.
+**Status: proposal, 2026-11-05.** Decided: transport (`DECISIONS.md`,
+*openGym is read through its HTTP API*) and map key and naming
+(`DECISIONS.md`, *openGym exercises are mapped by their id*). Implemented:
+migration `000040` and the mapper (`server/internal/opengym/`). Not yet
+implemented: the sync loop, credentials, the pairing flow, the alerts.
 
 ### Scope
 
@@ -221,9 +231,9 @@ Per cycle (`opengym.sync_interval`, 30 minutes like Hevy):
   authentication of its own next to the Tailscale identity (`DECISIONS.md`,
   2026-03-15). The 2026-08-04 decision rejected Hevy's webhook on comparable
   grounds.
-- *Read `./data/state-<uid>.json` from disk*, as openGym's own MCP server does.
-  Rejected: FreeReps runs on smokey, openGym on marty; it would need a mount
-  across hosts and bypass the application's revision handling.
+- *Read `state-<uid>.json` from openGym's data directory*, as openGym's own
+  MCP server does. Rejected; see `DECISIONS.md`, 2026-11-05, *openGym is read
+  through its HTTP API, not from its data directory*.
 
 ### Credentials
 
@@ -265,19 +275,22 @@ stores today has the same reach (`hevy-api.md`, *Overview*).
 | `session_date` | `workout.start` (epoch ms → instant). Without `start`: `d` at the configured timezone, as the Alpha ingest does (`DECISIONS.md`, 2026-08-10). |
 | `session_end`, `session_duration` | from `end`, when present |
 | `exercise_number` | entry index + 1 |
-| `exercise_name` | catalogue name from the map below, or the `customEx` name |
+| `exercise_name` | title of the mapped catalog entry; for a custom exercise its `customEx` `n`; for an unmapped id `openGym exercise <id>` |
+| `source_exercise_id` | `entries[].id` — the key into `exercise_name_map` |
 | `exercise_template_id` | `''` — the column holds Hevy template ids, and the join in `QueryWorkoutSets` treats any non-empty value as one |
 | `set_number` | index among the entry's performed sets, + 1 |
 | `is_warmup`, `set_type` | `phase == "warmup"` → `true`, `warmup`; `failure` → `failure`; else `normal` |
-| `weight_kg` | `w`, converted when the unit is `lb` |
-| `is_bodyweight_plus` | `true` when the catalogue equipment is `body weight` or `weighted` (pull-up, chin-up, dips, hyperextension) |
+| `weight_kg` | `w`, multiplied by 0.45359237 when `unit` is `lb` (openGym's own factor, `units.js` `LB_KG`) |
+| `is_bodyweight_plus` | `true` when the mapped catalog entry's `exercise_type` is `bodyweight_weighted`; for a custom exercise when `eq` is `body weight` or `weighted` |
 | `reps` | `r` |
 | `rpe` / `rir` | as delivered, never converted (`DECISIONS.md`, 2026-03-25) |
 | `duration_sec`, `distance_m` | timed and cardio sets, once observed |
 
-Sets with `done: false` are not stored. **Assisted exercises** need a decision
-before the first one is logged: their `w` is not load, and storing it as
-`weight_kg` adds it to tonnage.
+Sets with `done: false` are not stored. **Assisted exercises** need a decision:
+their `w` is not load, and storing it as `weight_kg` adds it to tonnage. Until
+then the mapper refuses a workout containing an exercise mapped onto a
+`bodyweight_assisted` entry, and likewise a performed set with an unobserved
+shape (`type`, `sides`, `clusters`, `sec`, `min`, `speed`, `incline`).
 
 ### Muscle attribution: map onto the stored Hevy catalogue
 
@@ -288,18 +301,11 @@ volume per muscle group continues across the source change in one vocabulary.
 path or migration deletes from it (checked 2026-11-05) — so every template
 stored today remains usable as a mapping target.
 
-`exercise_name_map` is keyed by `(source, exercise_name)`. **The key should be
-the openGym id, not the name.** The state carries no names, so for catalogue
-exercises the name would be FreeReps' own table value acting as its own key,
-and custom exercises keep their id while the user renames them in the app. The
-minimal change is a column `workout_sets.source_exercise_id` and a map keyed on
-`(source, source_exercise_id)`, joined where `exercise_name_map` is joined
-today: `storage/workout_sets.go:130`, `storage/training_volume.go:55`,
-`storage/exercise_catalog.go:113`. The choice between that and reusing
-`exercise_name_map` is the implementer's, and goes into `DECISIONS.md`.
-
-Seed for the 24 exercises in the operator's history, reviewed by hand on
-2026-11-05 against the Hevy titles FreeReps holds for the same sessions:
+The map is `exercise_name_map`, keyed by `(source, source_key)`, where
+`source_key` is the openGym id (`DECISIONS.md`, 2026-11-05, *openGym exercises
+are mapped by their id*). Seed in migration `000040`, for the 23 exercises in
+the operator's history plus `0572`, reviewed by hand on 2026-11-05 against the
+Hevy rows FreeReps holds for the same sessions:
 
 | openGym id | openGym name | Hevy template | Hevy title |
 |---|---|---|---|
@@ -315,21 +321,22 @@ Seed for the 24 exercises in the operator's history, reviewed by hand on
 | `0410` | dumbbell single leg split squat | `B5D3A742` | Bulgarian Split Squat (Dumbbell) |
 | `0447` | ez barbell curl | `01A35BF9` | EZ Bar Biceps Curl |
 | `0472` | hanging leg raise | `F8356514` | Hanging Leg Raise |
+| `0572` | lever assisted chin-up | `D23C609B` | Chin Up (Assisted) — `bodyweight_assisted`, refused by the mapper until assisted exercises are decided |
 | `0586` | lever lying leg curl | `B8127AD1` | Lying Leg Curl (Machine) |
 | `0602` | lever seated reverse fly | `D8281C62` | Rear Delt Reverse Fly (Machine) |
 | `0605` | lever standing calf raise | `E05C2C38` | Standing Calf Raise (Machine) |
 | `0652` | pull-up | `729237D1` | Pull Up (Weighted) |
 | `0739` | sled 45° leg press | `C7973E0E` | Leg Press (Machine) |
-| `1326` | chin-up | `29083183` | Chin Up |
+| `1326` | chin-up | `023943F1` | Chin Up (Weighted) — 26 of 29 chin-up sets in the history carry load; *Chin Up* (`29083183`) has the same muscle groups |
 | `1454` | lever seated shoulder press | `9237BAD1` | Seated Shoulder Press (Machine) — performed on a Smith machine; the Alpha map uses `B09A1304` for the same movement |
 | `1755` | weighted tricep dips | `10347BAC` | Triceps Dip (Weighted) |
 | `2611` | lever horizontal one leg press | `0EB695C9` | Leg Press Horizontal (Machine) |
 | `2661` | cable seated row with v bar | `0393F233` | Seated Cable Row - V Grip (Cable) |
 | `5035` | weighted hyperextension | `091737FA` | Back Extension (Weighted Hyperextension) |
 
-`0572` *lever assisted chin-up* is deliberately absent. Anything not in the
-map counts in `unmapped_sets` until a row is added; that figure is how a new
-exercise becomes visible.
+Anything not in the map counts in `unmapped_sets` until a row is added; that
+figure is how a new exercise becomes visible. `ListUnmappedExerciseNames`
+returns the `source_key` a new row needs.
 
 The table is data written for FreeReps, not code taken from openGym (AGPL-3.0;
 FreeReps is MIT) — the same distinction as the HealthLog references in
@@ -373,8 +380,9 @@ so the failure presents as a DNS error, not as a refused connection.
 
 ### Tests
 
-- Mapper unit tests on a fixture cut from a real state (`start` absent, a
-  warm-up, a body-weight set, a `done: false` set, a custom exercise).
+- Mapper unit tests on a fixture cut from a real state — done:
+  `internal/opengym/mapper_test.go`, `testdata/state-cut.json`. The map join is
+  covered by `storage/exercise_map_integration_test.go`.
 - Reconciliation: an edited set, a deleted workout, an unchanged `(rev, wid)`
   that skips the fetch, a changed `wid` at the same `rev`.
 - Integration test against the scratch database: a second sync with the same
@@ -383,11 +391,13 @@ so the failure presents as a DNS error, not as a refused connection.
 
 ### Open questions
 
-1. Map key: new column and map table, or reuse `exercise_name_map`.
-2. Assisted exercises: skip `weight_kg`, store it negative, or flag the set.
-3. Shapes of `deleted`, `exUnit`, timed, cardio, per-side and rest-pause sets —
-   capture from a state that contains them.
-4. Whether `d` or `start` defines the session day for a workout logged on paper
-   or moved to another date in the app ("move it to the right date").
-5. Whether the web UI's provider label (`DECISIONS.md`, 2026-09-21) shows
+1. Assisted exercises: skip `weight_kg`, store it negative, or flag the set.
+   The mapper refuses them until this is decided.
+2. Shapes of `deleted`, timed, cardio, per-side and rest-pause sets — capture
+   from a state that contains them. The mapper refuses the set shapes until
+   then.
+3. Whether `d` or `start` defines the session day for a workout logged on paper
+   or moved to another date in the app ("move it to the right date"). The
+   mapper uses `start` and falls back to `d`.
+4. Whether the web UI's provider label (`DECISIONS.md`, 2026-09-21) shows
    `openGym` for these sessions without further change.

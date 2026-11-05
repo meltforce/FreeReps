@@ -130,11 +130,12 @@ type WorkoutRouteRow struct {
 
 // WorkoutSetRow is a row for the workout_sets table.
 //
-// Two sources write here. Alpha Progression fills Equipment, TargetReps and
+// Three sources write here. Alpha Progression fills Equipment, TargetReps and
 // IsBodyweightPlus and leaves the Hevy-specific fields empty; Hevy fills
 // ExternalID, RoutineID, ExerciseTemplateID, SetType and SupersetID and leaves
-// the Alpha-specific ones empty. Source distinguishes them and is part of the
-// natural key.
+// the Alpha-specific ones empty; openGym fills ExternalID, RoutineID,
+// SourceExerciseID, SetType and IsBodyweightPlus. Source distinguishes them and
+// is part of the natural key.
 //
 // Effort is recorded on whichever scale the source uses: Alpha writes RIR (with
 // -1 for an unrated set), Hevy writes RPE. EffortRIR is computed by the database
@@ -170,6 +171,11 @@ type WorkoutSetRow struct {
 	DistanceM          *float64
 	DurationSec        *float64
 	CustomMetric       *float64
+	// SourceExerciseID is the source's own id for the exercise, for sources
+	// that deliver one instead of a name (openGym catalogue and custom ids).
+	// exercise_name_map is keyed by it where it is set. Empty for Alpha and
+	// Hevy: Hevy's id goes into ExerciseTemplateID.
+	SourceExerciseID string
 }
 
 // ECGRecordingRow is a row for the ecg_recordings table.

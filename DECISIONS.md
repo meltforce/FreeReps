@@ -19,6 +19,105 @@ is as recorded there; where the record named no alternative, none is claimed.
 
 ---
 
+## 2026-11-05 — openGym exercises are mapped by their id, and a mapped set carries the name of its catalog entry
+
+**Decided:** 2026-11-05
+
+**Decision.** `workout_sets` has a column `source_exercise_id` (migration
+`000040`). The openGym ingest writes the openGym exercise id into it (catalogue
+id such as `0025`, or a custom exercise id); Alpha and Hevy leave it empty.
+`exercise_name_map` stays the only map table. Its key column is renamed from
+`exercise_name` to `source_key` and holds the id for openGym and the name for
+Alpha Progression. Every query that resolves a set to the catalog joins on
+`COALESCE(NULLIF(ws.source_exercise_id, ''), ws.exercise_name)`
+(`storage/workout_sets.go`, `storage/training_volume.go`,
+`storage/exercise_catalog.go`).
+
+An openGym set stores the title of its mapped catalog entry as
+`exercise_name`, a custom exercise its openGym name, and an unmapped catalogue
+id the name `openGym exercise <id>`. `is_bodyweight_plus` is set when the mapped
+entry's `exercise_type` is `bodyweight_weighted`. The mapper
+(`server/internal/opengym/mapper.go`) refuses a workout that contains an
+exercise mapped onto a `bodyweight_assisted` entry, or a performed set with a
+shape not yet observed (timed, cardio, per-side, rest-pause), with
+`ErrUnsupported`, until each case is decided.
+
+The seed maps 24 ids: the 23 in the operator's history and `0572` *lever
+assisted chin-up* onto *Chin Up (Assisted)*, so that the assisted exercise is
+recognised and refused. `1326` *chin-up* maps onto *Chin Up (Weighted)*.
+
+**Reasoning.** The openGym state carries an id per exercise and no name
+(`server/specs/opengym-api.md`, *Exercise names are not served*). A map keyed by
+name would key on a value FreeReps writes itself, and a custom exercise keeps
+its id while the user renames it. One table keeps a single list of unmapped
+exercises for every source, which a second id-keyed table would split.
+
+The catalog title as the stored name keeps a lift's name across the switch from
+Hevy, and `GetTrainingIntensity` groups and the exercise filter of
+`QueryWorkoutSets` matches by `exercise_name`. openGym's own catalogue names
+(`barbell bench press`) would start a second series for every lift.
+
+Of the 29 chin-up sets in the history, 26 carry added load (Hevy *Chin Up
+(Weighted)*, 7 sessions; *Chin Up*, 1 session, 3 sets). openGym logs both under
+`1326`. Both Hevy entries have the same muscle groups (checked in the deployed
+catalog on 2026-11-05), so the choice affects only the name and the body-weight
+flag. The weighted entry matches 26 of the 29 sets.
+
+An assisted exercise's weight is assistance and would count as load in tonnage.
+A set shape the mapper has not seen could carry its measurement in a field it
+does not read. A refused workout reaches the source's alert. A stored workout
+with a wrong figure produces no error.
+
+**Alternative considered.** A second table `exercise_id_map` next to
+`exercise_name_map`, joined in addition at the three sites. Rejected because it
+splits one concept across two tables and adds a third term to every `COALESCE`.
+
+**Alternative considered.** Reusing `exercise_name_map` keyed by the name
+FreeReps writes for an openGym id, without a new column. Rejected because a
+name correction in FreeReps or a renamed custom exercise orphans the map row.
+The orphaned row would not raise an error and would show only as
+`unmapped_sets`.
+
+**Trigger to re-open.** A third source delivering ids, if its ids collide with
+names another source writes. Also the decision on assisted exercises (open
+question in the spec), which replaces the refusal.
+
+---
+
+## 2026-11-05 — openGym is read through its HTTP API, not from its data directory
+
+**Decided:** 2026-11-05
+
+**Decision.** The openGym ingest polls `GET /api/data/rev` and `GET /api/data`
+on `https://gym.meltrocker.net` with a token of its own pairing. It does not
+read openGym's state files.
+
+**Reasoning.** openGym has no database server. A profile is the file
+`state-<uid>.json` in its data directory (homelab
+`docker/stacks/opengym/compose.yaml`, `${DOCKER_DATA}/opengym/data`), written
+by temporary file, fsync and rename (upstream `api/durable.js`). The file holds
+the JSON `/api/data` returns, plus two internal fields the API removes. Reading
+the file would avoid the token, its renewal and the pairing flow. It was
+rejected for these reasons, measured on 2026-11-05:
+
+- openGym runs on marty and FreeReps on smokey, each placed by homelab
+  `STANDARDS.md` § *Host placement*. A file read across hosts needs a mount, an
+  SSH pull or a push job, and each of them needs its own grant or mount in the
+  homelab repo. The API path needs one entry in `policy.hujson`.
+- The data directory also holds `db.json` (every account and passkey) and the
+  session secret. Read access to the secret allows signing a session token for
+  any account, which is more than the paired token grants.
+- A bind mount of the single state file pins the file's inode. openGym's rename
+  replaces the inode on every write, so the mount would keep serving the version
+  it was mounted with, without an error.
+- `/api/data` and `/api/data/rev` are in upstream `openapi.yaml`. The file name
+  and the internal fields are not documented.
+
+**Trigger to re-open.** openGym and FreeReps running on the same host, where a
+read-only mount of the directory needs no network path.
+
+---
+
 ## 2026-10-14 — CI rebuilds weekly and govulncheck blocks
 
 **Decided:** 2026-10-14

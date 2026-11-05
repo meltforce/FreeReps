@@ -1,0 +1,147 @@
+{
+ "state": {
+  "_rev": 3,
+  "_wid": "cec6ae102e8461ff",
+  "unit": "kg",
+  "exUnit": {},
+  "customEx": [],
+  "workouts": [
+   {
+    "id": "iw2do12qenuxn",
+    "d": "2026-10-08",
+    "start": 1791444433000,
+    "end": 1791449881000,
+    "routineId": null,
+    "name": "Upper · Block 2026-09",
+    "entries": [
+     {
+      "id": "1326",
+      "sets": [
+       {
+        "w": 0,
+        "r": 6,
+        "done": true,
+        "phase": "warmup",
+        "rpe": 6
+       },
+       {
+        "w": 10,
+        "r": 8,
+        "done": true,
+        "rpe": 8.5
+       },
+       {
+        "w": 10,
+        "r": 8,
+        "done": true,
+        "rpe": 9
+       },
+       {
+        "w": 10,
+        "r": 9,
+        "done": true,
+        "rpe": 9.5
+       }
+      ],
+      "topW": 10
+     }
+    ],
+    "prs": [],
+    "vol": 7413,
+    "_ts": 1793890147114,
+    "_f": {
+     "entries": 1793890147114
+    }
+   },
+   {
+    "id": "iwfp6ie5n94d",
+    "d": "2026-11-05",
+    "start": 1793857222000,
+    "end": 1793863673000,
+    "routineId": null,
+    "name": "Upper · Block 2026-10",
+    "entries": [
+     {
+      "id": "0025",
+      "sets": [
+       {
+        "w": 20,
+        "r": 10,
+        "done": true,
+        "phase": "warmup",
+        "rpe": 6
+       },
+       {
+        "w": 40,
+        "r": 7,
+        "done": true,
+        "phase": "warmup",
+        "rpe": 6
+       },
+       {
+        "w": 70,
+        "r": 5,
+        "done": true,
+        "phase": "warmup",
+        "rpe": 6
+       },
+       {
+        "w": 102.5,
+        "r": 6,
+        "done": true,
+        "rpe": 8.5
+       },
+       {
+        "w": 102.5,
+        "r": 6,
+        "done": true,
+        "rpe": 9
+       },
+       {
+        "w": 102.5,
+        "r": 6,
+        "done": true,
+        "rpe": 9.5
+       }
+      ],
+      "topW": 102.5
+     },
+     {
+      "id": "0652",
+      "sets": [
+       {
+        "w": 0,
+        "r": 6,
+        "done": true,
+        "phase": "warmup",
+        "rpe": 7
+       },
+       {
+        "w": 5,
+        "r": 8,
+        "done": true,
+        "rpe": 8
+       },
+       {
+        "w": 5,
+        "r": 9,
+        "done": true,
+        "rpe": 8.5
+       },
+       {
+        "w": 5,
+        "r": 8,
+        "done": true,
+        "rpe": 9.5
+       }
+      ],
+      "topW": 5
+     }
+    ],
+    "prs": [],
+    "vol": 7293.5
+   }
+  ]
+ },
+ "rev": 3
+}
