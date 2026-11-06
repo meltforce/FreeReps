@@ -551,11 +551,11 @@ export interface SourceActivity {
 }
 
 export interface SourcePriorityConfig {
-  rules: SourcePriorityRule[];
-  sources: string[];
+  rules: SourcePriorityRule[] | null;
+  sources: string[] | null;
   categories: string[];
   activity: SourceActivity[] | null;
-  default: string[];
+  default: string[] | null;
 }
 
 export async function fetchSourcePriority(): Promise<SourcePriorityConfig> {
