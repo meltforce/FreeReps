@@ -108,7 +108,7 @@ func TestIngestSkipsSleepWhenAProviderSyncsIt(t *testing.T) {
 	ctx := context.Background()
 	p := NewProvider(db, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
-	if err := db.UpsertSourcePriority(ctx, sleepTestUser, "_default", []string{"Oura", "", "Withings"}); err != nil {
+	if err := db.UpsertSourcePriority(ctx, sleepTestUser, "sleep", []string{"Oura", ""}); err != nil {
 		t.Fatalf("setting priority: %v", err)
 	}
 
@@ -157,9 +157,9 @@ func TestIngestWritesSleepWhenNoProviderClaimsIt(t *testing.T) {
 	}
 }
 
-// TestSleepCategoryRuleOutranksTheDefault pins that a category rule wins, the
-// way ResolveSourcePriority reads it: a user who leads with Oura by default but
-// names Apple Health for sleep keeps their sleep from this endpoint.
+// TestSleepCategoryRuleOutranksTheDefault pins that an explicit sleep rule wins:
+// a user who leads with Oura by default but names Apple Health for sleep keeps
+// their sleep from this endpoint.
 func TestSleepCategoryRuleOutranksTheDefault(t *testing.T) {
 	db := sleepTestDB(t)
 	ctx := context.Background()
@@ -177,5 +177,24 @@ func TestSleepCategoryRuleOutranksTheDefault(t *testing.T) {
 	}
 	if n := countSleepStages(t, db); n != 3 {
 		t.Errorf("wrote %d sleep stages, want 3 — the sleep rule names Apple Health", n)
+	}
+}
+
+// TestSleepDefaultPriorityDoesNotBlockIngest pins the fix for the bug where the
+// global default ["Withings", "Oura", ""] caused sleepClaimedBySync to return
+// true for users who have neither provider. Only an explicit sleep rule should
+// be able to claim sleep for a syncing provider.
+func TestSleepDefaultPriorityDoesNotBlockIngest(t *testing.T) {
+	db := sleepTestDB(t)
+	ctx := context.Background()
+	p := NewProvider(db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	db.SourcePriority = []string{"Withings", "Oura", ""}
+
+	if _, err := p.Ingest(ctx, sleepCategoryPayload(t), sleepTestUser); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if n := countSleepStages(t, db); n != 3 {
+		t.Errorf("wrote %d sleep stages, want 3 — the global default must not block sleep", n)
 	}
 }
