@@ -36,8 +36,11 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
+      # From the Go module proxy, not GitHub releases — homelab STANDARDS.md
+      # § CI / Forgejo Actions, golangci-lint.
       - uses: golangci/golangci-lint-action@v9
         with:
+          install-mode: goinstall
           version: v2.15.0
           working-directory: server
       # Blocking: a reachable vulnerability fails the job, and with it
