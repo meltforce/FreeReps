@@ -87,7 +87,7 @@ jobs:
     # caller still reports success (cast2md lost its :edge builds that way for
     # a month). `github.ref` stays correct and is refs/pull/N/merge on PRs.
     if: github.ref == 'refs/heads/main'
-    uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v7
+    uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v8
     with:
       app_name: freereps
       # smokey, the homelab VM shared by the in-house tsnet apps, since
