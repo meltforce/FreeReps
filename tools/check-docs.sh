@@ -93,7 +93,9 @@ check_documents() {
       fail=1
     fi
 
-    if grep -oE '^\| *\[[a-z]+' ROADMAP.md | grep -vqE '\[open'; then
+    # The whole token is matched, closing bracket included: a prefix match on
+    # "[open" would accept "[opened]" or "[open-ish]".
+    if grep -oE '^\| *\[[^]|]*\]?' ROADMAP.md | grep -vqE '^\| *\[open\]$'; then
       echo "ROADMAP.md: unknown status token"
       fail=1
     fi
@@ -111,8 +113,12 @@ check_documents() {
     fi
 
     if has_module language-en; then
-      # Decimal comma in a measurement.
-      if grep -qE '[0-9],[0-9]+ ?(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB|k|M|G|T)\b' "$f"; then
+      # Decimal comma in a measurement. A comma followed by exactly three digits
+      # is a thousands separator (1,234 GB), which the language rule allows; a
+      # comma followed by one, two, or four or more digits is a decimal comma
+      # (1,5 GB, 1,82 GB). The leading class keeps the match from starting in
+      # the middle of a grouped number (12,345,6 GB).
+      if grep -qE '(^|[^0-9,])[0-9]+(,[0-9]{3})*,([0-9]{1,2}|[0-9]{4,}) ?(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB|k|M|G|T)\b' "$f"; then
         echo "$f: decimal comma in a figure — use a decimal point"
         fail=1
       fi
