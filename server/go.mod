@@ -9,7 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/mark3labs/mcp-go v1.5.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.61.1
+	modernc.org/sqlite v1.62.0
 	tailscale.com v1.104.5
 )
 
@@ -69,7 +69,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v1.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72 // indirect
-	modernc.org/libc v1.79.0 // indirect
+	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
