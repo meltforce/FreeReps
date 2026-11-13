@@ -8,7 +8,7 @@
 `database-schema.md`. Read the spec before changing an ingest path. *Why:* the
 payloads come from third-party apps whose shape is not derivable from this repo,
 and a mismatch surfaces as silently dropped rows rather than an error (see
-[`INCIDENTS.md`](../INCIDENTS.md), 2026-04-08).
+[`archive/INCIDENTS.md`](../archive/INCIDENTS.md), 2026-04-08).
 
 Upstream references not reproduced in `specs/`:
 
@@ -21,7 +21,7 @@ Upstream references not reproduced in `specs/`:
 A query against `freereps-db-1` bounds `health_metrics` by `time` and runs under
 `SET statement_timeout = '20s'`. *Why:* the host has 2048 MB, and an aggregate
 over every chunk of the hypertable was killed for memory and restarted the
-database server on 2026-09-27 (`INCIDENTS.md`).
+database server on 2026-09-27 (`archive/INCIDENTS.md`).
 
 ## Integration tests
 
@@ -60,7 +60,7 @@ delete test data: the `storage` tests remove their own user's rows, and
 `internal/ingest/alpha/ingest_integration_test.go` runs `TRUNCATE workout_sets`.
 *Why the scratch server rather than a fake:* the property these tests
 check is enforced by a unique constraint, so a fake store would assert the
-fake's behaviour — see the 2026-08-10 entry in [`INCIDENTS.md`](../INCIDENTS.md).
+fake's behaviour — see the 2026-08-10 entry in [`archive/INCIDENTS.md`](../archive/INCIDENTS.md).
 
 **Rehearsing a data migration.** The same container takes a restore of the
 deployed data, which is how the two dedupe migrations were checked before they

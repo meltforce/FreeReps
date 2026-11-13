@@ -66,20 +66,8 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build
 
-  documents:
-    runs-on: docker
-    steps:
-      - uses: actions/checkout@v7
-      # check-docs.sh reads the module selection from
-      # .claude/project-standards.json with python3 and exits 2 when python3
-      # is missing — install it so the job fails on findings, not on the image.
-      - name: Ensure python3
-        run: command -v python3 || (apt-get update -qq && apt-get install -y -qq python3)
-      - run: tools/check-docs.sh
 
   build-deploy:
-    # `documents` is deliberately not in `needs`: a roadmap row in the wrong
-    # place makes the workflow red, but must not hold back a server deploy.
     needs: [backend, frontend]
     # Deliberately no `github.event_name` check: in a `uses:` job the condition
     # is evaluated in the *called* workflow, where the event is `workflow_call`

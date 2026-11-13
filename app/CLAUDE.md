@@ -20,7 +20,7 @@ rejects (ITMS-90626). Its header carries both reasons.
 ## App Store review server
 
 A submission needs a server the reviewer can reach, because the production
-instance is tailnet-only (`DECISIONS.md`, 2026-09-20). It is deployed and
+instance is tailnet-only (`archive/DECISIONS.md`, 2026-09-20). It is deployed and
 removed with the homelab tool `tools/review-server` — its `README.md` there
 governs; nothing about it is restated here:
 
@@ -30,5 +30,5 @@ governs; nothing about it is restated here:
 ```
 
 Review notes: host `freereps-test.meltforce.net`, HTTPS on, port 443; the
-instance holds 90 days of generated demo data. Add a ROADMAP row to destroy it
+instance holds 90 days of generated demo data. Add a ROADMAP line to destroy it
 when the submission goes in, and remove the row when `destroy` has run.

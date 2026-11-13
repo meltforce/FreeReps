@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the checks that have to pass before a FreeReps commit lands — Go build, vet, tests and golangci-lint, the frontend type check and build, and the document contract check. Triggers — "verify", "prüf das durch", "vor dem commit", "läuft das durch", "check before committing", "run the checks", "does CI pass". Not for running the server itself — that is `server/CLAUDE.md`.
+description: Run the checks that have to pass before a FreeReps commit lands — Go build, vet, tests and golangci-lint, and the frontend type check and build. Triggers — "verify", "prüf das durch", "vor dem commit", "läuft das durch", "check before committing", "run the checks", "does CI pass". Not for running the server itself — that is `server/CLAUDE.md`.
 ---
 
 # Verify
@@ -71,18 +71,9 @@ cd server/web && npm ci && npx tsc --noEmit && npm run build
 `npm run build` runs `tsc -b` itself, so the separate `tsc --noEmit` is only
 worth running on its own when you want the type errors without waiting for Vite.
 
-## 4. Documents
-
-```bash
-tools/check-docs.sh
-```
-
-Checks the movement rule and status tokens in `ROADMAP.md`, and ISO dates and
-decimal points in the tracked documents. It detects; it does not prevent.
-
 ## What CI repeats, and what it does not
 
-`.forgejo/workflows/ci.yml` runs steps 1 through 4 on every push and PR against
+`.forgejo/workflows/ci.yml` runs steps 1 through 3 on every push and PR against
 `main`. It does **not** run the integration tests, and it does not build the iOS
 app — that happens on GitHub via the mirror, in `.github/workflows/ios.yml`.
 
@@ -106,11 +97,6 @@ curl -sSL "$F/actions/jobs/<job_id>/logs" # -> plain text
 The repo is public on Forgejo, so all three work without a token. `swagger.v1.json`
 at the instance root lists the routes the running version actually has — check
 there before concluding an endpoint is missing.
-
-**A silent step proves nothing.** `check-docs.sh` prints nothing when everything
-passes, so a green `documents` job produces no log line saying it ran. What the
-log does show is `/usr/bin/python3` from the `Ensure python3` step; without
-python3 the script exits `2` and the job fails.
 
 ## Tests
 

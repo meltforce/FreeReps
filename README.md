@@ -117,7 +117,7 @@ Other apps compute scores but are closed-source, subscription-based, and opaque.
 
 Every inbound channel writes into one store, and overlapping measurements are
 resolved when a query runs rather than at ingest — see
-[`DECISIONS.md`](DECISIONS.md), 2026-03-25.
+[`archive/DECISIONS.md`](archive/DECISIONS.md), 2026-03-25.
 
 ## Design Principles
 
@@ -172,7 +172,7 @@ Apple Health data reaches FreeReps through the FreeReps iOS app or through
 Health Auto Export. Both post to `/api/v1/ingest` and both write their rows
 with an empty source; the server tells them apart by the client
 (`health_metrics.client`), and where both delivered the same window the app's
-rows count — see [`DECISIONS.md`](DECISIONS.md), 2026-09-25.
+rows count — see [`archive/DECISIONS.md`](archive/DECISIONS.md), 2026-09-25.
 
 ### FreeReps iOS app
 
@@ -310,7 +310,7 @@ startup rather than producing a URI the provider rejects at the end of a flow.
 `GET /v1/workouts/events?since=` every 30 minutes, which carries creations,
 updates *and* deletions, so a correction made in the app reaches the server on
 the next run. Hevy's webhook is not used —
-[`DECISIONS.md`](DECISIONS.md), 2026-08-04, has the reasoning.
+[`archive/DECISIONS.md`](archive/DECISIONS.md), 2026-08-04, has the reasoning.
 
 **Data synced:** sessions with exercise, set, rep, weight and effort data. RPE
 and RIR are stored on their own scales rather than converted at ingest. The
@@ -383,7 +383,7 @@ The export carries a bare wall clock with no time zone, and the resulting
 instant is part of a row's natural key. `ingest.session_timezone` in
 `config.yaml` decides how that clock is read, and it has to be the same on every
 host that imports the same export — reading one export in two zones stores every
-session twice ([`INCIDENTS.md`](INCIDENTS.md), 2026-08-10).
+session twice ([`archive/INCIDENTS.md`](archive/INCIDENTS.md), 2026-08-10).
 
 ## Supported Metrics
 
@@ -759,8 +759,8 @@ an identity, so a health check needs no credentials.
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Conventions and gotchas for working in this repo. |
 | [`ROADMAP.md`](ROADMAP.md) | Open work. |
-| [`DECISIONS.md`](DECISIONS.md) | Decisions taken, with reasoning. |
-| [`INCIDENTS.md`](INCIDENTS.md) | Postmortems. |
+| [`archive/DECISIONS.md`](archive/DECISIONS.md) | Decisions taken, with reasoning. |
+| [`archive/INCIDENTS.md`](archive/INCIDENTS.md) | Postmortems. |
 | [`server/specs/`](server/specs/) | Wire formats and payload shapes of the ingest sources. |
 | [`app/README.md`](app/README.md) | The iOS companion app. |
 | [`docs/mcp-server.md`](docs/mcp-server.md) | The MCP server in detail. |
