@@ -34,6 +34,10 @@ import (
 // Version is set at build time via -ldflags.
 var Version = "dev"
 
+// BuildSHA is the commit the binary was built from, set at build time via
+// -ldflags from the BUILD_SHA build argument. /healthz reports it.
+var BuildSHA = "dev"
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	migrateOnly := flag.Bool("migrate-only", false, "run migrations and exit")
@@ -125,6 +129,7 @@ func main() {
 
 	// Create server
 	server.Version = Version
+	server.BuildSHA = BuildSHA
 	srv := server.New(db, healthProvider, alphaProvider, log)
 	// Empty by default: the OAuth redirect URIs are then derived from the request
 	// that starts the flow (internal/server.callbackURL).

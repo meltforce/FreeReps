@@ -36,12 +36,15 @@ COPY web.go ./
 # web.go embeds all:web/dist, so the assets have to be in place before the build.
 COPY --from=frontend /build/dist ./web/dist
 
+# Declared here and not at the top of the stage: it changes with every commit,
+# and the layers above stay cached.
+ARG BUILD_SHA=dev
 # The build cache is what makes an incremental build incremental: without it Go
 # recompiles every dependency, tailscale.com included, on every run.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags "-X main.Version=${VERSION}" -o freereps ./cmd/freereps
+    go build -ldflags "-X main.Version=${VERSION} -X main.BuildSHA=${BUILD_SHA}" -o freereps ./cmd/freereps
 
 # Stage 3: Runtime
 FROM alpine:3.24

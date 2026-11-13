@@ -106,3 +106,29 @@ func TestIngestLogSource(t *testing.T) {
 		}
 	}
 }
+
+// TestHandleHealthz verifies that /healthz is a registered route answering
+// status and build SHA as JSON, not the SPA fallback's index.html.
+func TestHandleHealthz(t *testing.T) {
+	orig := BuildSHA
+	BuildSHA = "0123456789abcdef0123456789abcdef01234567"
+	defer func() { BuildSHA = orig }()
+
+	s := &Server{}
+	rec := httptest.NewRecorder()
+	s.handleHealthz(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var resp map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp["status"] != "ok" || resp["sha"] != BuildSHA {
+		t.Errorf("body = %v, want status ok and sha %s", resp, BuildSHA)
+	}
+}

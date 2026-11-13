@@ -14,6 +14,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// handleHealthz reports that the process serves and which commit it was
+// built from (homelab STANDARDS.md § Image registry & tagging).
+func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "sha": BuildSHA})
+}
+
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"version": Version})
 }

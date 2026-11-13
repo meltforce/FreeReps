@@ -136,6 +136,9 @@ func (s *Server) SetWithings(tm *withings.TokenManager, syncer *withings.Syncer)
 // Version is set by main to make it available to handlers.
 var Version = "dev"
 
+// BuildSHA is set by main; /healthz reports it.
+var BuildSHA = "dev"
+
 // New creates a new Server with all routes configured.
 func New(db *storage.DB, healthProvider *health.Provider, alphaProvider *alpha.Provider, log *slog.Logger) *Server {
 	s := &Server{
@@ -196,7 +199,10 @@ func (s *Server) routes() {
 	s.router.Use(RequestLogging(s.log))
 	s.router.Use(CORS)
 
-	// Public endpoint — no auth required.
+	// Public endpoints — no auth required. /healthz is registered so that the
+	// SPA fallback does not answer it: the fallback returns index.html with
+	// 200 for any path.
+	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/api/v1/version", s.handleVersion)
 
 	// All routes require identity (Tailscale or dev fallback).
