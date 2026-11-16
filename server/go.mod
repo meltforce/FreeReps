@@ -10,7 +10,7 @@ require (
 	github.com/mark3labs/mcp-go v1.5.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.62.0
-	tailscale.com v1.104.6
+	tailscale.com v1.104.7
 )
 
 require (
