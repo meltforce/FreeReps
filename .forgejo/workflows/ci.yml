@@ -15,6 +15,7 @@ on:
 
 jobs:
   backend:
+    timeout-minutes: 30
     runs-on: docker
     defaults:
       run:
@@ -51,6 +52,7 @@ jobs:
           govulncheck ./...
 
   frontend:
+    timeout-minutes: 15
     runs-on: docker
     defaults:
       run:
@@ -106,6 +108,7 @@ jobs:
     # No event_name check, so push, schedule and workflow_dispatch all notify.
     needs: [backend, frontend, build-deploy]
     if: failure() && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
     runs-on: host
     steps:
       - name: ntfy alert
