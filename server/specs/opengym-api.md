@@ -367,6 +367,15 @@ on source (roadmap row *Source deduplication in the training aggregates*).
   rows stay. `checkSourceStale` stays silent for a user whose newest run is
   older than the threshold (`DECISIONS.md`, 2026-09-27), so removing the key
   produces no alert.
+- **Apple Health carries a second path.** The openGym iOS app writes every
+  workout of its state to Apple Health as source `openGym`, bundle
+  `ch.opengym.app`, and the iOS ingest stores it as a `workouts` row. Before
+  v1.4.5 that included imported workouts (upstream issue #881), so a Hevy
+  session came back as an openGym workout and `RecordedBy` named openGym for it.
+  v1.4.5 skips imported workouts and removes the copies it wrote; FreeReps does
+  not receive HealthKit deletions, so a copy already ingested stays until it is
+  deleted from `workouts`. An `openGym` workout dated before `sync_from` is such
+  a copy, not a session logged in openGym.
 
 ### Alerts
 
