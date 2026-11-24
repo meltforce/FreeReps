@@ -28,8 +28,8 @@ export default function SourcesTab() {
 
   useEffect(() => {
     if (!config.data) return;
-    const rule = config.data.rules.find((r) => r.category === DEFAULT_CATEGORY);
-    setOrder(rule?.sources ?? config.data.default ?? config.data.sources);
+    const rule = (config.data.rules ?? []).find((r) => r.category === DEFAULT_CATEGORY);
+    setOrder(rule?.sources ?? config.data.default ?? config.data.sources ?? []);
   }, [config.data]);
 
   // Keyed by the source value itself, so the lookup cannot silently miss the
@@ -60,7 +60,7 @@ export default function SourcesTab() {
   }
 
   const saved =
-    config.data?.rules.find((r) => r.category === DEFAULT_CATEGORY)?.sources ??
+    (config.data?.rules ?? []).find((r) => r.category === DEFAULT_CATEGORY)?.sources ??
     config.data?.default ??
     [];
   const changed = order.join("|") !== saved.join("|");
