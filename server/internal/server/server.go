@@ -38,6 +38,8 @@ type Server struct {
 	auth     *auth.Auth
 	accounts *accounts.Accounts
 	users    userLoader
+	// Pending app logins (handlers_app_login.go).
+	appLogins appLoginCodes
 
 	// Oura integration (nil if disabled)
 	ouraTokenMgr *oura.TokenManager
@@ -238,6 +240,7 @@ func (s *Server) SetAuth(a *auth.Auth, acc *accounts.Accounts) {
 	s.auth = a
 	s.accounts = acc
 	s.router.Handle("/auth/*", a.Handler())
+	s.mountAppLogin(a)
 }
 
 func (s *Server) routes() {
@@ -380,7 +383,7 @@ func (s *Server) SetFrontend(webFS fs.FS) {
 		// API and well-known paths must not fall through to the SPA. Neither
 		// must auth/: without application login its 404 is how /login learns
 		// that there is nothing to sign in to.
-		if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "auth/") || strings.HasPrefix(path, ".well-known/") {
+		if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "auth/") || strings.HasPrefix(path, "app-login/") || strings.HasPrefix(path, ".well-known/") {
 			http.NotFound(w, r)
 			return
 		}

@@ -193,6 +193,11 @@ TLS; `auth.base_url` is the address users reach. The keys are in
   `Authorization: Bearer <token>`. Scope `api` is for the iOS app, Health Auto
   Export and `freereps-upload`; scope `mcp` is for `/mcp`, which a browser
   session does not satisfy.
+- **iOS app.** **Sign In** in the app's settings opens the server's login in
+  a browser sheet and receives a token of its own (scope `api`, named after
+  the device, no expiry); **Sign Out** revokes it. The handoff is an
+  authorization code flow with PKCE: `/app-login/authorize`, then
+  `POST /api/v1/app-login/token`.
 - **Command line**, for an instance without OIDC or without a browser at hand:
 
   ```bash
