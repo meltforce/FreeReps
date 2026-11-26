@@ -1,5 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { fetchMe, type UserInfo } from "../api";
 import PageHeader from "../components/PageHeader";
+import AccountTab from "../components/settings/AccountTab";
 import AlertsTab from "../components/settings/AlertsTab";
 import FrontPageTab from "../components/settings/FrontPageTab";
 import HevyTab from "../components/settings/HevyTab";
@@ -9,6 +12,7 @@ import IngestTab from "../components/settings/IngestTab";
 import OpenGymTab from "../components/settings/OpenGymTab";
 import OuraTab from "../components/settings/OuraTab";
 import SourcesTab from "../components/settings/SourcesTab";
+import UsersTab from "../components/settings/UsersTab";
 import WithingsTab from "../components/settings/WithingsTab";
 import { useIsDesktop } from "../hooks/useMediaQuery";
 
@@ -17,6 +21,8 @@ import { useIsDesktop } from "../hooks/useMediaQuery";
    with the old layout. */
 const TABS = [
   { id: "identity", label: "Identity", render: () => <IdentityTab /> },
+  { id: "account", label: "Account", render: () => <AccountTab /> },
+  { id: "users", label: "Users", render: () => <UsersTab /> },
   { id: "sources", label: "Sources", render: () => <SourcesTab /> },
   { id: "oura", label: "Oura", render: () => <OuraTab /> },
   { id: "withings", label: "Withings", render: () => <WithingsTab /> },
@@ -30,13 +36,23 @@ const TABS = [
 
 type TabID = (typeof TABS)[number]["id"];
 
-const VALID = new Set<string>(TABS.map((t) => t.id));
+/* Account and Users exist only with application login; Users only for an
+   admin, because /admin/users answers 404 to everyone else. */
+function visibleTabs(me: UserInfo | undefined) {
+  return TABS.filter((t) => {
+    if (t.id === "account") return me?.auth_enabled === true;
+    if (t.id === "users") return me?.auth_enabled === true && me.is_admin;
+    return true;
+  });
+}
 
 export default function SettingsPage() {
   const isDesktop = useIsDesktop();
   const [params, setParams] = useSearchParams();
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchMe });
+  const tabs = visibleTabs(me.data);
   const raw = params.get("tab");
-  const active: TabID = raw && VALID.has(raw) ? (raw as TabID) : "identity";
+  const active: TabID = tabs.find((t) => t.id === raw)?.id ?? "identity";
 
   const setTab = (id: TabID) => {
     const p = new URLSearchParams(params);
@@ -51,7 +67,7 @@ export default function SettingsPage() {
       <>
         <PageHeader kicker="FreeReps" title="Settings" />
         <div style={{ borderTop: "2px solid var(--color-text)" }}>
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <section
               key={tab.id}
               className="page-x"
@@ -81,7 +97,7 @@ export default function SettingsPage() {
         }}
       >
         <div className="rail">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               className="rail-item"
@@ -104,7 +120,7 @@ export default function SettingsPage() {
             paddingBottom: 40,
           }}
         >
-          {TABS.find((t) => t.id === active)?.render()}
+          {tabs.find((t) => t.id === active)?.render()}
         </div>
       </div>
     </>

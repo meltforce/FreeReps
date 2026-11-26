@@ -34,6 +34,23 @@ func NewClient(serverURL string) *Client {
 	}
 }
 
+// SetToken makes every request carry a personal access token (scope api),
+// which a server with application login requires.
+func (c *Client) SetToken(token string) {
+	c.httpClient.Transport = bearerTransport{token: token, base: http.DefaultTransport}
+}
+
+type bearerTransport struct {
+	token string
+	base  http.RoundTripper
+}
+
+func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+t.token)
+	return t.base.RoundTrip(r)
+}
+
 // FetchAllowlist retrieves the enabled metric names from the server.
 func (c *Client) FetchAllowlist() (map[string]bool, error) {
 	resp, err := c.httpClient.Get(c.serverURL + "/api/v1/allowlist")

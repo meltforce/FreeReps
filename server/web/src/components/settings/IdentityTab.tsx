@@ -18,6 +18,8 @@ export default function IdentityTab() {
   const version = useQuery({ queryKey: ["version"], queryFn: fetchVersion });
   const stats = useQuery({ queryKey: ["stats"], queryFn: fetchStats });
 
+  const method = me.data?.auth_method;
+
   const rows = stats.data
     ? `${formatNumber(stats.data.total_metric_rows)} metric rows · ${formatNumber(
         stats.data.total_workouts,
@@ -27,8 +29,11 @@ export default function IdentityTab() {
   return (
     <>
       <TabHeader title="Identity">
-        This server holds one person's data. Identity comes from the reverse
-        proxy, so there is nothing to log into.
+        {method === "session"
+          ? "Signed in through application login. Sessions and access tokens are under Account."
+          : method === "dev"
+            ? "Requests run as the local development user; no login is configured."
+            : "This server holds one person's data. Identity comes from the reverse proxy, so there is nothing to log into."}
       </TabHeader>
 
       <Row label="Display name">
@@ -38,9 +43,13 @@ export default function IdentityTab() {
         <span style={MONO}>{me.data?.login ?? "—"}</span>
       </Row>
       <Row label="Provided by">
-        {me.data?.tailnet
-          ? `Tailscale · ${me.data.tailnet}`
-          : "Tailscale reverse proxy header"}
+        {method === "session"
+          ? "Application login"
+          : method === "dev"
+            ? "Local development user"
+            : me.data?.tailnet
+              ? `Tailscale · ${me.data.tailnet}`
+              : "Tailscale reverse proxy header"}
       </Row>
       <Row label="Server version">
         <span style={MONO}>{version.data?.version ?? "—"}</span>

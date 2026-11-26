@@ -350,3 +350,47 @@ func TestIngestTimezoneEnvOverride(t *testing.T) {
 		t.Errorf("resolved location = %q, want America/New_York", cfg.Ingest.Location)
 	}
 }
+
+// TestAuthBlock: the auth block is optional, and its defaults decide who gets
+// an account. A typo in accounts.policy must fail startup instead of opening
+// or closing registration silently.
+func TestAuthBlock(t *testing.T) {
+	const base = "database:\n  host: localhost\n  port: 5432\n  name: freereps\n  user: freereps\n  password: x\ningest:\n  session_timezone: Europe/Berlin\n"
+	write := func(t *testing.T, body string) string {
+		t.Helper()
+		p := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(p, []byte(base+body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	cfg, err := Load(write(t, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Auth != nil {
+		t.Fatal("auth must be off without an auth: block")
+	}
+
+	t.Setenv("FREEREPS_OIDC_CLIENT_SECRET", "s3cret")
+	cfg, err = Load(write(t, "auth:\n  base_url: https://freereps.example.net\n  methods: [oidc]\n  oidc:\n    issuer: https://idp.example.net\n    client_id: abc\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Accounts.Policy != PolicyClosed || cfg.Auth.TokenPrefix != "freereps" || cfg.Auth.OIDC.ClientSecret != "s3cret" {
+		t.Fatalf("defaults: policy %q prefix %q secret %q", cfg.Accounts.Policy, cfg.Auth.TokenPrefix, cfg.Auth.OIDC.ClientSecret)
+	}
+
+	if _, err := Load(write(t, "auth:\n  base_url: https://x.example.net\n  methods: [password]\naccounts:\n  policy: open\n")); err == nil {
+		t.Fatal("unknown accounts.policy accepted")
+	}
+	if _, err := Load(write(t, "auth:\n  methods: [password]\n")); err == nil {
+		t.Fatal("auth without base_url accepted")
+	}
+
+	a := AccountsConfig{AllowedEmailDomains: []string{"@Example.net"}}
+	if !a.AllowsEmail("a@example.NET") || a.AllowsEmail("a@other.net") || a.AllowsEmail("nodomain") {
+		t.Fatal("AllowsEmail")
+	}
+}

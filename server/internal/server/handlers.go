@@ -24,9 +24,21 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"version": Version})
 }
 
+// meResponse is UserInfo plus whether application login is on; without it
+// there is no session to end and no account page.
+type meResponse struct {
+	UserInfo
+	AuthEnabled bool `json:"auth_enabled"`
+}
+
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	info := userInfoFromContext(r)
-	writeJSON(w, http.StatusOK, info)
+	// Without application login there is no admin flag to consult: every
+	// caller administers the instance, as before.
+	if s.auth == nil {
+		info.IsAdmin = true
+	}
+	writeJSON(w, http.StatusOK, meResponse{UserInfo: info, AuthEnabled: s.auth != nil})
 }
 
 

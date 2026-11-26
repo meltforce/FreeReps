@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/claude/freereps/internal/accounts"
 	"github.com/claude/freereps/internal/alerts"
 	"github.com/claude/freereps/internal/hevy"
 	"github.com/claude/freereps/internal/ingest/alpha"
@@ -18,6 +19,7 @@ import (
 	"github.com/claude/freereps/internal/storage"
 	"github.com/claude/freereps/internal/withings"
 	"github.com/go-chi/chi/v5"
+	"github.com/meltforce/meltkit/pkg/auth"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"tailscale.com/client/local"
 )
@@ -30,6 +32,12 @@ type Server struct {
 	log    *slog.Logger
 	lc     *local.Client
 	router chi.Router
+
+	// Application login (nil without an auth: block). users loads the user
+	// row behind an authenticated request; it is db outside tests.
+	auth     *auth.Auth
+	accounts *accounts.Accounts
+	users    userLoader
 
 	// Oura integration (nil if disabled)
 	ouraTokenMgr *oura.TokenManager
@@ -147,6 +155,7 @@ func New(db *storage.DB, healthProvider *health.Provider, alphaProvider *alpha.P
 		alpha:  alphaProvider,
 		log:    log,
 		router: chi.NewRouter(),
+		users:  db,
 	}
 	s.routes()
 	return s
@@ -163,7 +172,8 @@ func (s *Server) SetTailscale(lc *local.Client) {
 // SetMCP mounts an MCP Streamable HTTP server at /mcp.
 // The HTTP context function injects the authenticated user ID from the HTTP
 // request into the MCP handler context, giving tools automatic user scoping.
-// MCP routes use the same Tailscale identity middleware as all other endpoints.
+// With application login /mcp takes a personal access token with scope mcp; a
+// session cookie does not satisfy it.
 func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
 	httpServer := mcpserver.NewStreamableHTTPServer(mcpSrv,
 		mcpserver.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
@@ -171,8 +181,7 @@ func (s *Server) SetMCP(mcpSrv *mcpserver.MCPServer) {
 			return freerepsmcp.WithUserID(ctx, uid)
 		}),
 	)
-	identity := s.identityMiddleware()
-	s.router.Handle("/mcp", identity(httpServer))
+	s.router.Handle("/mcp", s.identityMiddleware(auth.ScopeMCP)(httpServer))
 }
 
 // ServeHTTP implements http.Handler.
@@ -180,19 +189,55 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
-// identityMiddleware returns middleware that resolves user identity via Tailscale
-// (production) or assigns user_id=1 (dev mode). Checks s.lc at request time so
-// SetTailscale can be called after New().
-func (s *Server) identityMiddleware() func(http.Handler) http.Handler {
+// identityMiddleware returns the middleware that authenticates one route
+// group. The chain is built on the first request, so SetTailscale and SetAuth
+// may be called after New.
+//
+//   - no auth, tsnet:    Tailscale WhoIs
+//   - no auth, no tsnet: user 1 (local development)
+//   - auth:              personal access token or session with scope, then the
+//     user row; WhoIs as fallback only while tsnet runs. Without tsnet there is
+//     no fallback: DevIdentity would bypass the login.
+func (s *Server) identityMiddleware(scope string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		var once sync.Once
+		var h http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if s.lc != nil {
-				TailscaleIdentity(s.lc, s.db, s.log)(next).ServeHTTP(w, r)
-			} else {
-				DevIdentity(next).ServeHTTP(w, r)
-			}
+			once.Do(func() { h = s.buildIdentity(scope)(next) })
+			h.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (s *Server) buildIdentity(scope string) func(http.Handler) http.Handler {
+	var whois func(http.Handler) http.Handler
+	if s.lc != nil {
+		whois = TailscaleIdentity(s.lc, s.db, s.log)
+	}
+	if s.auth == nil {
+		if whois != nil {
+			return whois
+		}
+		return DevIdentity
+	}
+	opts := []auth.MiddlewareOption{auth.WithScope(scope)}
+	if whois != nil {
+		opts = append(opts, auth.WithFallback(whois))
+	}
+	authMW := s.auth.Middleware(opts...)
+	fromUser := userFromAuth(s.users, s.log)
+	return func(next http.Handler) http.Handler {
+		return authMW(fromUser(next))
+	}
+}
+
+// SetAuth switches on application login: /auth/* serves the login endpoints,
+// and the API and /mcp require a session or a personal access token.
+// Must be called before the server starts handling requests.
+func (s *Server) SetAuth(a *auth.Auth, acc *accounts.Accounts) {
+	s.auth = a
+	s.accounts = acc
+	s.router.Handle("/auth/*", a.Handler())
 }
 
 func (s *Server) routes() {
@@ -207,7 +252,7 @@ func (s *Server) routes() {
 
 	// All routes require identity (Tailscale or dev fallback).
 	s.router.Group(func(r chi.Router) {
-		r.Use(s.identityMiddleware())
+		r.Use(s.identityMiddleware(auth.ScopeAPI))
 
 		// Ingest endpoints
 		r.Route("/api/v1/ingest", func(r chi.Router) {
@@ -221,6 +266,15 @@ func (s *Server) routes() {
 
 		// User identity
 		r.Get("/api/v1/me", s.handleMe)
+
+		// Own account and user administration (404 without application login)
+		r.Get("/api/v1/account/sessions", s.handleListSessions)
+		r.Delete("/api/v1/account/sessions/{id}", s.handleRevokeSession)
+		r.Get("/api/v1/account/tokens", s.handleListTokens)
+		r.Post("/api/v1/account/tokens", s.handleCreateToken)
+		r.Delete("/api/v1/account/tokens/{id}", s.handleRevokeToken)
+		r.Get("/api/v1/admin/users", s.handleListUsers)
+		r.Put("/api/v1/admin/users/{id}", s.handleUpdateUser)
 
 		// Dashboard API endpoints
 		r.Get("/api/v1/metrics/latest", s.handleLatestMetrics)
@@ -323,8 +377,10 @@ func (s *Server) SetFrontend(webFS fs.FS) {
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[1:] // strip leading /
 
-		// API and well-known paths must not fall through to the SPA.
-		if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, ".well-known/") {
+		// API and well-known paths must not fall through to the SPA. Neither
+		// must auth/: without application login its 404 is how /login learns
+		// that there is nothing to sign in to.
+		if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "auth/") || strings.HasPrefix(path, ".well-known/") {
 			http.NotFound(w, r)
 			return
 		}

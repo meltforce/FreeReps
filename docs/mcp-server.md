@@ -6,7 +6,7 @@ Two transports are available:
 
 - **stdio** — for local Claude Code integration (pipe JSON-RPC over stdin/stdout)
 - **Streamable HTTP** — served at `/mcp` by the same HTTP server as the
-  dashboard, behind the same Tailscale identity middleware
+  dashboard, behind the same authentication (README § Access)
 
 There is no SSE endpoint. `/mcp/sse` matches no route, so the request reaches
 the dashboard handler and the response is HTML.
@@ -52,7 +52,7 @@ A client that speaks only stdio reaches it through
 }
 ```
 
-The endpoint runs through the same Tailscale-authenticated HTTP server, so each user sees only their own data.
+The endpoint runs through the same authenticated HTTP server, so each user sees only their own data. With application login the client sends a personal access token with scope `mcp` as `Authorization: Bearer <token>`.
 
 ## Available Tools
 

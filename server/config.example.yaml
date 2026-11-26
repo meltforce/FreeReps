@@ -21,6 +21,25 @@ tailscale:
   hostname: "freereps"
   state_dir: "tsnet-state"
 
+# Application login (README § Access). Without this block FreeReps identifies
+# callers by Tailscale WhoIs, or as user 1 when tailscale is disabled.
+# auth:
+#   base_url: "https://freereps.example.net"   # the origin users reach; https, or http on localhost
+#   methods: [oidc]                # oidc, password, or both
+#   session_ttl: 720h
+#   trusted_proxies: [172.16.0.0/12]   # reverse proxy peers; X-Forwarded-For is read from these only
+#   initial_admin: ""              # OIDC email or username made admin while no admin exists
+#   oidc:
+#     issuer: "https://idp.example.net"
+#     client_id: ""
+#     # client_secret: set FREEREPS_OIDC_CLIENT_SECRET instead
+#     display_name: "Single sign-on"
+#     link_by_email: true          # signs in an existing user whose login equals the email claim
+#
+# accounts:
+#   policy: closed                 # closed | oidc_auto (first OIDC login creates a user)
+#   allowed_email_domains: []      # oidc_auto only; empty admits every verified email
+
 ingest:
   # The zone the Alpha Progression CSV's session times are read in. The export
   # carries a bare wall clock with no zone, and the resulting instant is part of

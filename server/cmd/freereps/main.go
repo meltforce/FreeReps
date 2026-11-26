@@ -28,6 +28,7 @@ import (
 	"github.com/claude/freereps/internal/storage"
 	"github.com/claude/freereps/internal/withings"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/meltforce/meltkit/pkg/auth"
 	"tailscale.com/tsnet"
 )
 
@@ -39,6 +40,10 @@ var Version = "dev"
 var BuildSHA = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "auth" {
+		os.Exit(runAuthCommand(os.Args[2:]))
+	}
+
 	configPath := flag.String("config", "config.yaml", "path to config file")
 	migrateOnly := flag.Bool("migrate-only", false, "run migrations and exit")
 	mcpMode := flag.Bool("mcp", false, "run as MCP server over stdio (for Claude Code integration)")
@@ -65,6 +70,12 @@ func main() {
 	if !*mcpMode {
 		if err := storage.RunMigrations(dsn, "migrations"); err != nil {
 			log.Error("migration failed", "error", err)
+			os.Exit(1)
+		}
+		// pkg/auth keeps its own version table and migrates with or without
+		// an auth: block, so switching login on needs no extra step.
+		if err := auth.RunMigrations(dsn); err != nil {
+			log.Error("auth migration failed", "error", err)
 			os.Exit(1)
 		}
 		log.Info("migrations applied")
@@ -199,7 +210,20 @@ func main() {
 	srv.SetAlerts(alertWatcher)
 	log.Info("alert watcher started")
 
-	// Mount MCP SSE server
+	// Application login. Without an auth: block the server identifies callers
+	// by Tailscale WhoIs, or as user 1 with Tailscale disabled.
+	if cfg.Auth != nil {
+		authn, accts, err := buildAuth(cfg, db, log)
+		if err != nil {
+			log.Error("auth setup failed", "error", err)
+			os.Exit(1)
+		}
+		srv.SetAuth(authn, accts)
+		log.Info("application login enabled", "methods", cfg.Auth.Methods,
+			"policy", cfg.Accounts.Policy, "whois_fallback", cfg.Tailscale.Enabled)
+	}
+
+	// Mount the MCP Streamable HTTP server
 	mcpSrv := freerepsmcp.New(db, Version, log)
 	srv.SetMCP(mcpSrv)
 
@@ -246,7 +270,11 @@ func main() {
 			log.Error("listen failed", "addr", addr, "error", err)
 			os.Exit(1)
 		}
-		log.Info("server starting", "addr", addr, "mode", "dev (no tailscale)")
+		mode := "dev (no tailscale, every request is user 1)"
+		if cfg.Auth != nil {
+			mode = "application login"
+		}
+		log.Info("server starting", "addr", addr, "mode", mode)
 	}
 
 	httpSrv := &http.Server{Handler: srv}

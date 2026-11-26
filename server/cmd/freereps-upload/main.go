@@ -18,6 +18,7 @@ var Version = "dev"
 func main() {
 	// Common flags
 	serverURL := flag.String("server", "", "FreeReps server URL (e.g. https://freereps.tail1234.ts.net)")
+	token := flag.String("token", os.Getenv("FREEREPS_TOKEN"), "personal access token with scope api, for a server with application login (default: $FREEREPS_TOKEN)")
 	dryRun := flag.Bool("dry-run", false, "parse and convert but don't send to server")
 	version := flag.Bool("version", false, "print version and exit")
 
@@ -76,6 +77,9 @@ func main() {
 	var client *upload.Client
 	if !*dryRun {
 		client = upload.NewClient(*serverURL)
+		if *token != "" {
+			client.SetToken(*token)
+		}
 	}
 
 	if *dryRun {

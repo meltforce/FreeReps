@@ -1,4 +1,27 @@
+import { loginURL, type AuthMethod } from "./auth";
+
 const BASE = "/api/v1";
+
+// Shadows the global fetch for every request in this module. A 401 means the
+// browser has no session: it goes to /login, which returns here afterwards.
+// The promise never settles in that case, so no caller renders the 401 as an
+// error.
+async function fetch(input: string, init?: RequestInit): Promise<Response> {
+  const res = await globalThis.fetch(input, init);
+  if (res.status === 401 && !window.location.pathname.startsWith("/login")) {
+    window.location.assign(
+      loginURL(window.location.pathname + window.location.search),
+    );
+    return new Promise<Response>(() => {});
+  }
+  return res;
+}
+
+/** The `{error}` body of a failed request, or status and status text. */
+async function errorOf(res: Response): Promise<Error> {
+  const body = await res.json().catch(() => ({}));
+  return new Error(body.error || `${res.status}: ${res.statusText}`);
+}
 
 // --- Version ---
 
@@ -19,12 +42,135 @@ export interface UserInfo {
   display_name: string;
   tailscale_id?: string;
   tailnet?: string;
+  is_admin: boolean;
+  auth_method: "session" | "token" | "tailscale" | "dev";
+  /** False when the instance runs without application login. */
+  auth_enabled: boolean;
 }
 
 export async function fetchMe(): Promise<UserInfo> {
   const res = await fetch(`${BASE}/me`);
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
+}
+
+// --- Login and account ---
+
+/** null when application login is not configured (404). */
+export async function fetchAuthMethods(): Promise<AuthMethod[] | null> {
+  const res = await globalThis.fetch("/auth/methods");
+  if (res.status === 404) return null;
+  if (!res.ok) throw await errorOf(res);
+  return ((await res.json()) as { methods: AuthMethod[] | null }).methods ?? [];
+}
+
+/** Throws an Error whose message is the HTTP status. */
+export async function passwordLogin(
+  username: string,
+  password: string,
+): Promise<void> {
+  const res = await globalThis.fetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error(String(res.status));
+}
+
+export interface SessionInfo {
+  id: number;
+  method: string;
+  created_at: string;
+  expires_at: string;
+  last_used_at: string;
+  client_ip: string;
+  user_agent: string;
+  current: boolean;
+}
+
+export async function fetchSessions(): Promise<SessionInfo[]> {
+  const res = await fetch(`${BASE}/account/sessions`);
+  if (!res.ok) throw await errorOf(res);
+  return (await res.json()) ?? [];
+}
+
+export async function revokeSession(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/account/sessions/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw await errorOf(res);
+}
+
+export type TokenScope = "api" | "mcp";
+
+export interface TokenInfo {
+  id: number;
+  name: string;
+  scopes: string[];
+  created_at: string;
+  expires_at?: string;
+  last_used_at?: string;
+  expired: boolean;
+}
+
+export interface CreatedToken {
+  /** The secret; the server returns it once. */
+  token: string;
+  detail: TokenInfo;
+}
+
+export async function fetchTokens(): Promise<TokenInfo[]> {
+  const res = await fetch(`${BASE}/account/tokens`);
+  if (!res.ok) throw await errorOf(res);
+  return (await res.json()) ?? [];
+}
+
+/** `expires` is a duration such as "90d"; empty means no expiry. */
+export async function createToken(
+  name: string,
+  scopes: TokenScope[],
+  expires: string,
+): Promise<CreatedToken> {
+  const res = await fetch(`${BASE}/account/tokens`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, scopes, expires }),
+  });
+  if (!res.ok) throw await errorOf(res);
+  return res.json();
+}
+
+export async function revokeToken(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/account/tokens/${id}`, { method: "DELETE" });
+  if (!res.ok) throw await errorOf(res);
+}
+
+export interface AccountUser {
+  id: number;
+  login: string;
+  display_name: string;
+  is_admin: boolean;
+  disabled_at?: string;
+  created_at: string;
+  last_seen: string;
+}
+
+export async function fetchUsers(): Promise<AccountUser[]> {
+  const res = await fetch(`${BASE}/admin/users`);
+  if (!res.ok) throw await errorOf(res);
+  return (await res.json()) ?? [];
+}
+
+export async function updateUser(
+  id: number,
+  patch: { is_admin?: boolean; disabled?: boolean },
+): Promise<void> {
+  const res = await fetch(`${BASE}/admin/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await errorOf(res);
 }
 
 // --- Health Metrics ---

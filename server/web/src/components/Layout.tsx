@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { fetchMe } from "../api";
+import { canSignOut, signOut } from "../auth";
 import { useIsDesktop } from "../hooks/useMediaQuery";
 
 const NAV_ITEMS = [
@@ -52,6 +53,16 @@ export default function Layout({ children }: { children: ReactNode }) {
           >
             {user?.display_name || user?.login || "Settings"}
           </NavLink>
+          {canSignOut(user?.auth_method) ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ fontSize: 13, fontWeight: 500, fontFamily: "inherit" }}
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          ) : null}
         </nav>
       ) : null}
 

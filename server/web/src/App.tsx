@@ -12,6 +12,7 @@ const MetricsPage = lazy(() => import("./pages/MetricsPage"));
 const CorrelationPage = lazy(() => import("./pages/CorrelationPage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 
 /* The shell is already on screen; this only reserves the page's own height so
    the tab bar does not jump up while the chunk loads. */
@@ -31,7 +32,8 @@ function Page({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+/* Everything behind the login: the shell and the pages that query the API. */
+function Shell() {
   return (
     <Layout>
       <Routes>
@@ -101,5 +103,24 @@ export default function App() {
         />
       </Routes>
     </Layout>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Outside Layout, which queries /me and would answer 401 here. */}
+      <Route
+        path="/login"
+        element={
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <LoginPage />
+            </Suspense>
+          </ErrorBoundary>
+        }
+      />
+      <Route path="*" element={<Shell />} />
+    </Routes>
   );
 }

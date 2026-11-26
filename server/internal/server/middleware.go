@@ -34,7 +34,18 @@ type UserInfo struct {
 	DisplayName string `json:"display_name"`
 	TailscaleID string `json:"tailscale_id,omitempty"`
 	Tailnet     string `json:"tailnet,omitempty"`
+	IsAdmin     bool   `json:"is_admin"`
+	// AuthMethod is one of the Method* constants.
+	AuthMethod string `json:"auth_method"`
 }
+
+// Authentication paths reported in UserInfo.AuthMethod.
+const (
+	MethodSession   = "session"
+	MethodToken     = "token"
+	MethodTailscale = "tailscale"
+	MethodDev       = "dev"
+)
 
 // userIDFromContext returns the authenticated user's ID from the request context.
 // Returns (0, false) if no identity middleware has set a value.
@@ -60,7 +71,7 @@ func userInfoFromContext(r *http.Request) UserInfo {
 	if info, ok := r.Context().Value(userInfoKey).(UserInfo); ok {
 		return info
 	}
-	return UserInfo{Login: "local", DisplayName: "Local Dev User"}
+	return UserInfo{Login: "local", DisplayName: "Local Dev User", AuthMethod: MethodDev}
 }
 
 // TailscaleIdentity returns middleware that resolves the Tailscale user identity
@@ -143,6 +154,7 @@ func TailscaleIdentity(lc whoisClient, db userStore, log *slog.Logger) func(http
 				DisplayName: displayName,
 				TailscaleID: tsID,
 				Tailnet:     tailnet,
+				AuthMethod:  MethodTailscale,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -154,7 +166,7 @@ func TailscaleIdentity(lc whoisClient, db userStore, log *slog.Logger) func(http
 func DevIdentity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userIDKey, 1)
-		ctx = context.WithValue(ctx, userInfoKey, UserInfo{Login: "local", DisplayName: "Local Dev User"})
+		ctx = context.WithValue(ctx, userInfoKey, UserInfo{Login: "local", DisplayName: "Local Dev User", AuthMethod: MethodDev})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -181,7 +193,7 @@ func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

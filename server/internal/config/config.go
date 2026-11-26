@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	// zone name that is perfectly valid.
 	_ "time/tzdata"
 
+	"github.com/meltforce/meltkit/pkg/auth"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +31,43 @@ type Config struct {
 	Withings       WithingsConfig  `yaml:"withings"`
 	Alerts         AlertsConfig    `yaml:"alerts"`
 	SourcePriority []string        `yaml:"source_priority"`
+
+	// Auth switches on application login (meltkit pkg/auth): sessions through
+	// OIDC or local passwords, and personal access tokens. nil keeps Tailscale
+	// WhoIs as the only identity, or user 1 with Tailscale disabled.
+	Auth     *auth.Config   `yaml:"auth"`
+	Accounts AccountsConfig `yaml:"accounts"`
+}
+
+// Account policies for a first OIDC login without a matching user.
+const (
+	PolicyClosed   = "closed"
+	PolicyOIDCAuto = "oidc_auto"
+)
+
+// AccountsConfig decides what a first OIDC login without a user row gets. It
+// applies only with an `auth:` block.
+type AccountsConfig struct {
+	// Policy is "closed" (refused, the default) or "oidc_auto" (a user is
+	// created).
+	Policy string `yaml:"policy"`
+	// AllowedEmailDomains limits oidc_auto to these email domains; empty
+	// admits every email the provider verified.
+	AllowedEmailDomains []string `yaml:"allowed_email_domains"`
+}
+
+// AllowsEmail reports whether oidc_auto admits email.
+func (c AccountsConfig) AllowsEmail(email string) bool {
+	if len(c.AllowedEmailDomains) == 0 {
+		return true
+	}
+	_, domain, ok := strings.Cut(email, "@")
+	if !ok {
+		return false
+	}
+	return slices.ContainsFunc(c.AllowedEmailDomains, func(d string) bool {
+		return strings.EqualFold(strings.TrimPrefix(d, "@"), domain)
+	})
 }
 
 type ServerConfig struct {
@@ -221,6 +260,21 @@ func Load(path string) (*Config, error) {
 
 	applyEnvOverrides(cfg)
 
+	if cfg.Auth != nil {
+		if cfg.Accounts.Policy == "" {
+			cfg.Accounts.Policy = PolicyClosed
+		}
+		if cfg.Accounts.Policy != PolicyClosed && cfg.Accounts.Policy != PolicyOIDCAuto {
+			return nil, fmt.Errorf("accounts.policy must be %q or %q", PolicyClosed, PolicyOIDCAuto)
+		}
+		if cfg.Auth.TokenPrefix == "" {
+			cfg.Auth.TokenPrefix = "freereps"
+		}
+		if err := cfg.Auth.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
 	// Resolve the ingest timezone. An unknown zone name fails startup instead
 	// of falling back to UTC: a silent fallback writes session timestamps that
 	// differ from every session already stored, which is how the duplicate
@@ -333,6 +387,11 @@ func Load(path string) (*Config, error) {
 }
 
 func applyEnvOverrides(cfg *Config) {
+	// The OIDC client secret is the one auth value that is a secret; it comes
+	// from the environment so that config.yaml carries none.
+	if v := os.Getenv("FREEREPS_OIDC_CLIENT_SECRET"); v != "" && cfg.Auth != nil {
+		cfg.Auth.OIDC.ClientSecret = v
+	}
 	if v := os.Getenv("FREEREPS_SERVER_HOST"); v != "" {
 		cfg.Server.Host = v
 	}
