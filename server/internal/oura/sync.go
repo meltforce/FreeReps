@@ -389,6 +389,13 @@ func (s *Syncer) fetchAndStore(ctx context.Context, userID int, token, dataType,
 			}
 			stats.workoutHRPoints += n
 		}
+		// A route that arrived from Apple Health before its workout arrived
+		// here was stored on a workout of its own.
+		if n, err := s.db.MergeRouteCarriers(ctx, userID); err != nil {
+			s.log.Warn("merging route carriers", "error", err)
+		} else if n > 0 {
+			s.log.Info("merged route carriers into oura workouts", "user_id", userID, "count", n)
+		}
 		return nil
 
 	default:

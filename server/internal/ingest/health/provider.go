@@ -540,12 +540,31 @@ func (p *Provider) processWorkouts(ctx context.Context, workouts []models.Health
 			}
 		}
 
-		inserted, err := p.db.InsertWorkout(ctx, row)
-		if err != nil {
-			return fmt.Errorf("inserting workout %s: %w", w.ID, err)
+		// The route pass of the iOS app sends a workout that carries only its
+		// route. One whose workout a provider's own sync stored under another
+		// id hands its route to that row and is not stored (storage/route_carriers.go).
+		carrier := len(w.Route) > 0 && w.SourceBundle == "" && w.SourceName == "" &&
+			w.ActiveEnergyBurned == nil && w.TotalEnergy == nil && w.Distance == nil &&
+			w.HeartRate == nil && w.AvgHR == nil && len(w.HeartRateData) == 0
+		twinned := false
+		if carrier {
+			twin, found, err := p.db.RouteCarrierTwin(ctx, userID, workoutID, w.Start.Time, w.End.Time)
+			if err != nil {
+				return err
+			}
+			if found {
+				workoutID, twinned = twin, true
+			}
 		}
-		if inserted {
-			result.WorkoutsInserted++
+
+		if !twinned {
+			inserted, err := p.db.InsertWorkout(ctx, row)
+			if err != nil {
+				return fmt.Errorf("inserting workout %s: %w", w.ID, err)
+			}
+			if inserted {
+				result.WorkoutsInserted++
+			}
 		}
 
 		// Insert HR time-series (ON CONFLICT DO NOTHING — safe for backfill)

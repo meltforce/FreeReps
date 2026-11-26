@@ -443,6 +443,13 @@ fills and again once it is complete; under `DO NOTHING` the partial value stayed
 within one call keep the last occurrence. The count returned to the client as
 `metrics_inserted` includes changed rows; `metrics_added` counts created rows only.
 
+A workout a provider writes to Apple Health and FreeReps also syncs directly
+(Oura) is stored once, under the provider's id. The iOS app's route pass sends
+it again under HealthKit's id, without source and measurements; the ingest
+path stores that route on the provider's row (same start and end within two
+seconds) and no second workout. A route that arrived before the provider's row
+is merged by the provider's next sync (`storage/route_carriers.go`).
+
 `activity_summaries` upserts on `(user_id, date)` the same way: a day's
 summary grows until the day ends and is sent on every sync.
 
