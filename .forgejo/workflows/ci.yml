@@ -80,8 +80,8 @@ jobs:
     uses: meltforce.net/ci-workflows/.forgejo/workflows/build-push-deploy.yml@v9
     with:
       app_name: freereps
-      # smokey, the homelab VM shared by the in-house tsnet apps, since
-      # 2026-11-04 (freereps-lxc before; the tsnet node moved with its state).
+      # smokey, the homelab VM shared by the in-house apps, since
+      # 2026-11-04 (freereps-lxc before). Behind its ingress since 2026-11-26.
       target_host: smokey.coydog-fence.ts.net
       # The shared workflow's health step is gated on this input being set
       # (`if: inputs.health_url != ''`). Without it the deploy job reports
@@ -89,7 +89,7 @@ jobs:
       # about whether the service serves. vimmary lost an outage to exactly
       # that on 2026-08-06. freereps had no health check on either path — the
       # Ansible catalog entry gained one in the same change.
-      health_url: https://freereps.coydog-fence.ts.net/healthz
+      health_url: https://freereps.meltrocker.net/healthz
       # Dockerfile and build context live in server/, not at the repo root.
       build_context: server
       # The deployed compose belongs to homelab (Ansible writes compose.yaml

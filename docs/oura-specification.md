@@ -120,7 +120,7 @@ Separate from `internal/ingest/` — this is a pull integration with its own lif
 
 1. Register Oura API Application at `cloud.ouraring.com/oauth/applications`
 2. Configure `client_id` and `client_secret` in `config.yaml`
-3. "Authorize Oura" in FreeReps settings → Oura OAuth2 → callback to `https://freereps.coydog-fence.ts.net/oura/callback` (browser-side redirect, not server-to-server — works behind Tailscale)
+3. "Authorize Oura" in FreeReps settings → Oura OAuth2 → callback to `https://<your-host>/oura/callback` (browser-side redirect, not server-to-server — works behind Tailscale)
 4. Tokens stored in `oura_tokens` DB table, auto-refreshed before expiry
 
 ### Database Migration
