@@ -12,6 +12,11 @@ as an MCP server for LLMs.
 > on iOS 27, sends only what HealthKit added since the last sync, and starts a
 > sync from the app, a Home Screen widget or Siri. It needs a FreeReps server of the same release, 2.2. See
 > [iOS app](#ios-app).
+>
+> **FreeReps for iOS 2.3, which signs in to a server without Tailscale, is in
+> App Store review.** Until it is released, the App Store carries 2.2, which
+> reaches a server through Tailscale only; keep Tailscale enabled on the server
+> until the app is updated.
 
 ## Dashboard Features
 
@@ -198,7 +203,7 @@ address.
   `Authorization: Bearer <token>`. Scope `api` is for the iOS app, Health Auto
   Export and `freereps-upload`; scope `mcp` is for `/mcp`, which a browser
   session does not satisfy.
-- **iOS app.** **Sign In** in the app's settings opens the server's login in
+- **iOS app.** From app 2.3.0, **Sign In** in the app's settings opens the server's login in
   a browser sheet and receives a token of its own (scope `api`, named after
   the device, no expiry); **Sign Out** revokes it. The handoff is an
   authorization code flow with PKCE: `/app-login/authorize`, then
