@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 struct FreeRepsConfig: Codable, Equatable {
     var host: String
@@ -43,6 +44,14 @@ struct FreeRepsConfig: Codable, Equatable {
         }
         let scheme = useHTTPS ? "https" : "http"
         return URL(string: "\(scheme)://\(effectiveHost):\(effectivePort)")!
+    }
+
+    /// Token for the `Authorization` header, nil when none is stored. Test mode
+    /// sends none: the token belongs to the regular host.
+    var accessToken: String? {
+        if testMode { return nil }
+        let token = AccessTokenStore.load()
+        return token.isEmpty ? nil : token
     }
 
     /// Earliest date to backfill from, based on `backfillDays`.
@@ -104,5 +113,44 @@ struct FreeRepsConfig: Codable, Equatable {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: FreeRepsConfig.userDefaultsKey)
         }
+    }
+}
+
+/// Personal access token of the regular host, in the Keychain.
+/// Accessible after first unlock, because the Shortcuts action runs while the device is locked.
+enum AccessTokenStore {
+    private static let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: "com.meltforce.freereps.access-token",
+        kSecAttrAccount as String: "default",
+    ]
+
+    static func load() -> String {
+        var q = query
+        q[kSecReturnData as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    /// Stores the trimmed token; an empty one deletes the item.
+    @discardableResult
+    static func save(_ token: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            let status = SecItemDelete(query as CFDictionary)
+            return status == errSecSuccess || status == errSecItemNotFound
+        }
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(trimmed.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            status = SecItemAdd(query.merging(attributes) { $1 } as CFDictionary, nil)
+        }
+        return status == errSecSuccess
     }
 }

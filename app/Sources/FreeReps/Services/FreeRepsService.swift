@@ -4,6 +4,8 @@ import Foundation
 enum FreeRepsError: LocalizedError {
     case invalidURL
     case httpError(statusCode: Int, body: String)
+    case unauthorized
+    case forbidden
     case decodingError(String)
     case connectionFailed(String)
 
@@ -11,6 +13,8 @@ enum FreeRepsError: LocalizedError {
         switch self {
         case .invalidURL: return "Invalid FreeReps URL"
         case .httpError(let code, let body): return "HTTP \(code): \(body)"
+        case .unauthorized: return "Access token missing or invalid — create one under Settings → Account in the FreeReps web UI"
+        case .forbidden: return "Access denied — the access token lacks the api scope or the account is disabled"
         case .decodingError(let msg): return "Decoding error: \(msg)"
         case .connectionFailed(let msg): return "Connection failed: \(msg)"
         }
@@ -81,13 +85,15 @@ actor FreeRepsService {
 
     private let session: URLSession
     private let baseURL: URL
+    /// Personal access token, nil when none applies to the configured host.
+    private let accessToken: String?
 
     init(config: FreeRepsConfig) {
         self.baseURL = config.baseURL
+        self.accessToken = config.accessToken
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.timeoutIntervalForRequest = 120
         sessionConfig.timeoutIntervalForResource = 300
-        // Trust Tailscale certificates
         self.session = URLSession(configuration: sessionConfig)
     }
 
@@ -100,15 +106,7 @@ actor FreeRepsService {
         request.setValue(Self.clientID, forHTTPHeaderField: Self.clientHeader)
         request.httpBody = try JSONEncoder().encode(payload)
 
-        let (data, response) = try await performRequest(request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw FreeRepsError.connectionFailed("Invalid response")
-        }
-        guard http.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw FreeRepsError.httpError(statusCode: http.statusCode, body: body)
-        }
+        let data = try await performRequest(request)
 
         do {
             return try JSONDecoder().decode(IngestResult.self, from: data)
@@ -165,15 +163,7 @@ actor FreeRepsService {
         request.setValue("text/csv", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
 
-        let (responseData, response) = try await performRequest(request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw FreeRepsError.connectionFailed("Invalid response")
-        }
-        guard http.statusCode == 200 else {
-            let body = String(data: responseData, encoding: .utf8) ?? ""
-            throw FreeRepsError.httpError(statusCode: http.statusCode, body: body)
-        }
+        let responseData = try await performRequest(request)
 
         do {
             return try JSONDecoder().decode(ImportResult.self, from: responseData)
@@ -188,15 +178,7 @@ actor FreeRepsService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        let (data, response) = try await performRequest(request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw FreeRepsError.connectionFailed("Invalid response")
-        }
-        guard http.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw FreeRepsError.httpError(statusCode: http.statusCode, body: body)
-        }
+        let data = try await performRequest(request)
 
         // Return raw JSON for display
         return String(data: data, encoding: .utf8) ?? "{}"
@@ -215,23 +197,31 @@ actor FreeRepsService {
         request.httpMethod = "GET"
         request.setValue(Self.clientID, forHTTPHeaderField: Self.clientHeader)
 
-        let (data, response) = try await performRequest(request)
+        return try await performRequest(request)
+    }
 
+    /// Every request passes through here: adds the access token, returns the body of a 200.
+    private func performRequest(_ request: URLRequest) async throws -> Data {
+        var request = request
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw FreeRepsError.connectionFailed(error.localizedDescription)
+        }
         guard let http = response as? HTTPURLResponse else {
             throw FreeRepsError.connectionFailed("Invalid response")
         }
-        guard http.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw FreeRepsError.httpError(statusCode: http.statusCode, body: body)
-        }
-        return data
-    }
-
-    private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        do {
-            return try await session.data(for: request)
-        } catch {
-            throw FreeRepsError.connectionFailed(error.localizedDescription)
+        switch http.statusCode {
+        case 200: return data
+        case 401: throw FreeRepsError.unauthorized
+        case 403: throw FreeRepsError.forbidden
+        default:
+            throw FreeRepsError.httpError(statusCode: http.statusCode, body: String(data: data, encoding: .utf8) ?? "")
         }
     }
 }

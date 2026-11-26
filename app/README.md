@@ -89,7 +89,7 @@ Sources/FreeReps/
   FreeRepsApp.swift              App entry point; handles freereps://sync and file imports
   ContentView.swift              Root TabView (Sync, Settings)
   Models/
-    FreeRepsConfig.swift         Connection config (host, port, HTTPS toggle)
+    FreeRepsConfig.swift         Connection config (host, port, HTTPS toggle); access token in the Keychain
     SyncState.swift              Observable sync state
     HealthDataType.swift         All HealthKit type descriptors
     HealthRecord.swift           Record models
@@ -118,9 +118,13 @@ Sources/Shared/                  Compiled into both targets: deep link and last-
 
 ### Tailscale (production)
 
-The recommended setup. Both your iPhone and FreeReps server join the same Tailnet. Authentication is handled by Tailscale — no credentials or API keys needed. The server uses `tsnet` for zero-config TLS.
+Both your iPhone and FreeReps server join the same Tailnet. Without application login on the server, Tailscale identifies the caller and the app needs no token. The server uses `tsnet` for zero-config TLS.
 
 In the app, set **Host** to your server's Tailscale hostname (e.g., `freereps.your-tailnet.ts.net`), **Port** to `443`, and enable **HTTPS**.
+
+### Server with login (access token)
+
+A server with application login answers `401` without a personal access token. Create one in the web UI under **Settings → Account** (scope `api`) and paste it into **Access token** in the app's connection settings; **Test Connection** reports a missing or wrong token. The server has to be reachable from the iPhone, over Tailscale or a public address. The token is stored in the Keychain and sent as `Authorization: Bearer …` to the regular host only, not in test mode. Leave it empty for a Tailscale-only server. Use HTTPS: over plain HTTP the token travels unencrypted.
 
 ### Plain HTTP (local development)
 
@@ -132,8 +136,8 @@ Set **Host** to your machine's local IP (e.g., `192.168.1.100`), **Port** to `80
 
 ### Initial setup
 
-1. Install the app on an iPhone in your tailnet.
-2. In **Settings**, tap the connection row at the top, set the server's host and port, and tap **Test Connection**.
+1. Install the app on an iPhone that reaches the server (Tailscale or a public address).
+2. In **Settings**, tap the connection row at the top, set the server's host and port, enter an access token if the server has login enabled, and tap **Test Connection**.
 3. Open **Settings → Apple Health Permissions** and grant access. On iOS 27 the permission sheet has a second step: choose **All Recorded Data and Future Data**. With **Past 30 Days**, HealthKit returns nothing older and reports no error.
 4. Under **Settings → Advanced**, choose how far back the first sync reaches (one week to all data).
 5. On the **Sync** tab, tap **Full Sync**. The backfill keeps the screen on while it runs, because HealthKit is unreadable once the iPhone locks; **Keep Screen On** in Settings switches that off.

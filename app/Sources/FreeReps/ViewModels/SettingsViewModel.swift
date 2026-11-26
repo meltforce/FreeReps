@@ -13,6 +13,8 @@ enum ConnectionTestState: Equatable {
 final class SettingsViewModel: ObservableObject {
 
     @Published var config: FreeRepsConfig = .load()
+    /// Kept in the Keychain (`AccessTokenStore`), not in `config`.
+    @Published var accessToken: String = AccessTokenStore.load()
     @Published var connectionTestState: ConnectionTestState = .idle
     @Published var serverVersion: String?
     @Published var permissionsRequested: Bool = UserDefaults.standard.bool(forKey: "hk_permissions_requested")
@@ -29,12 +31,23 @@ final class SettingsViewModel: ObservableObject {
         config.save()
     }
 
+    func saveAccessToken() {
+        if !AccessTokenStore.save(accessToken) {
+            connectionTestState = .failure("The access token could not be saved to the Keychain.")
+        }
+    }
+
     // MARK: - Connection test
 
     func testConnection() {
         guard connectionTestState != .testing else { return }
-        connectionTestState = .testing
         serverVersion = nil
+        // The service reads the token from the Keychain.
+        guard AccessTokenStore.save(accessToken) else {
+            connectionTestState = .failure("The access token could not be saved to the Keychain.")
+            return
+        }
+        connectionTestState = .testing
         let cfg = config
         Task {
             let service = FreeRepsService(config: cfg)

@@ -15,7 +15,18 @@ struct FreeRepsSettingsView: View {
             } header: {
                 Text("Connection")
             } footer: {
-                Text("Your device must be on the same Tailnet as the server for authentication.")
+                Text("The server must be reachable from this iPhone (Tailscale or a public address).")
+            }
+
+            Section {
+                SecureField("Access token", text: $vm.accessToken)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textContentType(.password)
+            } header: {
+                Text("Access Token")
+            } footer: {
+                Text("Needed when the server has login enabled: create a token under Settings → Account in the FreeReps web UI. Leave empty for a Tailscale-only server. Not sent in test mode.")
             }
 
             Section {
@@ -71,6 +82,7 @@ struct FreeRepsSettingsView: View {
         }
         .navigationTitle("FreeReps Settings")
         .onChange(of: vm.config) { vm.saveConfig() }
+        .onChange(of: vm.accessToken) { vm.saveAccessToken() }
     }
 
     @ViewBuilder
