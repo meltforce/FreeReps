@@ -67,17 +67,30 @@ struct FreeRepsSettingsView: View {
                 Button {
                     vm.testConnection()
                 } label: {
-                    HStack {
-                        Label("Test Connection", systemImage: "network")
-                        Spacer()
-                        connectionTestIndicator
+                    HStack(spacing: 8) {
+                        if vm.connectionTestState == .testing {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "network")
+                        }
+                        Text("Test Connection")
                     }
-                    .contentShape(Rectangle())
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Color("Brand"))
+                .disabled(vm.connectionTestState == .testing)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
 
-                if let serverVersion = vm.serverVersion {
-                    LabeledContent("Server Version", value: serverVersion)
+            connectionTestResult
+
+            if let serverVersion = vm.serverVersion {
+                Section("Server") {
+                    LabeledContent("Version", value: serverVersion)
                 }
             }
         }
@@ -86,16 +99,26 @@ struct FreeRepsSettingsView: View {
     }
 
     @ViewBuilder
-    private var connectionTestIndicator: some View {
+    private var connectionTestResult: some View {
         switch vm.connectionTestState {
-        case .idle:
+        case .idle, .testing:
             EmptyView()
-        case .testing:
-            ProgressView().scaleEffect(0.7)
         case .success(let msg):
-            Text(msg).font(.caption).foregroundStyle(.green).lineLimit(4).multilineTextAlignment(.trailing)
+            resultRow(msg, icon: "checkmark.circle.fill", color: .green)
         case .failure(let msg):
-            Text(msg).font(.caption).foregroundStyle(.red).lineLimit(4).multilineTextAlignment(.trailing)
+            resultRow(msg, icon: "xmark.octagon.fill", color: .red)
+        }
+    }
+
+    private func resultRow(_ message: String, icon: String, color: Color) -> some View {
+        Section("Result") {
+            Label {
+                Text(message)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(color)
+            }
         }
     }
 }
