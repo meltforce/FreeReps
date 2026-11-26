@@ -160,7 +160,7 @@ frontend dependency versions in
 git clone https://github.com/meltforce/FreeReps.git
 cd FreeReps/server
 cp config.example.yaml config.yaml
-# Edit config.yaml — set database password, enable Tailscale
+# Edit config.yaml — set the database password, choose Tailscale or application login
 docker compose up -d
 ```
 
@@ -181,6 +181,11 @@ that is not a browser. With `tailscale.enabled: false` the server listens on
 plain HTTP at `server.port` and belongs behind a reverse proxy that terminates
 TLS; `auth.base_url` is the address users reach. The keys are in
 [`server/config.example.yaml`](server/config.example.yaml).
+
+Without Tailscale the server can ensure neither that it is private nor that the
+connection is encrypted. Both are the operator's responsibility: terminate TLS
+in front of it, do not publish the plain-HTTP port, and decide who can reach the
+address.
 
 - **Accounts.** `accounts.policy: closed` (default) admits only existing
   users; `oidc_auto` creates a user at the first OIDC login, optionally limited

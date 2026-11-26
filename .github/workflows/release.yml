@@ -97,40 +97,18 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # The notes of a version are written by hand into
+      # .github/release-notes/<tag>.md; a tag without that file gets the setup
+      # text and the generated changelog alone.
+      - name: Compose release body
+        run: |
+          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$notes" ]; then cat "$notes" > body.md; else : > body.md; fi
+          cat .github/release-notes/setup.md >> body.md
+
       - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
             artifacts/freereps-upload-*
-          body: |
-            ## Server Setup
-
-            **Fresh install:**
-
-            ```bash
-            git clone https://github.com/meltforce/FreeReps.git
-            cd FreeReps
-            cp server/config.example.yaml server/config.yaml
-            # Edit config.yaml — set database password, enable Tailscale
-            cd server && docker compose up -d
-            ```
-
-            **Upgrade existing server:**
-
-            ```bash
-            cd server
-            docker compose pull
-            docker compose up -d
-            ```
-
-            ## Upload Tool (macOS)
-
-            **One-liner install:**
-
-            ```bash
-            curl -sSL https://raw.githubusercontent.com/meltforce/FreeReps/main/server/scripts/install-upload.sh | bash
-            ```
-
-            **Or download manually** from the assets below and place in `/usr/local/bin/`.
-
-            Requires `lzfse`: `brew install lzfse`
+          body_path: body.md
