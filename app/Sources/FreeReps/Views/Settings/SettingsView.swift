@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     let syncViewModel: SyncViewModel
+    @Binding var showConnectionSettings: Bool
     @StateObject private var vm = SettingsViewModel()
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
     @EnvironmentObject var importState: ImportState
@@ -100,6 +101,9 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Settings")
+            .navigationDestination(isPresented: $showConnectionSettings) {
+                FreeRepsSettingsView(vm: vm)
+            }
             .fileImporter(
                 isPresented: $showFilePicker,
                 allowedContentTypes: [.commaSeparatedText],

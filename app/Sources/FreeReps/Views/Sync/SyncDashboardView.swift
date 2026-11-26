@@ -3,6 +3,7 @@ import UIKit
 
 struct SyncDashboardView: View {
     @ObservedObject var vm: SyncViewModel
+    var onOpenConnectionSettings: () -> Void = {}
     @State private var navigateToHealthPermissions = false
     @AppStorage("keepScreenOnDuringSync") private var keepScreenOnDuringSync = true
 
@@ -326,7 +327,7 @@ struct SyncDashboardView: View {
         case .healthPermissionsNotRequested, .somePermissionsDenied:
             navigateToHealthPermissions = true
         case .connectionFailed:
-            break
+            onOpenConnectionSettings()
         case .healthDataUnavailable:
             break
         }
