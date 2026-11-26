@@ -15,6 +15,11 @@ final class SettingsViewModel: ObservableObject {
     @Published var config: FreeRepsConfig = .load()
     /// Kept in the Keychain (`AccessTokenStore`), not in `config`.
     @Published var accessToken: String = AccessTokenStore.load()
+    /// Account of a token obtained by sign-in; nil without a token or with a manually entered one.
+    @Published var signedInAs: AppLoginIdentity? = AccessTokenStore.load().isEmpty ? nil : AppLoginIdentity.load()
+    @Published var isSigningIn = false
+    @Published var signInError: String?
+    @Published var signInNotice: String?
     @Published var connectionTestState: ConnectionTestState = .idle
     @Published var serverVersion: String?
     @Published var permissionsRequested: Bool = UserDefaults.standard.bool(forKey: "hk_permissions_requested")
@@ -31,9 +36,86 @@ final class SettingsViewModel: ObservableObject {
         config.save()
     }
 
-    func saveAccessToken() {
-        if !AccessTokenStore.save(accessToken) {
+    /// Stores a token typed into the manual field. Such a token has no identity.
+    func setManualToken(_ token: String) {
+        accessToken = token
+        AppLoginIdentity.clear()
+        signedInAs = nil
+        signInError = nil
+        signInNotice = nil
+        if !AccessTokenStore.save(token) {
             connectionTestState = .failure("The access token could not be saved to the Keychain.")
+        }
+    }
+
+    // MARK: - Sign-in
+
+    /// The regular host, also while test mode is on: sign-in tokens belong to it.
+    private var regularBaseURL: URL {
+        var cfg = config
+        cfg.testMode = false
+        return cfg.baseURL
+    }
+
+    func signIn() {
+        guard !isSigningIn, !config.testMode else { return }
+        isSigningIn = true
+        signInError = nil
+        signInNotice = nil
+        let baseURL = regularBaseURL
+        Task {
+            defer { isSigningIn = false }
+            do {
+                let result = try await AppLogin.signIn(baseURL: baseURL)
+                guard AccessTokenStore.save(result.token) else { throw AppLoginError.keychain }
+                result.identity.save()
+                accessToken = result.token
+                signedInAs = result.identity
+                testConnection()
+            } catch AppLoginError.cancelled {
+                // The user closed the sheet.
+            } catch AppLoginError.noLogin {
+                signInNotice = AppLoginError.noLogin.localizedDescription
+            } catch {
+                signInError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Revokes the token on the server and deletes it locally, whatever the server answers.
+    func signOut() {
+        guard !isSigningIn else { return }
+        isSigningIn = true
+        signInError = nil
+        signInNotice = nil
+        let baseURL = regularBaseURL
+        let token = AccessTokenStore.load()
+        Task {
+            defer { isSigningIn = false }
+            var revokeFailure: String?
+            if !token.isEmpty {
+                do {
+                    try await AppLogin.revoke(baseURL: baseURL, token: token)
+                } catch {
+                    revokeFailure = error.localizedDescription
+                }
+            }
+            removeToken()
+            if let revokeFailure {
+                signInError = "Signed out on this iPhone, but the server did not confirm the revocation (\(revokeFailure)). The token may still be listed under Settings → Account in the web UI."
+            }
+        }
+    }
+
+    /// Deletes the stored token without contacting the server.
+    func removeToken() {
+        accessToken = ""
+        AppLoginIdentity.clear()
+        signedInAs = nil
+        serverVersion = nil
+        connectionTestState = .idle
+        if !AccessTokenStore.save("") {
+            signInError = "The access token could not be removed from the Keychain."
         }
     }
 

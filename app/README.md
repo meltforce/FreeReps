@@ -124,7 +124,12 @@ In the app, set **Host** to your server's Tailscale hostname (e.g., `freereps.yo
 
 ### Server with login (access token)
 
-A server with application login answers `401` without a personal access token. Create one in the web UI under **Settings → Account** (scope `api`) and paste it into **Access token** in the app's connection settings; **Test Connection** reports a missing or wrong token. The server has to be reachable from the iPhone, over Tailscale or a public address. The token is stored in the Keychain and sent as `Authorization: Bearer …` to the regular host only, not in test mode. Leave it empty for a Tailscale-only server. Use HTTPS: over plain HTTP the token travels unencrypted.
+A server with application login answers `401` without a personal access token. There are two ways to give the app one, both in its connection settings:
+
+- **Sign In** opens the server's login page (OIDC or password) in a system browser sheet and stores a token issued for this iPhone. **Sign Out** revokes that token on the server and deletes it from the iPhone; when the server does not confirm the revocation, the token is deleted locally and may remain listed in the web UI. Sign-in uses the regular host and is disabled in test mode. A server without application login reports that no sign-in is needed.
+- **Enter a token manually**: create one in the web UI under **Settings → Account** (scope `api`) and paste it. **Remove Token** deletes it from the iPhone only.
+
+**Test Connection** reports a missing or wrong token. The server has to be reachable from the iPhone, over Tailscale or a public address. The token is stored in the Keychain and sent as `Authorization: Bearer …` to the regular host only, not in test mode. Leave it empty for a Tailscale-only server. Use HTTPS: over plain HTTP the token travels unencrypted.
 
 ### Plain HTTP (local development)
 
@@ -137,7 +142,7 @@ Set **Host** to your machine's local IP (e.g., `192.168.1.100`), **Port** to `80
 ### Initial setup
 
 1. Install the app on an iPhone that reaches the server (Tailscale or a public address).
-2. In **Settings**, tap the connection row at the top, set the server's host and port, enter an access token if the server has login enabled, and tap **Test Connection**.
+2. In **Settings**, tap the connection row at the top, set the server's host and port, tap **Sign In** (or enter an access token) if the server has login enabled, and tap **Test Connection**.
 3. Open **Settings → Apple Health Permissions** and grant access. On iOS 27 the permission sheet has a second step: choose **All Recorded Data and Future Data**. With **Past 30 Days**, HealthKit returns nothing older and reports no error.
 4. Under **Settings → Advanced**, choose how far back the first sync reaches (one week to all data).
 5. On the **Sync** tab, tap **Full Sync**. The backfill keeps the screen on while it runs, because HealthKit is unreadable once the iPhone locks; **Keep Screen On** in Settings switches that off.

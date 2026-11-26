@@ -37,6 +37,7 @@
 		AABB0000000000000002003F /* SyncAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0000000000000001003E /* SyncAdvancedView.swift */; };
 		AABB00000000000000020040 /* FreeRepsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010040 /* FreeRepsConfig.swift */; };
 		AABB00000000000000020041 /* FreeRepsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010041 /* FreeRepsService.swift */; };
+		AABB00000000000000020099 /* AppLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010099 /* AppLoginService.swift */; };
 		AABB00000000000000020042 /* FreeRepsPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010042 /* FreeRepsPayload.swift */; };
 		AABB00000000000000020043 /* ImportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010043 /* ImportState.swift */; };
 		AABB00000000000000020044 /* ImportResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00000000000000010044 /* ImportResultView.swift */; };
@@ -107,6 +108,7 @@
 		AABB0000000000000001003E /* SyncAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAdvancedView.swift; sourceTree = "<group>"; };
 		AABB00000000000000010040 /* FreeRepsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsConfig.swift; sourceTree = "<group>"; };
 		AABB00000000000000010041 /* FreeRepsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsService.swift; sourceTree = "<group>"; };
+		AABB00000000000000010099 /* AppLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLoginService.swift; sourceTree = "<group>"; };
 		AABB00000000000000010042 /* FreeRepsPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeRepsPayload.swift; sourceTree = "<group>"; };
 		AABB00000000000000010043 /* ImportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportState.swift; sourceTree = "<group>"; };
 		AABB00000000000000010044 /* ImportResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportResultView.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				AABB00000000000000010041 /* FreeRepsService.swift */,
+				AABB00000000000000010099 /* AppLoginService.swift */,
 				AABB00000000000000010009 /* HealthKitService.swift */,
 				AABB0000000000000001000A /* SyncService.swift */,
 				AABB00000000000000010054 /* SyncAnchors.swift */,
@@ -409,6 +412,7 @@
 				AABB00000000000000020002 /* ContentView.swift in Sources */,
 				AABB00000000000000020040 /* FreeRepsConfig.swift in Sources */,
 				AABB00000000000000020041 /* FreeRepsService.swift in Sources */,
+				AABB00000000000000020099 /* AppLoginService.swift in Sources */,
 				AABB00000000000000020042 /* FreeRepsPayload.swift in Sources */,
 				AABB00000000000000020004 /* SyncState.swift in Sources */,
 				AABB00000000000000020005 /* HealthDataType.swift in Sources */,
@@ -583,7 +587,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/FreeReps/Resources/FreeReps.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeReps/Resources/Info.plist;
@@ -610,7 +614,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/FreeReps/Resources/FreeReps.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeReps/Resources/Info.plist;
@@ -636,7 +640,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/FreeRepsWidgets/FreeRepsWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeRepsWidgets/WidgetInfo.plist;
@@ -662,7 +666,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/FreeRepsWidgets/FreeRepsWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R43S29F4G5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/FreeRepsWidgets/WidgetInfo.plist;
