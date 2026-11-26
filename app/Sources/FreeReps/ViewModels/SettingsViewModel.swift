@@ -126,27 +126,60 @@ final class SettingsViewModel: ObservableObject {
         let cfg = config
         Task {
             let service = FreeRepsService(config: cfg)
+            // Step 1 needs no credentials: /api/v1/version answers on every
+            // FreeReps server, so an unreachable or foreign host is told apart
+            // from a refused sign-in.
+            let version: String
             do {
-                let response = try await service.ping()
-                connectionTestState = .success("Connected! \(response)")
-                // Fetch server version after successful connection
-                await fetchServerVersion(service: service)
+                version = try await Self.identifyServer(service)
+            } catch let error as FreeRepsError {
+                switch error {
+                case .connectionFailed(let msg):
+                    connectionTestState = .failure("No server reachable at this address: \(msg)")
+                default:
+                    connectionTestState = .failure("A server answers at this address, but it is not a FreeReps server.")
+                }
+                return
             } catch {
-                connectionTestState = .failure(error.localizedDescription)
+                connectionTestState = .failure("No server reachable at this address: \(error.localizedDescription)")
+                return
+            }
+            serverVersion = version
+
+            // Step 2: the authenticated identity.
+            do {
+                let name = try await Self.identity(service)
+                connectionTestState = .success("Connected as \(name)")
+            } catch FreeRepsError.unauthorized {
+                connectionTestState = .failure(AccessTokenStore.load().isEmpty
+                    ? "FreeReps server found. It requires sign-in."
+                    : "FreeReps server found, but it rejects the stored token. Sign in again.")
+            } catch FreeRepsError.forbidden {
+                connectionTestState = .failure("FreeReps server found, but access is denied: the token lacks the api scope or the account is disabled.")
+            } catch {
+                connectionTestState = .failure("FreeReps server found, but the identity check failed: \(error.localizedDescription)")
             }
         }
     }
 
-    private func fetchServerVersion(service: FreeRepsService) async {
-        do {
-            let data = try await service.get(path: "api/v1/version")
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: String],
-               let version = json["version"] {
-                serverVersion = version
-            }
-        } catch {
-            // Non-critical — just don't show version
+    /// Returns the version a FreeReps server reports. Throws `.decodingError`
+    /// when the answer is not the version document.
+    private static func identifyServer(_ service: FreeRepsService) async throws -> String {
+        let data = try await service.get(path: "api/v1/version")
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let version = json["version"] as? String else {
+            throw FreeRepsError.decodingError("not a FreeReps version document")
         }
+        return version
+    }
+
+    /// The display name or login `/api/v1/me` reports.
+    private static func identity(_ service: FreeRepsService) async throws -> String {
+        let raw = try await service.ping()
+        let json = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any]
+        let display = json?["display_name"] as? String ?? ""
+        let login = json?["login"] as? String ?? ""
+        return display.isEmpty ? (login.isEmpty ? "unknown user" : login) : display
     }
 
     // MARK: - HealthKit permissions

@@ -21,7 +21,9 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"version": Version})
+	// "server" lets a client tell a FreeReps server from another host that
+	// answers at the address, before it presents credentials.
+	writeJSON(w, http.StatusOK, map[string]string{"server": "freereps", "version": Version})
 }
 
 // meResponse is UserInfo plus whether application login is on; without it

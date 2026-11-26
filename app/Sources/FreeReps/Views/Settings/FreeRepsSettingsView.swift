@@ -93,9 +93,9 @@ struct FreeRepsSettingsView: View {
         case .testing:
             ProgressView().scaleEffect(0.7)
         case .success(let msg):
-            Text(msg).font(.caption).foregroundStyle(.green).lineLimit(2)
+            Text(msg).font(.caption).foregroundStyle(.green).lineLimit(4).multilineTextAlignment(.trailing)
         case .failure(let msg):
-            Text(msg).font(.caption).foregroundStyle(.red).lineLimit(2)
+            Text(msg).font(.caption).foregroundStyle(.red).lineLimit(4).multilineTextAlignment(.trailing)
         }
     }
 }
