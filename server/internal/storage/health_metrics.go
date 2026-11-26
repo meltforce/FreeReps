@@ -225,9 +225,19 @@ const maxRowsPerBatch = 4000
 // partial delivery must not win. An identical re-delivery writes nothing and is not
 // counted. Rows repeating a key within one call keep the last occurrence.
 func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
+	n, _, err := db.InsertHealthMetricsCounted(ctx, rows)
+	return n, err
+}
+
+// InsertHealthMetricsCounted is InsertHealthMetrics that also returns, per
+// metric name, how many rows did not exist before. The ingest path keeps the
+// stored-row count of its checkpoints with it; the first return value counts
+// changed rows as well and would overstate it.
+func (db *DB) InsertHealthMetricsCounted(ctx context.Context, rows []models.HealthMetricRow) (int64, map[string]int64, error) {
+	added := map[string]int64{}
 	rows = dedupeHealthMetricRows(rows)
 	if len(rows) == 0 {
-		return 0, nil
+		return 0, added, nil
 	}
 
 	var totalInserted int64
@@ -236,16 +246,16 @@ func (db *DB) InsertHealthMetrics(ctx context.Context, rows []models.HealthMetri
 		if end > len(rows) {
 			end = len(rows)
 		}
-		inserted, err := db.insertHealthMetricsBatch(ctx, rows[start:end])
+		inserted, err := db.insertHealthMetricsBatch(ctx, rows[start:end], added)
 		if err != nil {
-			return totalInserted, err
+			return totalInserted, added, err
 		}
 		totalInserted += inserted
 	}
-	return totalInserted, nil
+	return totalInserted, added, nil
 }
 
-func (db *DB) insertHealthMetricsBatch(ctx context.Context, rows []models.HealthMetricRow) (int64, error) {
+func (db *DB) insertHealthMetricsBatch(ctx context.Context, rows []models.HealthMetricRow, added map[string]int64) (int64, error) {
 	query := `INSERT INTO health_metrics (time, user_id, metric_name, source, client, units, qty, min_val, avg_val, max_val, systolic, diastolic, source_uuid, source_bundle)
 VALUES `
 	args := make([]any, 0, len(rows)*14)
@@ -273,13 +283,32 @@ WHERE (health_metrics.units, health_metrics.qty, health_metrics.min_val, health_
 	IS DISTINCT FROM
       (EXCLUDED.units, EXCLUDED.qty, EXCLUDED.min_val, EXCLUDED.avg_val,
        EXCLUDED.max_val, EXCLUDED.systolic, EXCLUDED.diastolic, EXCLUDED.source_uuid,
-       EXCLUDED.source_bundle)`
+       EXCLUDED.source_bundle)
+RETURNING metric_name, (xmax = 0)`
 
-	tag, err := db.Pool.Exec(ctx, query, args...)
+	// One row comes back per inserted or changed row; xmax is 0 only on a row
+	// the statement created.
+	res, err := db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("inserting health metrics: %w", err)
 	}
-	return tag.RowsAffected(), nil
+	defer res.Close()
+	var affected int64
+	for res.Next() {
+		var name string
+		var created bool
+		if err := res.Scan(&name, &created); err != nil {
+			return affected, fmt.Errorf("inserting health metrics: %w", err)
+		}
+		affected++
+		if created {
+			added[name]++
+		}
+	}
+	if err := res.Err(); err != nil {
+		return affected, fmt.Errorf("inserting health metrics: %w", err)
+	}
+	return affected, nil
 }
 
 // dedupeHealthMetricRows drops earlier rows that share the conflict key with a later

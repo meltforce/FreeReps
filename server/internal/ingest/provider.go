@@ -4,6 +4,9 @@ package ingest
 type Result struct {
 	MetricsReceived int      `json:"metrics_received"`
 	MetricsInserted int64    `json:"metrics_inserted"`
+	// MetricsAdded counts the rows that did not exist before; MetricsInserted
+	// counts changed rows as well.
+	MetricsAdded int64 `json:"metrics_added"`
 	MetricsSkipped  int64    `json:"metrics_skipped"`
 	MetricsRejected int      `json:"metrics_rejected"`
 	RejectedNames   []string `json:"rejected_names,omitempty"`

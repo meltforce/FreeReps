@@ -89,3 +89,64 @@ func TestCheckpointNeverMovesBack(t *testing.T) {
 		t.Errorf("hae checkpoint = %s, want 12:00", hae)
 	}
 }
+
+// TestCheckpointRowCount: the row count the iOS app shows must count stored
+// rows. A re-sent or changed row is not a new one, and rows that predate the
+// counter are picked up by the recount.
+func TestCheckpointRowCount(t *testing.T) {
+	db := sleepTestDB(t)
+	ctx := context.Background()
+	for _, stmt := range []string{
+		`DELETE FROM health_metrics WHERE user_id = $1`,
+		`DELETE FROM ingest_checkpoints WHERE user_id = $1`,
+	} {
+		if _, err := db.Pool.Exec(ctx, stmt, sleepTestUser); err != nil {
+			t.Fatalf("clearing: %v", err)
+		}
+	}
+	p := NewProvider(db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	app := WithClient(ctx, ClientIOSApp)
+	send := func(raw string) {
+		t.Helper()
+		if _, err := p.Ingest(app, metricPayload(t, raw), sleepTestUser); err != nil {
+			t.Fatalf("ingest: %v", err)
+		}
+	}
+	count := func() *int64 {
+		t.Helper()
+		cps, err := db.IngestCheckpoints(ctx, sleepTestUser, ClientIOSApp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cps {
+			if c.Domain == DomainMetrics && c.Item == "step_count" {
+				return c.RowCount
+			}
+		}
+		t.Fatal("no step_count checkpoint")
+		return nil
+	}
+
+	// Rows stored years apart, before the checkpoint has a count.
+	send(`{"data":{"metrics":[{"name":"step_count","units":"count","data":[
+	  {"date":"2019-03-01 10:00:00 +0000","qty":1},
+	  {"date":"2026-09-20 10:00:00 +0000","qty":500}]}]}}`)
+	if n := count(); n != nil {
+		t.Fatalf("a new checkpoint has a count of %d before the recount", *n)
+	}
+	if err := db.RecountIngestCheckpoints(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n == nil || *n != 2 {
+		t.Fatalf("recount = %v, want 2", n)
+	}
+
+	// One changed row, one identical row, one new row.
+	send(`{"data":{"metrics":[{"name":"step_count","units":"count","data":[
+	  {"date":"2019-03-01 10:00:00 +0000","qty":1},
+	  {"date":"2026-09-20 10:00:00 +0000","qty":900},
+	  {"date":"2026-09-20 11:00:00 +0000","qty":700}]}]}}`)
+	if n := count(); n == nil || *n != 3 {
+		t.Fatalf("after a resend with one new row = %v, want 3", n)
+	}
+}

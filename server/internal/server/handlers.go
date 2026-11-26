@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -89,11 +90,44 @@ func (s *Server) handleSyncState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "reading sync state"})
 		return
 	}
+	// Row counts: metrics carry theirs, kept by the ingest path; the other
+	// domains are counted here, their tables being small.
+	uncounted := false
+	stored, err := s.db.StoredRowCounts(r.Context(), uid)
+	if err != nil {
+		s.log.Warn("counting stored rows", "error", err)
+	}
+	for i, c := range checkpoints {
+		if c.Domain == health.DomainMetrics {
+			uncounted = uncounted || c.RowCount == nil
+		} else if n, ok := stored[c.Domain]; ok {
+			checkpoints[i].RowCount = &n
+		}
+	}
+	if uncounted {
+		s.recountCheckpoints()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"client":      client,
 		"server_now":  time.Now().UTC(),
 		"checkpoints": checkpoints,
 	})
+}
+
+// recountCheckpoints fills missing checkpoint row counts in the background,
+// one run at a time. The request that found them missing answers without.
+func (s *Server) recountCheckpoints() {
+	if !s.recounting.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer s.recounting.Store(false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := s.db.RecountIngestCheckpoints(ctx); err != nil {
+			s.log.Error("recounting ingest checkpoints", "error", err)
+		}
+	}()
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {

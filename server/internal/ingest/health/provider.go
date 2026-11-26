@@ -72,7 +72,13 @@ func raiseNewest(newest map[string]time.Time, item string, t time.Time) {
 // or already present. A failure is logged and not returned: the data is stored,
 // and a checkpoint that stays behind costs the client one redundant fetch.
 func (p *Provider) advanceCheckpoint(ctx context.Context, userID int, domain string, newest map[string]time.Time) {
-	if err := p.db.AdvanceIngestCheckpoints(ctx, userID, clientFrom(ctx), domain, newest); err != nil {
+	p.advanceCheckpointCounted(ctx, userID, domain, newest, nil)
+}
+
+// advanceCheckpointCounted also adds the rows the insert created, per item, to
+// the checkpoints' row counts.
+func (p *Provider) advanceCheckpointCounted(ctx context.Context, userID int, domain string, newest map[string]time.Time, added map[string]int64) {
+	if err := p.db.AdvanceIngestCheckpoints(ctx, userID, clientFrom(ctx), domain, newest, added); err != nil {
 		p.log.Warn("advancing ingest checkpoint", "domain", domain, "error", err)
 	}
 }
@@ -258,18 +264,21 @@ func (p *Provider) processMetrics(ctx context.Context, metrics []models.HealthMe
 
 	// Batch insert health metrics
 	if len(healthRows) > 0 {
-		inserted, err := p.db.InsertHealthMetrics(ctx, healthRows)
+		inserted, added, err := p.db.InsertHealthMetricsCounted(ctx, healthRows)
 		if err != nil {
 			return fmt.Errorf("inserting health metrics: %w", err)
 		}
 		result.MetricsInserted = inserted
+		for _, n := range added {
+			result.MetricsAdded += n
+		}
 		result.MetricsSkipped = int64(len(healthRows)) - inserted
 
 		newest := map[string]time.Time{}
 		for _, r := range healthRows {
 			raiseNewest(newest, r.MetricName, r.Time)
 		}
-		p.advanceCheckpoint(ctx, userID, DomainMetrics, newest)
+		p.advanceCheckpointCounted(ctx, userID, DomainMetrics, newest, added)
 
 		if err := p.fillSourceWorkouts(ctx, userID, healthRows, result); err != nil {
 			return err

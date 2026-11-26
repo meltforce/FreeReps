@@ -421,9 +421,15 @@ CREATE TABLE ingest_checkpoints (
     item           TEXT        NOT NULL DEFAULT '',
     newest_sample  TIMESTAMPTZ NOT NULL,
     last_import_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    row_count      BIGINT,
     PRIMARY KEY (user_id, client, domain, item)
 );
 ```
+
+`row_count` is used for `metrics` only: the client's `health_metrics` rows of
+that metric name. The ingest path adds the rows an insert created; NULL is
+filled by `RecountIngestCheckpoints`, started by a sync-state request. After
+deleting `health_metrics` rows outside the ingest path, set it to NULL.
 
 ## Deduplication Strategy
 
@@ -435,7 +441,7 @@ nothing. A client that aggregates into buckets sends the current bucket while it
 fills and again once it is complete; under `DO NOTHING` the partial value stayed
 (see [`INCIDENTS.md`](../../INCIDENTS.md), 2026-09-25). Rows repeating a key
 within one call keep the last occurrence. The count returned to the client as
-`metrics_inserted` includes changed rows.
+`metrics_inserted` includes changed rows; `metrics_added` counts created rows only.
 
 `activity_summaries` upserts on `(user_id, date)` the same way: a day's
 summary grows until the day ends and is sent on every sync.

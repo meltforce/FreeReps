@@ -48,9 +48,11 @@ The client is resolved from the same header: `freereps_ios` with
   "server_now": "2026-09-27T10:00:00Z",
   "checkpoints": [
     {"domain": "metrics", "item": "step_count",
-     "newest_sample": "2026-09-27T09:00:00Z", "last_import_at": "2026-09-27T09:05:12Z"},
+     "newest_sample": "2026-09-27T09:00:00Z", "last_import_at": "2026-09-27T09:05:12Z",
+     "row_count": 61234},
     {"domain": "workouts",
-     "newest_sample": "2026-09-26T17:30:00Z", "last_import_at": "2026-09-27T09:05:13Z"}
+     "newest_sample": "2026-09-26T17:30:00Z", "last_import_at": "2026-09-27T09:05:13Z",
+     "row_count": 7716}
   ]
 }
 ```
@@ -61,6 +63,13 @@ returned without error; every sample up to it is stored. Domains are
 newest workout that carried route points), `activity_summaries`,
 `state_of_mind` and `category_samples`. A domain the client never delivered has
 no entry. The endpoint only reads; the checkpoints advance on ingest.
+
+`row_count` is the number of stored rows. For `metrics` it counts the calling
+client's `health_metrics` rows of that metric name and is absent until the
+first count has run; the request that finds it absent starts the count. For
+the other domains it counts the user's rows of every source, and for
+`workout_routes` the workouts that have a route. The ingest response reports
+the rows an import created as `metrics_added`.
 
 ## JSON Payload Structure
 

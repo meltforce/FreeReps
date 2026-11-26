@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/claude/freereps/internal/accounts"
 	"github.com/claude/freereps/internal/alerts"
@@ -28,6 +29,8 @@ import (
 type Server struct {
 	db     *storage.DB
 	health *health.Provider
+	// recounting is set while RecountIngestCheckpoints runs.
+	recounting atomic.Bool
 	alpha  *alpha.Provider
 	log    *slog.Logger
 	lc     *local.Client
