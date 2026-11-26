@@ -5,7 +5,7 @@ import UIKit
 
 enum AppLoginError: LocalizedError {
     case cancelled
-    /// `GET /auth/methods` answered 404.
+    /// `GET /auth/methods` answered 404 or without a methods document.
     case noLogin
     case noWindow
     case stateMismatch
@@ -120,13 +120,17 @@ enum AppLogin {
         guard http.statusCode == 204 else { throw serverError(http, data) }
     }
 
-    /// 200 from `/auth/methods` means the server has application login, 404 that it has none.
+    /// A methods document from `/auth/methods` means the server has application
+    /// login. 404 means it has none, and so does a 200 with another body: a
+    /// server from before the login answers every unknown path with its web UI.
     private static func probe(baseURL: URL) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/methods"))
         request.timeoutInterval = 15
         let (data, http) = try await send(request)
         switch http.statusCode {
-        case 200: return
+        case 200:
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  json["methods"] is [Any] else { throw AppLoginError.noLogin }
         case 404: throw AppLoginError.noLogin
         default: throw serverError(http, data)
         }
