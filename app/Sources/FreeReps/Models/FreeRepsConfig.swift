@@ -5,20 +5,14 @@ struct FreeRepsConfig: Codable, Equatable {
     var host: String
     var port: UInt16
     var useHTTPS: Bool = true
-    var testMode: Bool = false
-    var testHost: String = ""
-    var testPort: UInt16 = 443
     /// Max days of HealthKit history to backfill. nil = all data (back to 2000).
     /// Legacy: `backfillMonths` and `backfillYears` are decoded and converted to days.
     var backfillDays: Int? = 730
 
-    init(host: String, port: UInt16, useHTTPS: Bool = true, testMode: Bool = false, testHost: String = "", testPort: UInt16 = 443, backfillDays: Int? = 730) {
+    init(host: String, port: UInt16, useHTTPS: Bool = true, backfillDays: Int? = 730) {
         self.host = host
         self.port = port
         self.useHTTPS = useHTTPS
-        self.testMode = testMode
-        self.testHost = testHost
-        self.testPort = testPort
         self.backfillDays = backfillDays
     }
 
@@ -26,30 +20,16 @@ struct FreeRepsConfig: Codable, Equatable {
         host: "freereps.your-tailnet.ts.net",
         port: 443,
         useHTTPS: true,
-        testMode: false,
-        testHost: "",
-        testPort: 443,
         backfillDays: 730
     )
 
     var baseURL: URL {
-        let effectiveHost: String
-        let effectivePort: UInt16
-        if testMode {
-            effectiveHost = testHost
-            effectivePort = testPort
-        } else {
-            effectiveHost = host
-            effectivePort = port
-        }
         let scheme = useHTTPS ? "https" : "http"
-        return URL(string: "\(scheme)://\(effectiveHost):\(effectivePort)")!
+        return URL(string: "\(scheme)://\(host):\(port)")!
     }
 
-    /// Token for the `Authorization` header, nil when none is stored. Test mode
-    /// sends none: the token belongs to the regular host.
+    /// Token for the `Authorization` header, nil when none is stored.
     var accessToken: String? {
-        if testMode { return nil }
         let token = AccessTokenStore.load()
         return token.isEmpty ? nil : token
     }
@@ -71,9 +51,14 @@ struct FreeRepsConfig: Codable, Equatable {
         host = try c.decode(String.self, forKey: .host)
         port = try c.decode(UInt16.self, forKey: .port)
         useHTTPS = try c.decodeIfPresent(Bool.self, forKey: .useHTTPS) ?? true
-        testMode = try c.decodeIfPresent(Bool.self, forKey: .testMode) ?? false
-        testHost = try c.decodeIfPresent(String.self, forKey: .testHost) ?? ""
-        testPort = try c.decodeIfPresent(UInt16.self, forKey: .testPort) ?? 443
+        // Until 2.3.0 a "test mode" held a second server that replaced host and
+        // port while it was on. A stored config with it on keeps talking to that
+        // server: its host and port become the regular ones.
+        if try c.decodeIfPresent(Bool.self, forKey: .testMode) ?? false,
+           let testHost = try c.decodeIfPresent(String.self, forKey: .testHost), !testHost.isEmpty {
+            host = testHost
+            port = try c.decodeIfPresent(UInt16.self, forKey: .testPort) ?? 443
+        }
 
         // Migrate: prefer backfillDays, fall back to backfillMonths, then backfillYears.
         // A stored nil (all data) decodes as absent under every key and stays nil.
@@ -93,9 +78,6 @@ struct FreeRepsConfig: Codable, Equatable {
         try c.encode(host, forKey: .host)
         try c.encode(port, forKey: .port)
         try c.encode(useHTTPS, forKey: .useHTTPS)
-        try c.encode(testMode, forKey: .testMode)
-        try c.encode(testHost, forKey: .testHost)
-        try c.encode(testPort, forKey: .testPort)
         try c.encode(backfillDays, forKey: .backfillDays)
     }
 

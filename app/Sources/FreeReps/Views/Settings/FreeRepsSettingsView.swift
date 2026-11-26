@@ -36,12 +36,7 @@ struct FreeRepsSettingsView: View {
                                 if vm.isSigningIn { ProgressView() }
                             }
                         }
-                        .disabled(vm.isSigningIn || vm.config.testMode)
-                        if vm.config.testMode {
-                            Text("Sign-in uses the regular host. Turn off test mode to sign in.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        .disabled(vm.isSigningIn)
                     } else {
                         Label("Token stored", systemImage: "key")
                         Button("Remove Token", role: .destructive) { vm.removeToken() }
@@ -65,40 +60,7 @@ struct FreeRepsSettingsView: View {
             } header: {
                 Text("Access")
             } footer: {
-                Text("Needed when the server has login enabled. Sign In opens the server's login page and stores a token for this iPhone; alternatively create a token under Settings → Account in the FreeReps web UI and enter it manually. A Tailscale-only server needs neither. The token is not sent in test mode.")
-            }
-
-            Section {
-                Toggle(isOn: $vm.config.testMode) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Test Mode")
-                            .font(.subheadline.weight(.semibold))
-                        Text("Connect to a separate test server")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if vm.config.testMode {
-                    LabeledContent("Host") {
-                        TextField("freereps-test.example.com", text: $vm.config.testHost)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    LabeledContent("Port") {
-                        TextField("443", value: $vm.config.testPort, format: .number)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-            } header: {
-                Text("Testing")
-            } footer: {
-                if vm.config.testMode {
-                    Text("Test mode overrides the connection above and connects to the test server instead. The test server must use HTTPS with a valid certificate (e.g., Let's Encrypt).")
-                        .font(.caption2)
-                }
+                Text("Needed when the server has login enabled. Sign In opens the server's login page and stores a token for this iPhone; alternatively create a token under Settings → Account in the FreeReps web UI and enter it manually. A Tailscale-only server needs neither.")
             }
 
             Section {

@@ -50,19 +50,12 @@ final class SettingsViewModel: ObservableObject {
 
     // MARK: - Sign-in
 
-    /// The regular host, also while test mode is on: sign-in tokens belong to it.
-    private var regularBaseURL: URL {
-        var cfg = config
-        cfg.testMode = false
-        return cfg.baseURL
-    }
-
     func signIn() {
-        guard !isSigningIn, !config.testMode else { return }
+        guard !isSigningIn else { return }
         isSigningIn = true
         signInError = nil
         signInNotice = nil
-        let baseURL = regularBaseURL
+        let baseURL = config.baseURL
         Task {
             defer { isSigningIn = false }
             do {
@@ -88,7 +81,7 @@ final class SettingsViewModel: ObservableObject {
         isSigningIn = true
         signInError = nil
         signInNotice = nil
-        let baseURL = regularBaseURL
+        let baseURL = config.baseURL
         let token = AccessTokenStore.load()
         Task {
             defer { isSigningIn = false }
