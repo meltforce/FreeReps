@@ -291,6 +291,7 @@ final class SyncService: ObservableObject {
         SyncService.isSyncRunning = true
         defer { SyncService.isSyncRunning = false }
         syncState.errorMessage = nil
+        syncState.beginRun()
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: false)
         let waitWatcher = watchHealthKitWaits()
@@ -342,7 +343,7 @@ final class SyncService: ObservableObject {
                 }
             }
 
-            syncState.updateCategory(categoryID, status: .completed, recordCount: count, lastSyncDate: Date())
+            syncState.updateCategory(categoryID, status: .completed, recordCount: count, added: count, lastSyncDate: Date())
             syncState.lastSyncDate = Date()
             syncState.currentOperation = ""
             // Clear cursor so a future full sync re-visits this category from the beginning
@@ -379,6 +380,7 @@ final class SyncService: ObservableObject {
         SyncService.isSyncRunning = true
         defer { SyncService.isSyncRunning = false }
         syncState.errorMessage = nil
+        syncState.beginRun()
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: true)
         let waitWatcher = watchHealthKitWaits()
@@ -447,7 +449,7 @@ final class SyncService: ObservableObject {
                         catID: catID, cat: cat, types: types,
                         from: historicalStart, until: anchor, config: config
                     )
-                    syncState.updateCategory(catID, status: .completed, recordCount: count, lastSyncDate: Date())
+                    syncState.updateCategory(catID, status: .completed, recordCount: count, added: count, lastSyncDate: Date())
                     updateLiveActivity(phase: cat.rawValue, operation: "Backfilled \(cat.rawValue) (\(count.formatted()) records)", records: count)
                 } catch is CancellationError {
                     throw CancellationError()
@@ -493,7 +495,7 @@ final class SyncService: ObservableObject {
                             return 0
                         }
                     }
-                    syncState.updateCategory(catID, status: .completed, recordCount: count, lastSyncDate: Date())
+                    syncState.updateCategory(catID, status: .completed, recordCount: count, added: count, lastSyncDate: Date())
                     updateLiveActivity(phase: displayName, operation: "Backfilled \(displayName) (\(count.formatted()) records)", records: count)
                 } catch is CancellationError {
                     throw CancellationError()
@@ -528,7 +530,7 @@ final class SyncService: ObservableObject {
                         }
                     }
                     for try await (catID, displayName, count) in group {
-                        syncState.updateCategory(catID, status: .completed, recordCount: count, lastSyncDate: Date())
+                        syncState.updateCategory(catID, status: .completed, recordCount: count, added: count, lastSyncDate: Date())
                         syncState.backfillCursors[catID] = anchor
                         updateLiveActivity(phase: displayName, operation: "Backfilled \(displayName) (\(count.formatted()) records)", records: count)
                     }
@@ -696,6 +698,7 @@ final class SyncService: ObservableObject {
         SyncService.isSyncRunning = true
         defer { SyncService.isSyncRunning = false }
         syncState.errorMessage = nil
+        syncState.beginRun()
         syncState.currentOperation = "Connecting\u{2026}"
         startLiveActivity(isFullSync: false)
         let waitWatcher = watchHealthKitWaits()
@@ -757,7 +760,7 @@ final class SyncService: ObservableObject {
                     total += count
                     if count > 0 {
                         let existing = syncState.categories.first(where: { $0.id == target.categoryID })?.recordCount ?? 0
-                        syncState.updateCategory(target.categoryID, status: .completed, recordCount: existing + count, lastSyncDate: now)
+                        syncState.updateCategory(target.categoryID, status: .completed, recordCount: existing + count, added: count, lastSyncDate: now)
                         updateLiveActivity(phase: target.name, operation: "Synced \(target.name)", records: total)
                     }
                 } catch is CancellationError {
@@ -828,6 +831,56 @@ final class SyncService: ObservableObject {
     /// behind marks where the previous backfill stopped. A category without any
     /// checkpoint, or a server that cannot answer, keeps the configured start.
     /// State of Mind is read over the full range in one query and is not seeded.
+    // MARK: - Stored counts
+
+    /// Reads the server's row counts into the category tiles. The server counts
+    /// its metric rows on the first request, so a pending count is asked for
+    /// again a few times.
+    func refreshStoredCounts(config: FreeRepsConfig) async {
+        let service = FreeRepsService(config: config)
+        for attempt in 0..<6 {
+            guard let state = try? await service.fetchSyncState() else { return }
+            // A server without row counts sends none at all; keep the local counts.
+            guard state.checkpoints.contains(where: { $0.row_count != nil }) else {
+                let pending = state.checkpoints.contains { $0.domain == "metrics" }
+                if !pending || attempt == 5 { return }
+                try? await Task.sleep(for: .seconds(10))
+                continue
+            }
+            var pending = false
+            func metrics(_ names: [String]) -> Int? {
+                let rows = state.checkpoints.filter { $0.domain == "metrics" && names.contains($0.item ?? "") }
+                if rows.contains(where: { $0.row_count == nil }) { pending = true; return nil }
+                return rows.compactMap(\.row_count).reduce(0, +)
+            }
+            func domain(_ name: String) -> Int {
+                state.checkpoints.first { $0.domain == name }?.row_count ?? 0
+            }
+            var counts: [String: Int?] = [
+                "cat_bp": metrics(["blood_pressure_systolic", "blood_pressure_diastolic"]),
+                "cat_category": domain("category_samples"),
+                "cat_workouts": domain("workouts"),
+                "cat_activity_summaries": domain("activity_summaries"),
+                "cat_workout_routes": domain("workout_routes"),
+                "cat_state_of_mind": domain("state_of_mind"),
+            ]
+            for (cat, types) in HealthDataTypes.quantityTypesByCategory {
+                let names = Array(Set(types.compactMap { hkToFreeRepsMetricName[$0.id] }))
+                counts["qty_\(cat.rawValue)"] = metrics(names)
+            }
+            // A sync that started meanwhile moves the counts itself.
+            guard !syncState.isAnySyncRunning else { return }
+            for (id, count) in counts {
+                guard let count, let idx = syncState.categories.firstIndex(where: { $0.id == id }) else { continue }
+                syncState.categories[idx].storedCount = count
+            }
+            syncState.recalcOverall()
+            syncState.persist()
+            if !pending { return }
+            try? await Task.sleep(for: .seconds(10))
+        }
+    }
+
     private func seedCursorsFromServer(historicalStart: Date, anchor: Date) async {
         guard let freereps else { return }
         let state: ServerSyncState
@@ -1142,7 +1195,7 @@ final class SyncService: ObservableObject {
                 let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
                 try Task.checkCancellation()
                 let result = try await ingest(payload)
-                total += result.metrics_inserted ?? batch.count
+                total += result.metrics_added ?? result.metrics_inserted ?? batch.count
                 onBatchInserted?(total)
             }
         }
@@ -1185,7 +1238,7 @@ final class SyncService: ObservableObject {
                 let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
                 try Task.checkCancellation()
                 let result = try await ingest(payload)
-                total += result.metrics_inserted ?? batch.count
+                total += result.metrics_added ?? result.metrics_inserted ?? batch.count
                 onBatchInserted?(total)
             }
         }
@@ -1242,7 +1295,7 @@ final class SyncService: ObservableObject {
                 let payload = FreeRepsPayload(data: FreeRepsData(metrics: [metric]))
                 try Task.checkCancellation()
                 let result = try await ingest(payload)
-                total += result.metrics_inserted ?? batch.count
+                total += result.metrics_added ?? result.metrics_inserted ?? batch.count
                 onBatchInserted?(total)
             }
         }
@@ -1436,7 +1489,7 @@ final class SyncService: ObservableObject {
             ]
             let payload = FreeRepsPayload(data: FreeRepsData(metrics: metrics))
             let result = try await ingest(payload)
-            total += result.metrics_inserted ?? sysPoints.count
+            total += result.metrics_added ?? result.metrics_inserted ?? sysPoints.count
         }
         return total
     }

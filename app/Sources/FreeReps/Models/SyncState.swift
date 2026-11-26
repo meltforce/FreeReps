@@ -7,6 +7,8 @@ struct PersistedCategory: Codable {
     let recordCount: Int
     let lastSyncDate: Date?
     let completed: Bool
+    var storedCount: Int? = nil
+    var lastRunAdded: Int? = nil
 }
 
 struct PersistedSnapshot: Codable {
@@ -46,9 +48,18 @@ struct CategorySyncState: Identifiable {
     let displayName: String
     let systemImage: String
     var status: SyncStatus
+    /// Rows the server reported as stored by this installation's syncs; the
+    /// fallback for `storedCount`.
     var recordCount: Int
+    /// Rows the server holds for this category, from its sync state. Nil when
+    /// the server reports none, as a server older than the row counts does.
+    var storedCount: Int? = nil
+    /// Rows the most recent sync run created on the server.
+    var lastRunAdded: Int? = nil
     var lastSyncDate: Date?
     var currentProgress: Int
+
+    var displayCount: Int { storedCount ?? recordCount }
     var totalEstimated: Int
     var latestHealthKitDate: Date? = nil  // newest HK sample, queried on demand (not persisted)
 
@@ -85,16 +96,30 @@ class SyncState: ObservableObject {
     var isAnySyncRunning: Bool { isFullSyncRunning }
 
     func updateCategory(_ id: String, status: SyncStatus? = nil, recordCount: Int? = nil,
+                        added: Int? = nil,
                         lastSyncDate: Date? = nil, progress: Int? = nil, total: Int? = nil) {
         guard let idx = categories.firstIndex(where: { $0.id == id }) else { return }
         if let s = status { categories[idx].status = s }
         if let r = recordCount { categories[idx].recordCount = r }
+        if let a = added {
+            categories[idx].lastRunAdded = (categories[idx].lastRunAdded ?? 0) + a
+            // Until the server's count is read again, the tile moves with the run.
+            if let stored = categories[idx].storedCount { categories[idx].storedCount = stored + a }
+        }
         if let d = lastSyncDate { categories[idx].lastSyncDate = d }
         if let p = progress { categories[idx].currentProgress = p }
         if let t = total { categories[idx].totalEstimated = t }
 
         recalcOverall()
     }
+
+    /// Clears what the previous run added, at the start of a run.
+    func beginRun() {
+        for i in categories.indices { categories[i].lastRunAdded = nil }
+    }
+
+    /// Rows the most recent run created, over all categories.
+    var lastRunAdded: Int { categories.compactMap(\.lastRunAdded).reduce(0, +) }
 
     func resetAllLocalState() {
         SyncAnchors.clear()
@@ -108,6 +133,8 @@ class SyncState: ObservableObject {
         for i in categories.indices {
             categories[i].status = .idle
             categories[i].recordCount = 0
+            categories[i].storedCount = nil
+            categories[i].lastRunAdded = nil
             categories[i].lastSyncDate = nil
             categories[i].currentProgress = 0
         }
@@ -119,6 +146,7 @@ class SyncState: ObservableObject {
         guard let idx = categories.firstIndex(where: { $0.id == id }) else { return }
         categories[idx].status = .idle
         categories[idx].recordCount = 0
+        categories[idx].lastRunAdded = nil
         categories[idx].lastSyncDate = nil
         categories[idx].currentProgress = 0
         persist()
@@ -135,7 +163,7 @@ class SyncState: ObservableObject {
         overallProgress = (completedCount + syncingProgress) / total
         // The total is the sum of the categories. It used to be set from a local
         // database count, which the app no longer has, and stayed at 0.
-        totalRecords = categories.map(\.recordCount).reduce(0, +)
+        totalRecords = categories.map(\.displayCount).reduce(0, +)
     }
 
     // MARK: - Persistence
@@ -150,7 +178,9 @@ class SyncState: ObservableObject {
                     id: $0.id,
                     recordCount: $0.recordCount,
                     lastSyncDate: $0.lastSyncDate,
-                    completed: $0.status == .completed
+                    completed: $0.status == .completed,
+                    storedCount: $0.storedCount,
+                    lastRunAdded: $0.lastRunAdded
                 )
             },
             totalRecords: totalRecords,
@@ -176,6 +206,8 @@ class SyncState: ObservableObject {
         for persisted in snap.categories {
             guard let idx = categories.firstIndex(where: { $0.id == persisted.id }) else { continue }
             categories[idx].recordCount = persisted.recordCount
+            categories[idx].storedCount = persisted.storedCount
+            categories[idx].lastRunAdded = persisted.lastRunAdded
             categories[idx].lastSyncDate = persisted.lastSyncDate
             if persisted.completed { categories[idx].status = .completed }
         }

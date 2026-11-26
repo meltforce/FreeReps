@@ -35,6 +35,7 @@ final class SyncViewModel: ObservableObject {
     var isFullSyncRunning: Bool { syncState.isFullSyncRunning }
     var isAnySyncRunning: Bool { syncState.isAnySyncRunning }
     var totalRecords: Int { syncState.totalRecords }
+    var lastRunAdded: Int { syncState.lastRunAdded }
     var lastSyncDate: Date? { syncState.lastSyncDate }
     var overallProgress: Double { syncState.overallProgress }
     var currentOperation: String { syncState.currentOperation }
@@ -91,6 +92,7 @@ final class SyncViewModel: ObservableObject {
 
     private func runSyncBody(config: FreeRepsConfig) async -> LastSyncRecord {
         await syncService.runFullSync(config: config)
+        await syncService.refreshStoredCounts(config: config)
         refreshLatestHealthKitDates()
         let outcome: LastSyncRecord.Outcome
         if syncState.errorMessage != nil {
@@ -120,6 +122,7 @@ final class SyncViewModel: ObservableObject {
         let config = FreeRepsConfig.load()
         syncTask = Task {
             await syncService.runSingleCategorySync(categoryID: categoryID, config: config)
+            await syncService.refreshStoredCounts(config: config)
             refreshLatestHealthKitDates()
         }
     }
@@ -207,9 +210,11 @@ final class SyncViewModel: ObservableObject {
         }
     }
 
+    /// Reads the server's row counts into the tiles; a sync refreshes them
+    /// itself when it ends.
     func refreshRecordCounts() {
-        // Record counts are tracked locally in SyncState from ingest results.
-        // No direct DB query needed — counts accumulate from successful sync operations.
-        syncState.persist()
+        guard !isAnySyncRunning else { return }
+        let config = FreeRepsConfig.load()
+        Task { await syncService.refreshStoredCounts(config: config) }
     }
 }

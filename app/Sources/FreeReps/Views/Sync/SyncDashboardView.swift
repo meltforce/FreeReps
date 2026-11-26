@@ -159,6 +159,11 @@ struct SyncDashboardView: View {
                     Text("records")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if vm.lastRunAdded > 0 {
+                        Text("+\(vm.lastRunAdded.formatted()) new")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.green)
+                    }
                 }
             }
 

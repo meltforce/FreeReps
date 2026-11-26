@@ -25,6 +25,8 @@ enum FreeRepsError: LocalizedError {
 struct IngestResult: Codable {
     var metrics_received: Int?
     var metrics_inserted: Int?
+    /// Rows that did not exist before; `metrics_inserted` counts changed rows too.
+    var metrics_added: Int?
     var metrics_skipped: Int?
     var metrics_rejected: Int?
     var sleep_sessions_inserted: Int?
@@ -55,6 +57,8 @@ struct ServerSyncState: Decodable {
         let domain: String
         let item: String?
         let newest_sample: Date
+        /// Stored rows; absent on a server without row counts or while it counts.
+        let row_count: Int?
     }
 
     let client: String

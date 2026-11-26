@@ -26,14 +26,23 @@ struct CategoryStatusCard: View {
             }
             .foregroundStyle(state.tint)
 
-            Text(state.recordCount.formatted())
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .tracking(-0.24)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.numericText())
-                .animation(.default, value: state.recordCount)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(state.displayCount.formatted())
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .tracking(-0.24)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText())
+                    .animation(.default, value: state.displayCount)
+                if let added = state.lastRunAdded, added > 0 {
+                    Text("+\(added.formatted(.number.notation(.compactName))) new")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
+            }
 
             statusLine
                 .frame(height: 16)
