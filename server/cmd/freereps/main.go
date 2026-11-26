@@ -219,6 +219,12 @@ func main() {
 			os.Exit(1)
 		}
 		srv.SetAuth(authn, accts)
+		if *demoMode || os.Getenv("FREEREPS_DEMO") == "true" {
+			if err := ensureDemoLogin(ctx, cfg, authn, os.Getenv("FREEREPS_DEMO_PASSWORD")); err != nil {
+				log.Error("demo login failed", "error", err)
+				os.Exit(1)
+			}
+		}
 		log.Info("application login enabled", "methods", cfg.Auth.Methods,
 			"policy", cfg.Accounts.Policy, "whois_fallback", cfg.Tailscale.Enabled)
 	}

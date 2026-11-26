@@ -670,6 +670,8 @@ cd web && npm ci && npm run build && cd ..
 go run ./cmd/freereps -config config.yaml -demo
 ```
 
+With an `auth:` block that includes `methods: [password]`, set `FREEREPS_DEMO_PASSWORD` as well: the demo data belongs to user 1, and that variable gives it the login `demo` with that password. Without it no account can see the data.
+
 This seeds the database with 90 days of generated health data — heart rate, sleep, workouts, activity rings and strength sessions with sets, reps and effort ratings. The data is deterministic and idempotent — restarting with `-demo` or `FREEREPS_DEMO=true` won't create duplicates.
 
 The server will be available at `http://localhost:8080`. To tear down:

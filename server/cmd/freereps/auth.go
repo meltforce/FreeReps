@@ -30,6 +30,31 @@ func buildAuth(cfg *config.Config, db *storage.DB, log *slog.Logger) (*auth.Auth
 	return a, accts, nil
 }
 
+// demoUser is the user demo.Seed writes its data for; demoUsername signs in as
+// that user.
+const (
+	demoUserID   = 1
+	demoUsername = "demo"
+)
+
+// ensureDemoLogin gives the demo user a password login, so that a demo instance
+// with application login enabled has an account that sees the seeded data: App
+// Store review signs in with it. Without a password, or without the password
+// method, it does nothing. A later start with another password replaces it.
+func ensureDemoLogin(ctx context.Context, cfg *config.Config, a *auth.Auth, password string) error {
+	if password == "" || !cfg.Auth.HasMethod(auth.MethodPassword) {
+		return nil
+	}
+	err := a.CreatePasswordUser(ctx, demoUserID, demoUsername, password)
+	if errors.Is(err, auth.ErrExists) {
+		err = a.SetPassword(ctx, demoUserID, password)
+	}
+	if err != nil {
+		return fmt.Errorf("creating the demo login: %w", err)
+	}
+	return nil
+}
+
 const authUsage = `usage:
   freereps auth create-user [--config path] [--admin] <username>
       creates a password user; the password is read from stdin
