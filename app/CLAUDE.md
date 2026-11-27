@@ -25,10 +25,14 @@ removed with the homelab tool `tools/review-server` — its `README.md` there
 governs; nothing about it is restated here:
 
 ```bash
-~/projects/homelab/tools/review-server/review-server deploy  freereps REVIEW_IMAGE_TAG=<release>
+~/projects/homelab/tools/review-server/review-server deploy  freereps REVIEW_IMAGE_TAG=<release> REVIEW_DEMO_PASSWORD=<password>
 ~/projects/homelab/tools/review-server/review-server destroy freereps   # after approval
 ```
 
-Review notes: host `freereps-test.meltforce.net`, HTTPS on, port 443; the
-instance holds 90 days of generated demo data. Add a ROADMAP line to destroy it
-when the submission goes in, and remove the row when `destroy` has run.
+Review notes: host `freereps-test.meltforce.net`; the instance holds 90 days of
+generated demo data and has password login, because the reviewer has to use
+Sign In. The account is `demo`; its password is the `REVIEW_DEMO_PASSWORD` of
+the deploy, kept in setec as `homelab/review-freereps-demo-password` and
+entered in App Store Connect under App Review Information. Add a ROADMAP line
+to destroy it when the submission goes in, and remove the row when `destroy`
+has run.

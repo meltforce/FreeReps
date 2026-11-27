@@ -27,3 +27,7 @@ full notes as of 2026-11-13 are frozen in `archive/ROADMAP-2026-11-13.md`.
 - `Bench Press` names two different exercises
 - 2026-05-02 holds nine sets, all flagged as warm-ups
 - Detail view for sessions without a workout row
+
+## iOS app
+
+- Destroy the App Store review server (`review-server destroy freereps`, deployed 2026-11-27 for app 2.3.0) and delete setec `homelab/review-freereps-demo-password` — App 2.3.0 is approved
