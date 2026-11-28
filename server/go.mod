@@ -11,7 +11,7 @@ require (
 	github.com/meltforce/meltkit v0.4.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.63.0
-	tailscale.com v1.106.0
+	tailscale.com v1.106.1
 )
 
 require (
